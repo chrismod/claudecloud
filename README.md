@@ -17,6 +17,7 @@ npm install
 npm run dev            # Entwicklungsserver auf http://localhost:5173
 npm test               # Physik-Tests + Lösbarkeit aller Level (headless, ~10 s)
 npm run levels         # Report: Referenzlösung und Fehlversuche je Level
+node scripts/robustness.mjs   # Lösungen mit menschlicher Ungenauigkeit (Timing, Zielpunkte) durchspielen
 ```
 
 ## Auf den eigenen Server stellen
@@ -60,32 +61,33 @@ Jeder Faden hat eine Temperatur, die über ~9 Sekunden von heiß nach kalt sinkt
 Dazu kommen **Rampen**, **vorgespannte Fäden** (eine Olive hängt schon an einem Faden oder wird von
 einer Käseleine gehalten – Schnitt!) und **Countdown-Level**, in denen die Olive von selbst losrollt.
 
-22 Level, die nacheinander freigeschaltet werden:
+20 Level, die nacheinander freigeschaltet werden:
 
 | # | Level | Idee |
 | --- | --- | --- |
-| 1 | Il primo filo | eine Brücke |
-| 2 | Doppio filo | zwei Brücken |
-| 3 | La discesa | Rampe, schnelle Olive, Brücke |
-| 4 | Taglia! | hängende Olive abschneiden |
-| 5 | La rete | Netz: frisch fängt, kalt bricht |
-| 6 | Il cancello | Käseleine kappen, wenn die Brücke fest ist |
-| 7 | Due ponti | Brücke fest, Netz frisch – Reihenfolge |
-| 8 | L'altalena | schaukeln und schneiden |
-| 9 | Al momento giusto | Countdown: Netz erst kurz vorher ziehen |
+| 1 | Il primo filo | eine Brücke – frischer Käse wird zur Hängematte, erst fester trägt |
+| 2 | La rete | Netz: frisch fängt, kalt bricht |
+| 3 | Due ponti | Brücke fest, Netz frisch – die Reihenfolge entscheidet |
+| 4 | Il cancello | Käseleine kappen, wenn die Brücke fest ist |
+| 5 | L'altalena | Leine abkühlen lassen, schaukeln, im richtigen Moment schneiden |
+| 6 | Al momento giusto | Countdown: Netz erst kurz vorher ziehen |
+| 7 | Caduta libera | Netz unter die hängende Olive, dann schneiden |
+| 8 | La discesa | Rampe, Brücke und ein frischer Bremsfaden über dem Glas |
+| 9 | Doppio taglio | zwei Fäden, zwei Schnitte |
 | 10 | Zigzag | zwei Netze hintereinander |
 | 11 | Rifare | vorgespanntes Netz wird zu kalt – ersetzen |
-| 12 | Caduta libera | Netz unter die hängende Olive, dann schneiden |
-| 13 | Il ponte lungo | weite Schlucht mit Zwischenspieß |
-| 14 | Il volo | Schwung über den Abgrund |
-| 15 | Fretta! | Countdown: Brücken sofort ziehen |
-| 16 | Acchiappa! | rollende Olive mit kurzem Faden einfangen |
-| 17 | Prima il ponte | Netz vor Brücke auf dem Weg, aber Brücke zuerst ziehen |
-| 18 | Doppio taglio | zwei Fäden, zwei Schnitte |
-| 19 | Tic tac | Countdown + Schaukel |
-| 20 | Sotto e sopra | Leine, tiefer Fall, Netz |
-| 21 | Il labirinto | Leine, Brücke, Netz |
-| 22 | Gran finale | Brücke, fliegend anhängen, Schaukel, Schnitt |
+| 12 | Il volo | Schwung über den Abgrund |
+| 13 | Fretta! | Countdown: Brücken sofort ziehen |
+| 14 | Il ponte lungo | weite Schlucht mit Zwischenspieß |
+| 15 | Acchiappa! | rollende Olive mit kurzem Faden einfangen |
+| 16 | Prima il ponte | Netz vor Brücke auf dem Weg, aber Brücke zuerst ziehen |
+| 17 | Tic tac | Countdown + Schaukel |
+| 18 | Sotto e sopra | Leine, tiefer Fall, Netz – nicht zu heiß, nicht zu kalt |
+| 19 | Il labirinto | Leine, Brücke, Netz |
+| 20 | Gran finale | Schnitt, Netz, Brücke |
+
+Ein Faden muss an einem Spieß oder an der Olive enden – im Leeren losgelassen verfällt er (der Käse
+kommt zurück), und die Geste wirkt als Schnitt.
 
 Sterne (Oliven) gibt es für sparsamen Käseverbrauch.
 
@@ -107,8 +109,9 @@ Sterne (Oliven) gibt es für sparsamen Käseverbrauch.
   Brechen, Martini-Spritzer beim Treffer.
 - **Sound** (`src/audio.js`) – prozedural per WebAudio.
 - **Level** (`src/levels.js`) – datengetrieben. Zu jedem Level gibt es in `tests/solutions.js` eine
-  Referenzlösung und typische Fehlversuche; `tests/levels.test.js` prüft headless, dass jede Lösung
-  gewinnt und kein Fehlversuch.
+  Referenzlösung, alternative Lösungswege und typische Fehlversuche; `tests/levels.test.js` prüft
+  headless, dass jede Lösung gewinnt und kein Fehlversuch. `scripts/robustness.mjs` spielt sie zusätzlich
+  mit zufälligen Ungenauigkeiten, damit kein Level vom Zufall abhängt.
 
 ```
 src/

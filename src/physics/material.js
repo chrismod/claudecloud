@@ -14,7 +14,7 @@ export const STRAND_GRAVITY_SCALE = 0.27;
 const HOT = {
   stretch: 6e-3, // Dehnungs-Compliance pro Längeneinheit
   bend: Infinity, // keine Biegesteifigkeit
-  flow: 1.6, // plastisches Fließen (1/s) oberhalb der Fließgrenze
+  flow: 2.5, // plastisches Fließen (1/s) oberhalb der Fließgrenze
   yieldStrain: 0.015,
   shrink: 0.1, // aktives Zusammenziehen (1/s) – macht Fäden straff
   bendFlow: 40, // Biege-Ruhelage folgt sofort der aktuellen Form
@@ -49,7 +49,8 @@ export function setness(T) {
 export function materialAt(T, out = {}) {
   const s = setness(T);
   out.setness = s;
-  out.stretchCompliance = lerpLog(HOT.stretch, COLD.stretch, s);
+  // bleibt länger weich und zieht erst spät an
+  out.stretchCompliance = lerpLog(HOT.stretch, COLD.stretch, smooth(0.05, 1, s));
   // Biegesteifigkeit setzt erst ein, wenn der Käse anzieht
   const sb = smooth(0.35, 1, s);
   out.bendCompliance = sb <= 0 ? Infinity : lerpLog(5e-1, COLD.bend, sb);

@@ -256,6 +256,8 @@ class Game {
     this.stage.renderer.domElement.setPointerCapture(e.pointerId);
     this.pointer.id = e.pointerId;
     this.pointer.last = p;
+    this.pointer.start = p;
+    this.pointer.startClient = { x: e.clientX, y: e.clientY };
     this.pointer.lastTime = performance.now();
     const anchor = e.button === 0 ? this.world.pickAnchor(p.x, p.y, this._pickRadius()) : null;
     if (anchor && this.world.cheeseLeft > 0.05 && this.world.olive.state !== 'won') {
@@ -304,6 +306,12 @@ class Game {
       const p = this.stage.toWorld(e.clientX, e.clientY) || this.pointer.last;
       const res = w.endStrand(p.x, p.y, this._pickRadius());
       if (res && (res.result === 'anchor' || res.result === 'olive')) this.sound.attach();
+      // Im Leeren losgelassen: der Faden verfällt, die Geste zählt als Schnitt
+      if (res && res.result === 'discarded') {
+        const a = this.pointer.start;
+        if (w.cut(a.x, a.y, p.x, p.y)) this.sound.snap(false);
+        this.trail.push({ x: this.pointer.startClient.x, y: this.pointer.startClient.y, t: this.time }, { x: e.clientX, y: e.clientY, t: this.time });
+      }
     }
     this.sound.stretch(0);
     this.pointer.mode = null;

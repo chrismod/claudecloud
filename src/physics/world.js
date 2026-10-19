@@ -17,6 +17,8 @@ export const A0 = Math.PI * THREAD_RADIUS * THREAD_RADIUS;
 export const MIN_RADIUS = THREAD_RADIUS * 0.3;
 
 const SUBSTEPS = 20;
+const STUCK_SECONDS = 3;
+const STUCK_EXTENT = 2.2;
 const AIR_DRAG = 0.4; // geringer Luftwiderstand für Fäden; die Zähigkeit wirkt intern
 const ANCHOR_PICK_RADIUS = 0.65;
 const MIN_STRAND_LENGTH = 0.35;
@@ -302,7 +304,10 @@ export class World {
       last.pin = { kind: 'olive' };
       result = 'olive';
     } else {
-      last.pin = null;
+      // Ein Faden muss an einem Spieß oder der Olive enden – sonst verfällt er
+      this.removeStrand(s);
+      this.used = Math.max(0, this.used - s.vol.reduce((a, b) => a + b, 0) / A0);
+      return { result: 'discarded' };
     }
     last.vx = last.vy = 0;
     s.state = 'live';
@@ -517,6 +522,8 @@ export class World {
       const p = s.particles;
       // Der Faden, an dem die Olive hängt (oder der gerade gezogen wird), kollidiert nicht mit ihr
       if (s.state === 'drawing') continue;
+      // lose Käsereste (an keinem Spieß befestigt) stoßen die Olive nicht an
+      if (!s.particles.some((p) => p.pin && p.pin.kind === 'anchor')) continue;
       if ((p[0].pin && p[0].pin.kind === 'olive') || (p[p.length - 1].pin && p[p.length - 1].pin.kind === 'olive')) continue;
       for (let i = 0; i < p.length - 1; i++) {
         const a = p[i];
@@ -668,6 +675,8 @@ export class World {
     // Herabgefallene Fäden entfernen
     for (const s of [...this.strands]) {
       if (s.state === 'drawing') continue;
+      // lose Käsereste (an keinem Spieß befestigt) stoßen die Olive nicht an
+      if (!s.particles.some((p) => p.pin && p.pin.kind === 'anchor')) continue;
       if (s.particles.length < 2 || s.particles.every((p) => p.y < this.killY - 4)) this.removeStrand(s);
     }
     this._oliveState(dt);
@@ -703,13 +712,17 @@ export class World {
       const e = L / rest - 1;
       s.strain[i] += (e - s.strain[i]) * ema;
       s.base[i] += (s.strain[i] - s.base[i]) * Math.min(1, m.baseFollow * dt);
-      const shrink = drawing ? 0 : m.shrink;
-      const rate = m.flow * Math.max(0, e - m.yieldStrain) - shrink;
-      s.rest[i] = Math.max(rest * (1 + rate * dt), SEGMENT_LENGTH * 0.2);
-      const r = Math.sqrt(s.vol[i] / (Math.PI * Math.max(L, 1e-4)));
-      // Beim Ziehen reißt der Faden nur, wenn er zu dünn wird
-      const strainScore = drawing ? 0 : (s.strain[i] - Math.max(0, s.base[i])) / m.breakStrain;
-      const score = Math.max(MIN_RADIUS / r, strainScore);
+      // Beim Ziehen bestimmt allein die Käsezufuhr die Länge (kein Fließen, kein Zusammenziehen)
+      if (!drawing) {
+        const rate = m.flow * Math.max(0, e - m.yieldStrain) - m.shrink;
+        s.rest[i] = Math.max(rest * (1 + rate * dt), SEGMENT_LENGTH * 0.2);
+      }
+      // Reißen nur bei bleibender (plastischer) Ausdünnung, nicht bei kurzem elastischen Ruck
+      const r = Math.sqrt(s.vol[i] / (Math.PI * Math.max(s.rest[i], 1e-4)));
+      // Ein Faden, der gerade gezogen wird, reißt nicht – ruckartige Mausbewegungen
+      // dehnen ihn kurzzeitig stark, das soll ihn nicht zerstören.
+      const strainScore = (s.strain[i] - Math.max(0, s.base[i])) / m.breakStrain;
+      const score = drawing ? 0 : Math.max(MIN_RADIUS / r, strainScore);
       if (score > worstScore) {
         worstScore = score;
         worst = i;
@@ -786,6 +799,12 @@ export class World {
     for (const part of parts) {
       if (part.particles.length < 2) continue;
       for (const q of part.particles) if (q.pin && q.pin.kind === 'cursor') q.pin = null;
+      // Ein abgeschnittenes Stück, das nur noch an der Olive klebt, fällt ab –
+      // sonst stützt ein kalter, starrer Rest die Olive wie ein Ständer ab.
+      const first = part.particles[0];
+      const last = part.particles[part.particles.length - 1];
+      const anchored = first.pin?.kind === 'anchor' || last.pin?.kind === 'anchor';
+      if (!anchored) for (const q of [first, last]) if (q.pin && q.pin.kind === 'olive') q.pin = null;
       const ns = new Strand(part.particles, part.rest, part.vol, s.T);
       ns.strain = part.strain;
       ns.base = part.base;
@@ -812,21 +831,32 @@ export class World {
         return;
       }
     }
-    // Feststecken: Olive bleibt längere Zeit in einem kleinen Umkreis
-    // (nicht, solange sie an einem Faden hängt – dann kann man sie noch abschneiden)
+    // Feststecken: Die Olive kommt in den letzten Sekunden nicht mehr vom Fleck
+    // (auch nicht, wenn sie in einer Käse-Hängematte hin- und herschaukelt).
+    // Ausnahme: Sie hängt an einem Faden oder liegt an einer Leine – dann kann man sie noch abschneiden.
     const hanging = this.strands.some((s) => {
       const a = s.particles[0].pin;
       const b = s.particles[s.particles.length - 1].pin;
       return (a?.kind === 'olive' && b?.kind === 'anchor') || (a?.kind === 'anchor' && b?.kind === 'olive');
     });
-    if (hanging || o.touchPreset || !o.home || Math.hypot(o.x - o.home.x, o.y - o.home.y) > 1.2) {
-      o.home = { x: o.x, y: o.y };
-      o.stillTime = 0;
-    } else {
-      o.stillTime += dt;
+    const track = (o.track ||= []);
+    if (hanging || o.touchPreset) track.length = 0;
+    else track.push(o.x, o.y);
+    const window = Math.round(STUCK_SECONDS / dt) * 2;
+    if (track.length > window) track.splice(0, track.length - window);
+    let stuck = false;
+    if (track.length === window) {
+      let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
+      for (let k = 0; k < window; k += 2) {
+        x0 = Math.min(x0, track[k]);
+        x1 = Math.max(x1, track[k]);
+        y0 = Math.min(y0, track[k + 1]);
+        y1 = Math.max(y1, track[k + 1]);
+      }
+      stuck = x1 - x0 < STUCK_EXTENT && y1 - y0 < STUCK_EXTENT;
     }
     const fell = o.y < this.killY || Math.abs(o.x) > 40;
-    if (fell || o.stillTime > 4) {
+    if (fell || stuck) {
       o.state = 'lost';
       o.w = 0;
       this.emit({ type: 'lost', reason: fell ? 'fell' : 'stuck', x: o.x, y: o.y });

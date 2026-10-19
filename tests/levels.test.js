@@ -20,6 +20,7 @@ for (const [i, level] of LEVELS.entries()) {
     assert.equal(r.state, 'won', `Referenzlösung: ${r.log.join('; ')}`);
     assert.ok(r.used <= level.par + 1e-6, `Lösung verbraucht ${r.used.toFixed(2)} > par ${level.par}`);
     assert.ok(level.par <= level.cheese);
+    for (const a of sol.also || []) assert.equal(play(level, a).state, 'won', `Alternative Lösung: ${JSON.stringify(a)}`);
     for (const f of sol.fail || []) assert.notEqual(play(level, f).state, 'won', `Fehlversuch gewinnt: ${JSON.stringify(f)}`);
   });
 }

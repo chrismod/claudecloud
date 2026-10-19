@@ -14,8 +14,9 @@ for (const [i, level] of LEVELS.entries()) {
   const r = play(level, sol.solve);
   const o = r.world.olive;
   const fails = (sol.fail || []).map((f) => play(level, f).state);
-  const ok = r.state === 'won' && fails.every((s) => s !== 'won');
+  const alsos = (sol.also || []).map((a) => play(level, a).state);
+  const ok = r.state === 'won' && fails.every((s) => s !== 'won') && alsos.every((s) => s === 'won');
   console.log(
-    `${ok ? '✓' : '✗'} ${String(i + 1).padStart(2)} ${level.id.padEnd(16)} lösung=${r.state.padEnd(4)} käse=${r.used.toFixed(2)}/${level.cheese} par=${level.par} t=${r.time.toFixed(1)} olive=(${o.x.toFixed(1)},${o.y.toFixed(1)}) fehlversuche=[${fails.join(',')}] ${r.log.join('; ')}`,
+    `${ok ? '✓' : '✗'} ${String(i + 1).padStart(2)} ${level.id.padEnd(16)} lösung=${r.state.padEnd(4)} käse=${r.used.toFixed(2)}/${level.cheese} par=${level.par} t=${r.time.toFixed(1)} olive=(${o.x.toFixed(1)},${o.y.toFixed(1)}) alternativ=[${alsos.join(',')}] fehlversuche=[${fails.join(',')}] ${r.log.join('; ')}`,
   );
 }

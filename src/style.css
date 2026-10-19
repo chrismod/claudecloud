@@ -11,7 +11,8 @@
   --gold: #f1c153;
   --shadow: 0 10px 30px rgba(30, 14, 4, 0.35);
   --radius: 18px;
-  font-family: 'Nunito', system-ui, sans-serif;
+  --font: 'Jost', 'Futura', 'Century Gothic', system-ui, sans-serif;
+  font-family: var(--font);
   color: var(--ink);
 }
 
@@ -75,13 +76,25 @@ body {
 }
 
 .brand {
-  font-family: 'Fraunces', Georgia, serif;
-  font-style: italic;
-  font-weight: 700;
-  font-size: 30px;
-  color: var(--mozz);
-  text-shadow: 0 2px 0 var(--tomato-dark), 0 6px 18px rgba(0, 0, 0, 0.45);
-  letter-spacing: 0.5px;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-family: var(--font);
+  font-weight: 600;
+  font-size: 19px;
+  text-transform: uppercase;
+  letter-spacing: 0.32em;
+  color: var(--ink);
+}
+
+/* Bildmarke: eine Olive mit Paprika, rein geometrisch */
+.brand::before {
+  content: '';
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: radial-gradient(circle, var(--tomato) 0 32%, var(--olive) 34%);
+  flex: none;
 }
 
 .level-title {
@@ -92,8 +105,7 @@ body {
   background: var(--cream);
   border-radius: 999px;
   box-shadow: var(--shadow);
-  font-family: 'Fraunces', Georgia, serif;
-  font-style: italic;
+  font-family: var(--font);
   font-size: 19px;
 }
 
@@ -105,9 +117,8 @@ body {
   border-radius: 50%;
   background: var(--tomato);
   color: var(--cream);
-  font-family: 'Nunito', sans-serif;
-  font-style: normal;
-  font-weight: 800;
+  font-family: var(--font);
+  font-weight: 700;
   font-size: 15px;
 }
 
@@ -131,7 +142,7 @@ button {
   background: var(--cream);
   color: var(--ink);
   font-size: 19px;
-  font-weight: 800;
+  font-weight: 700;
   box-shadow: var(--shadow);
   transition: transform 0.12s ease, background 0.12s;
 }
@@ -198,7 +209,7 @@ button {
   align-items: center;
   gap: 8px;
   font-size: 11px;
-  font-weight: 800;
+  font-weight: 700;
   text-transform: uppercase;
   letter-spacing: 0.5px;
   color: var(--ink-soft);
@@ -223,7 +234,7 @@ button {
   border-radius: 999px;
   background: var(--olive);
   color: var(--cream);
-  font-weight: 800;
+  font-weight: 700;
   font-size: 19px;
   box-shadow: 0 5px 0 #33461a, var(--shadow);
   transition: transform 0.1s, box-shadow 0.1s, opacity 0.2s, background 0.2s;
@@ -246,7 +257,7 @@ button {
 kbd {
   font-family: inherit;
   font-size: 11px;
-  font-weight: 800;
+  font-weight: 700;
   padding: 3px 7px;
   border-radius: 6px;
   background: rgba(255, 255, 255, 0.18);
@@ -299,20 +310,22 @@ kbd {
 }
 
 .card h1 {
-  font-family: 'Fraunces', Georgia, serif;
-  font-style: italic;
-  font-weight: 700;
-  font-size: 58px;
-  margin: 8px 0 0;
-  color: var(--tomato);
-  letter-spacing: 0.5px;
+  font-family: var(--font);
+  font-weight: 600;
+  font-size: 40px;
+  margin: 10px 0 2px;
+  color: var(--ink);
+  text-transform: uppercase;
+  letter-spacing: 0.3em;
+  /* Sperrung auch rechts ausgleichen, damit das Wort optisch mittig sitzt */
+  padding-left: 0.3em;
 }
 
 .card h2 {
-  font-family: 'Fraunces', Georgia, serif;
-  font-style: italic;
-  font-weight: 700;
-  font-size: 40px;
+  font-family: var(--font);
+  font-weight: 600;
+  font-size: 34px;
+  letter-spacing: 0.01em;
   margin: 6px 0 8px;
   color: var(--tomato);
 }
@@ -355,7 +368,7 @@ kbd {
 .secondary {
   padding: 13px 26px;
   border-radius: 999px;
-  font-weight: 800;
+  font-weight: 700;
   font-size: 17px;
   transition: transform 0.1s, background 0.15s;
 }
@@ -476,12 +489,11 @@ kbd {
   border-radius: 50%;
   background: var(--tomato);
   color: var(--cream);
-  font-weight: 800;
+  font-weight: 700;
 }
 
 .level-card .name {
-  font-family: 'Fraunces', Georgia, serif;
-  font-style: italic;
+  font-family: var(--font);
   font-size: 16px;
 }
 
@@ -549,8 +561,7 @@ kbd {
     gap: 18px;
     background: #2b1a0f;
     color: var(--mozz);
-    font-family: 'Fraunces', Georgia, serif;
-    font-style: italic;
+    font-family: var(--font);
     font-size: 22px;
   }
   .rotate-hint .olive-icon {

@@ -50,12 +50,37 @@ export function cutOliveStrand(world) {
   return world.cut(m.x - (dy / L) * 0.5, m.y + (dx / L) * 0.5, m.x + (dy / L) * 0.5, m.y - (dx / L) * 0.5);
 }
 
-export function play(level, steps, { maxSeconds = 30 } = {}) {
+// Deterministischer Zufall für Robustheitsprüfungen
+export function rng(seed) {
+  let s = seed >>> 0 || 1;
+  return () => {
+    s = (s * 1664525 + 1013904223) >>> 0;
+    return s / 4294967296;
+  };
+}
+
+// jitter: simuliert menschliche Ungenauigkeit (Zeichendauer, Endpunkt, Wartezeit)
+export function play(level, steps, { maxSeconds = 30, jitter = null } = {}) {
   const world = new World(level);
   const log = [];
+  const r = jitter ? rng(jitter) : null;
+  const vary = (x, d) => (r ? x + (r() * 2 - 1) * d : x);
   for (const step of steps) {
     const [op, ...args] = step;
     if (world.olive.state === 'won' || world.olive.state === 'lost') break;
+    if (op === 'draw') {
+      let to = args[1];
+      if (r && typeof to === 'number') {
+        const a = world.anchors[to];
+        to = [vary(a.x, 0.25), vary(a.y, 0.25)];
+      }
+      const res = drawStrand(world, args[0], to, r ? 0.25 + r() * 0.6 : 0.4);
+      log.push(`draw ${args[0]}→${args[1]}: ${res?.result ?? 'abgebrochen'}`);
+      continue;
+    } else if (op === 'wait' && r) {
+      simulate(world, Math.max(0, vary(args[0], 0.25)));
+      continue;
+    }
     if (op === 'draw') {
       const r = drawStrand(world, args[0], args[1]);
       log.push(`draw ${args[0]}→${args[1]}: ${r?.result ?? 'abgebrochen'}`);
