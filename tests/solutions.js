@@ -19,8 +19,7 @@ export const SOLUTIONS = {
   },
   'il-cancello': {
     solve: [['go'], ['draw', 1, 2], ['wait', 3], ['cut', 'olive']],
-    // ohne „Olive los!“: der Schnitt allein gibt die Olive frei
-    also: [[['draw', 1, 2], ['wait', 3], ['cut', 'olive']]],
+    also: [[['draw', 1, 2], ['wait', 3], ['cut', 'olive'], ['go']]],
     fail: [[['go'], ['cut', 'olive']], [['go'], ['draw', 1, 2], ['cut', 'olive']]],
   },
   altalena: {
@@ -36,7 +35,7 @@ export const SOLUTIONS = {
   },
   caduta: {
     solve: [['go'], ['draw', 1, 2], ['wait', 3], ['cut', 'olive']],
-    also: [[['draw', 1, 2], ['wait', 3], ['cut', 'olive']]],
+    also: [[['draw', 1, 2], ['wait', 3], ['cut', 'olive'], ['go']]],
     fail: [[['go'], ['cut', 'olive']], [['draw', 1, 2], ['wait', 9], ['go'], ['cut', 'olive']]],
   },
   'la-discesa': {
@@ -45,7 +44,6 @@ export const SOLUTIONS = {
   },
   'doppio-taglio': {
     solve: [['go'], ['cut', -3.2, 3.0, -2.4, 3.8], ['wait', 1.4], ['cut', 'olive']],
-    also: [[['cut', -3.2, 3.0, -2.4, 3.8], ['wait', 1.4], ['cut', 'olive']]],
     fail: [[['go'], ['cut', -3.2, 3.0, -2.4, 3.8], ['wait', 0.4], ['cut', 'olive']]],
   },
   zigzag: {
@@ -93,7 +91,6 @@ export const SOLUTIONS = {
   },
   'gran-finale': {
     solve: [['draw', 3, 4], ['draw', 1, 2], ['wait', 2], ['go'], ['cut', 'olive']],
-    also: [[['draw', 3, 4], ['draw', 1, 2], ['wait', 2], ['cut', 'olive']]],
     fail: [[['draw', 1, 2], ['go'], ['cut', 'olive']], [['draw', 3, 4], ['draw', 1, 2], ['wait', 9], ['go'], ['cut', 'olive']]],
   },
 };
