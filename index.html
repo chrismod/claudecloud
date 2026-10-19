@@ -24,21 +24,18 @@
 
       <header class="hud-top">
         <div class="brand">Filatura</div>
-        <div class="level-title">
+        <div class="level-title" title="Mozzarella-Vorrat">
           <span class="level-num" id="level-num">1</span>
           <span id="level-name"></span>
+          <div class="bar" aria-label="Mozzarella-Vorrat"><div class="fill" id="cheese-fill"></div></div>
         </div>
         <div class="actions">
+          <button class="icon-btn" id="btn-hint" title="Hinweis (H)" aria-label="Hinweis anzeigen">?</button>
           <button class="icon-btn" id="btn-sound" title="Ton an/aus (M)" aria-label="Ton an/aus">♪</button>
           <button class="icon-btn" id="btn-restart" title="Neustart (R)" aria-label="Neustart">↺</button>
           <button class="icon-btn" id="btn-levels" title="Level (L)" aria-label="Levelauswahl">☰</button>
         </div>
       </header>
-
-      <div class="cheese-meter" title="Käsevorrat">
-        <span class="label">Mozzarella</span>
-        <div class="bar"><div class="fill" id="cheese-fill"></div></div>
-      </div>
 
       <aside class="hint" id="hint">
         <p id="hint-text"></p>

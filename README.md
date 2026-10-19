@@ -14,11 +14,22 @@ aber auch spröde. Das *Wann* ist genauso wichtig wie das *Wo*.
 
 ```bash
 npm install
-npm run dev      # Entwicklungsserver auf http://localhost:5173
-npm run build    # Produktions-Build nach dist/
-npm test         # Physik- und Level-Regressionstests (headless)
-npm run levels   # Report: Lösungs- und Fehlversuche je Level
+npm run dev            # Entwicklungsserver auf http://localhost:5173
+npm test               # Physik-Tests + Lösbarkeit aller Level (headless, ~10 s)
+npm run levels         # Report: Referenzlösung und Fehlversuche je Level
 ```
+
+## Auf den eigenen Server stellen
+
+```bash
+npm run build:single   # → dist-single/filatura.html
+```
+
+Eine einzige HTML-Datei (~600 KB, three.js eingebettet), die auf jedem Webserver läuft: hochladen und
+aufrufen, fertig. Nur die Schriften kommen von Google Fonts (ohne Internet gibt es Ersatzschriften).
+
+Alternativ `npm run build` → Ordner `dist/` (index.html + assets/) mit relativen Pfaden, funktioniert auch
+in einem Unterordner. `npm run build:artifact` erzeugt die Variante für claude.ai-Artifacts.
 
 ## Steuerung
 
@@ -29,6 +40,7 @@ npm run levels   # Report: Lösungs- und Fehlversuche je Level
 | Olive loslassen | Button „Olive los!“ | Leertaste |
 | Neustart | ↺ | R |
 | Levelauswahl | ☰ | L |
+| Hinweis ein/aus | ? | H |
 | Ton an/aus | ♪ | M |
 | Ziehen abbrechen | | Esc |
 
@@ -45,12 +57,35 @@ Jeder Faden hat eine Temperatur, die über ~9 Sekunden von heiß nach kalt sinkt
 | Aufprall | fängt weich ab | **bricht spröde** |
 | Länge | zieht sich zusammen → wird straff | eingefroren |
 
-Daraus ergeben sich die Rätsel der vier Level:
+Dazu kommen **Rampen**, **vorgespannte Fäden** (eine Olive hängt schon an einem Faden oder wird von
+einer Käseleine gehalten – Schnitt!) und **Countdown-Level**, in denen die Olive von selbst losrollt.
 
-1. **Il primo filo** – eine Brücke bauen.
-2. **La rete** – ein Netz für eine fallende Olive: kalt zerbricht es, frisch fängt es.
-3. **Due ponti** – Brücke *und* Netz: erst die Brücke ziehen und fest werden lassen, das Netz zuletzt.
-4. **L'altalena** – die Olive an einen Faden hängen, schaukeln lassen und im richtigen Moment durchschneiden.
+22 Level, die nacheinander freigeschaltet werden:
+
+| # | Level | Idee |
+| --- | --- | --- |
+| 1 | Il primo filo | eine Brücke |
+| 2 | Doppio filo | zwei Brücken |
+| 3 | La discesa | Rampe, schnelle Olive, Brücke |
+| 4 | Taglia! | hängende Olive abschneiden |
+| 5 | La rete | Netz: frisch fängt, kalt bricht |
+| 6 | Il cancello | Käseleine kappen, wenn die Brücke fest ist |
+| 7 | Due ponti | Brücke fest, Netz frisch – Reihenfolge |
+| 8 | L'altalena | schaukeln und schneiden |
+| 9 | Al momento giusto | Countdown: Netz erst kurz vorher ziehen |
+| 10 | Zigzag | zwei Netze hintereinander |
+| 11 | Rifare | vorgespanntes Netz wird zu kalt – ersetzen |
+| 12 | Caduta libera | Netz unter die hängende Olive, dann schneiden |
+| 13 | Il ponte lungo | weite Schlucht mit Zwischenspieß |
+| 14 | Il volo | Schwung über den Abgrund |
+| 15 | Fretta! | Countdown: Brücken sofort ziehen |
+| 16 | Acchiappa! | rollende Olive mit kurzem Faden einfangen |
+| 17 | Prima il ponte | Netz vor Brücke auf dem Weg, aber Brücke zuerst ziehen |
+| 18 | Doppio taglio | zwei Fäden, zwei Schnitte |
+| 19 | Tic tac | Countdown + Schaukel |
+| 20 | Sotto e sopra | Leine, tiefer Fall, Netz |
+| 21 | Il labirinto | Leine, Brücke, Netz |
+| 22 | Gran finale | Brücke, fliegend anhängen, Schaukel, Schnitt |
 
 Sterne (Oliven) gibt es für sparsamen Käseverbrauch.
 
@@ -71,8 +106,9 @@ Sterne (Oliven) gibt es für sparsamen Käseverbrauch.
 - **Effekte** – Dampf über heißem Käse, Tropfen beim Reißen, Krümel beim
   Brechen, Martini-Spritzer beim Treffer.
 - **Sound** (`src/audio.js`) – prozedural per WebAudio.
-- **Level** (`src/levels.js`) – datengetrieben. Die Lösbarkeit wird in
-  `tests/physics.test.js` headless geprüft.
+- **Level** (`src/levels.js`) – datengetrieben. Zu jedem Level gibt es in `tests/solutions.js` eine
+  Referenzlösung und typische Fehlversuche; `tests/levels.test.js` prüft headless, dass jede Lösung
+  gewinnt und kein Fehlversuch.
 
 ```
 src/
@@ -88,7 +124,7 @@ src/
     strandView.js    Käsefaden-Geometrie und -Material
     effects.js       Partikeleffekte
     textures.js      prozedurale Texturen
-tests/               node:test-Regressionstests
+tests/               Regressionstests, Level-Lösungen und Harness
 scripts/             Headless-Werkzeuge fürs Level-Design
 ```
 
@@ -96,5 +132,5 @@ scripts/             Headless-Werkzeuge fürs Level-Design
 
 - Weitere Käsesorten als Material: Raclette (sehr flüssig), Halloumi (zäh, quietscht), Fondue-Topf als Käsequelle
 - Bewegliche Spieße, Ventilatoren, die Fäden schneller abkühlen, Wärmelampen
-- Level-Editor und Teilen von Leveln per URL
+- Level-Editor und Teilen von Leveln per URL (das Lösungs-Harness kann neue Level direkt prüfen)
 - Ghost-Replays und Highscores

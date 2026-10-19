@@ -1,5 +1,7 @@
-// Leveldaten. Koordinaten in Welt-Einheiten, sichtbar ist etwa x ∈ [-10, 10], y ∈ [-5.6, 5.6].
-// look: Aussehen des Blocks (bread | cheese | board)
+// Leveldaten. Koordinaten in Welt-Einheiten; sicher sichtbar ist etwa x ∈ [-10, 10], y ∈ [-5.4, 4.8].
+// look: Aussehen eines Blocks (bread | cheese | board)
+// strands: vorgespannte Fäden { from, to, T } – Endpunkt ist ein Ankerindex oder 'olive'
+// autoRelease: Sekunden, nach denen die Olive von selbst losrollt
 
 const ground = (x0, x1, top, look = 'bread', depth = 6) => ({
   type: 'box',
@@ -10,14 +12,28 @@ const ground = (x0, x1, top, look = 'bread', depth = 6) => ({
   look,
 });
 
-const ledge = (x0, x1, top, h = 0.9, look = 'bread') => ({
-  type: 'box',
-  x: (x0 + x1) / 2,
-  y: top - h / 2,
-  w: x1 - x0,
-  h,
-  look,
-});
+const ledge = (x0, x1, top, h = 0.9, look = 'bread') => ground(x0, x1, top, look, h);
+
+// Schräge, angegeben über die Oberkante von (x0, y0) nach (x1, y1)
+const ramp = (x0, y0, x1, y1, look = 'bread', thick = 0.7) => {
+  const dx = x1 - x0;
+  const dy = y1 - y0;
+  const L = Math.hypot(dx, dy);
+  const nx = -dy / L;
+  const ny = dx / L;
+  return {
+    type: 'box',
+    x: (x0 + x1) / 2 - (nx * thick) / 2,
+    y: (y0 + y1) / 2 - (ny * thick) / 2,
+    w: L,
+    h: thick,
+    angle: Math.atan2(dy, dx),
+    look,
+  };
+};
+
+// Kleines Martiniglas, das auf einem Boden mit Oberkante floorTop steht
+const cup = (x, floorTop) => ({ x, y: floorTop + 1.95, depth: 1.0, stem: 0.9 });
 
 export const LEVELS = [
   {
@@ -33,6 +49,66 @@ export const LEVELS = [
     ],
     cheese: 8,
     par: 6,
+  },
+  {
+    id: 'doppio-filo',
+    name: 'Doppio filo',
+    hint: 'Zwei Lücken, zwei Fäden. Erst wenn beide fest sind, darf die Olive rollen.',
+    olive: { x: -8, y: 0.32, vx: 3.5 },
+    glass: cup(8.4, -3.3),
+    statics: [
+      ground(-14, -4.8, 0),
+      ground(-1.4, 1.4, 0, 'cheese'),
+      ground(4.8, 7, 0),
+      ground(7, 14, -3.3, 'board', 3),
+      ground(9.6, 14, 0.8, 'cheese', 4.1),
+    ],
+    anchors: [
+      { x: -4.68, y: -0.06 },
+      { x: -1.52, y: -0.06 },
+      { x: 1.52, y: -0.06 },
+      { x: 4.68, y: -0.06 },
+    ],
+    cheese: 9.5,
+    par: 7.2,
+  },
+  {
+    id: 'la-discesa',
+    name: 'La discesa',
+    hint: 'Bergab wird die Olive schnell. Die Brücke muss halten.',
+    olive: { x: -9.5, y: 4.12, vx: 2 },
+    glass: cup(7.0, -2.9),
+    statics: [
+      ground(-14, -8, 3.8),
+      ramp(-8, 3.8, -3.2, 0.5),
+      ground(-3.2, -0.8, 0.5),
+      ground(3.6, 5.6, 0.5),
+      ground(5.6, 14, -2.9, 'board', 3),
+      ground(8.25, 14, 1.5, 'cheese', 4.4),
+    ],
+    anchors: [
+      { x: -0.68, y: 0.44 },
+      { x: 3.48, y: 0.44 },
+    ],
+    cheese: 6.5,
+    par: 4.9,
+  },
+  {
+    id: 'taglia',
+    name: 'Taglia!',
+    hint: 'Olive los – und dann den Faden mit einer Wischgeste durchschneiden.',
+    olive: { x: -3, y: 2.3, vx: 0 },
+    glass: cup(4.3, -4.55),
+    statics: [
+      ground(-14, -6.6, 0.6),
+      ramp(-6.6, 0.6, 2.8, -2.0),
+      ground(2.8, 5.5, -4.55, 'board', 2),
+      ground(5.5, 14, -0.6, 'bread', 3.95),
+    ],
+    anchors: [{ x: -3, y: 4.3 }],
+    strands: [{ from: 0, to: 'olive', T: 0 }],
+    cheese: 2,
+    par: 2,
   },
   {
     id: 'la-rete',
@@ -53,6 +129,29 @@ export const LEVELS = [
     ],
     cheese: 9,
     par: 7.8,
+  },
+  {
+    id: 'il-cancello',
+    name: 'Il cancello',
+    hint: 'Eine Käseleine hält die Olive fest. Bau erst die Brücke – dann schneid die Leine durch.',
+    olive: { x: -6.85, y: 3.78, vx: 0 },
+    glass: cup(7.1, -2.6),
+    statics: [
+      ground(-14, -7, 3.5),
+      ramp(-7, 3.5, -2.5, 0.8),
+      ground(-2.5, -0.6, 0.8),
+      ground(3.8, 5.8, 0.8),
+      ground(5.8, 14, -2.6, 'board', 3),
+      ground(8.3, 14, 2, 'cheese', 4.6),
+    ],
+    anchors: [
+      { x: -8.6, y: 4.6 },
+      { x: -0.48, y: 0.74 },
+      { x: 3.68, y: 0.74 },
+    ],
+    strands: [{ from: 0, to: 'olive', T: 0 }],
+    cheese: 6,
+    par: 4.9,
   },
   {
     id: 'due-ponti',
@@ -84,6 +183,275 @@ export const LEVELS = [
     statics: [ledge(-14, -6.6, 2.5, 1.0), ground(-1.8, 0.8, -2.85, 'cheese', 4)],
     anchors: [{ x: -3.6, y: 4.6 }],
     cheese: 6,
-    par: 4.5,
+    par: 5,
+  },
+  {
+    id: 'momento-giusto',
+    name: 'Al momento giusto',
+    hint: 'Die Olive startet von selbst. Ist das Netz bis dahin kalt, zerbricht es – zieh es erst kurz vorher.',
+    olive: { x: 8.4, y: 3.32, vx: -3 },
+    glass: { x: -7.0, y: -2.9, depth: 1.0, stem: 0.9 },
+    autoRelease: 8,
+    statics: [
+      ledge(5.2, 14, 3, 1.1),
+      ground(-5.6, -1.85, -2.0),
+      ground(-14, -5.6, -4.85, 'board', 2),
+      ground(-14, -8.15, -0.4, 'cheese', 4.5),
+    ],
+    anchors: [
+      { x: 5.3, y: -0.6 },
+      { x: -1.75, y: -2.06 },
+      { x: 1.5, y: 1.6 },
+    ],
+    cheese: 9,
+    par: 7.8,
+  },
+  {
+    id: 'zigzag',
+    name: 'Zigzag',
+    hint: 'Zwei Netze, zwei Aufpralle. Beide müssen noch weich sein.',
+    olive: { x: 8.6, y: 4.62, vx: -3 },
+    glass: cup(5.2, -5.2),
+    statics: [
+      ledge(6.6, 14, 4.3, 0.8),
+      ground(4.0, 6.4, -5.2, 'board', 2),
+      ground(6.4, 14, -2.0, 'cheese', 3.2),
+    ],
+    anchors: [
+      { x: 7.6, y: 1.7 },
+      { x: 1.6, y: 0.5 },
+      { x: -3.2, y: -0.6 },
+      { x: 3.6, y: -2.4 },
+    ],
+    cheese: 16,
+    par: 14.8,
+  },
+  {
+    id: 'rifare',
+    name: 'Rifare',
+    hint: 'Das Netz ist schon gespannt – aber bis die Olive kommt, ist es kalt. Schneid es weg und zieh ein frisches.',
+    olive: { x: 8.6, y: 1.32, vx: -3.4 },
+    glass: { x: -7.1, y: -2.6, depth: 1.0, stem: 0.9 },
+    statics: [
+      ground(5.2, 14, 1),
+      ground(-1.4, 1.6, 1, 'cheese'),
+      ground(-14, -5.5, -4.55, 'board', 2),
+      ground(-14, -8.25, -1.2, 'bread', 3.4),
+    ],
+    anchors: [
+      { x: 5.08, y: 0.94 },
+      { x: 1.72, y: 0.94 },
+      { x: -2.3, y: -1.3 },
+      { x: -5.95, y: -2.25 },
+    ],
+    strands: [{ from: 2, to: 3, T: 1 }],
+    cheese: 9.5,
+    par: 8.6,
+  },
+  {
+    id: 'caduta',
+    name: 'Caduta libera',
+    hint: 'Spann ein Netz unter die Olive, solange sie hängt. Dann: Schnitt!',
+    olive: { x: -5, y: 2.4, vx: 0 },
+    glass: cup(2.0, -5.0),
+    statics: [ground(-0.5, 3.2, -5.0, 'board', 2), ground(3.2, 14, -1.2, 'cheese', 3.8)],
+    anchors: [
+      { x: -5, y: 4.4 },
+      { x: -7.5, y: -0.5 },
+      { x: 0.5, y: -2.2 },
+    ],
+    strands: [{ from: 0, to: 'olive', T: 0 }],
+    cheese: 10.5,
+    par: 9.2,
+  },
+  {
+    id: 'ponte-lungo',
+    name: 'Il ponte lungo',
+    hint: 'Eine weite Schlucht. Ein Spieß in der Mitte hilft.',
+    olive: { x: -10, y: 4.32, vx: 1.5 },
+    glass: cup(7.9, -1.9),
+    statics: [
+      ground(-14, -8.5, 4),
+      ramp(-8.5, 4, -4.5, 1.0),
+      ground(-4.5, -3.6, 1.0),
+      ground(5.4, 6.6, 1.0),
+      ground(6.6, 14, -1.9, 'board', 3),
+      ground(9.1, 14, 2.5, 'cheese', 4.4),
+    ],
+    anchors: [
+      { x: -3.48, y: 0.94 },
+      { x: 0.9, y: 0.7 },
+      { x: 5.28, y: 0.94 },
+    ],
+    cheese: 10.5,
+    par: 9.6,
+  },
+  {
+    id: 'volo',
+    name: 'Il volo',
+    hint: 'Schwing die Olive über den Abgrund und lass sie auf der anderen Seite landen.',
+    olive: { x: -7.6, y: 2.82, vx: 3 },
+    glass: cup(7.6, -5.0),
+    statics: [
+      ledge(-14, -6.5, 2.5, 1.0),
+      ramp(2.2, -1.4, 6.4, -2.6),
+      ground(6.4, 8.8, -5.0, 'board', 2),
+      ground(8.8, 14, -1.5, 'cheese', 3.5),
+    ],
+    anchors: [{ x: -1.2, y: 4.8 }],
+    cheese: 9,
+    par: 7.6,
+  },
+  {
+    id: 'fretta',
+    name: 'Fretta!',
+    hint: 'Die Olive startet gleich von selbst. Zieh beide Brücken sofort, damit sie rechtzeitig fest werden.',
+    olive: { x: -7.5, y: 0.32, vx: 3.5 },
+    glass: cup(8.4, -3.3),
+    autoRelease: 3.5,
+    statics: [
+      ground(-14, -5, 0),
+      ground(-1, 1, 0, 'cheese'),
+      ground(5, 7, 0),
+      ground(7, 14, -3.3, 'board', 3),
+      ground(9.6, 14, 0.8, 'cheese', 4.1),
+    ],
+    anchors: [
+      { x: -4.88, y: -0.06 },
+      { x: -1.12, y: -0.06 },
+      { x: 1.12, y: -0.06 },
+      { x: 4.88, y: -0.06 },
+    ],
+    cheese: 9.5,
+    par: 8.2,
+  },
+  {
+    id: 'acchiappa',
+    name: 'Acchiappa!',
+    hint: 'Der Käse reicht nur für einen kurzen Faden. Fang die Olive, wenn sie unter dem Spieß vorbeirollt – dann über dem Glas abschneiden.',
+    olive: { x: -9, y: 1.12, vx: 5.5 },
+    glass: cup(1.7, -3.6),
+    statics: [ground(-14, 0.4, 0.8), ground(0.5, 3.0, -3.6, 'board', 2)],
+    anchors: [{ x: 0.0, y: 4.6 }],
+    cheese: 4.6,
+    par: 4.3,
+  },
+  {
+    id: 'prima-il-ponte',
+    name: 'Prima il ponte',
+    hint: 'Erst das Netz, dann die Brücke – auf dem Weg. Beim Ziehen gilt die umgekehrte Reihenfolge.',
+    olive: { x: -8.6, y: 4.12, vx: 3 },
+    glass: cup(8.2, -2.7),
+    statics: [
+      ledge(-14, -6.2, 3.8, 0.9),
+      ground(-1.4, 1.2, -0.6),
+      ground(5.0, 6.9, -0.6),
+      ground(6.9, 14, -2.7, 'board', 3),
+      ground(9.4, 14, 1.0, 'cheese', 3.5),
+    ],
+    anchors: [
+      { x: -7.0, y: 0.6 },
+      { x: -1.5, y: -0.66 },
+      { x: 1.32, y: -0.66 },
+      { x: 4.88, y: -0.66 },
+    ],
+    cheese: 11,
+    par: 9.8,
+  },
+  {
+    id: 'doppio-taglio',
+    name: 'Doppio taglio',
+    hint: 'Zwei Fäden halten die Olive. Schneid den einen, lass sie schwingen, dann den anderen.',
+    olive: { x: -1, y: 2.4, vx: 0 },
+    glass: cup(6.0, -3.5),
+    statics: [ground(4.8, 7.2, -3.5, 'board', 2), ground(7.2, 14, 0.5, 'cheese', 4)],
+    anchors: [
+      { x: -4.5, y: 4.4 },
+      { x: 2.0, y: 4.6 },
+    ],
+    strands: [
+      { from: 0, to: 'olive', T: 0 },
+      { from: 1, to: 'olive', T: 0 },
+    ],
+    cheese: 2,
+    par: 2,
+  },
+  {
+    id: 'tic-tac',
+    name: 'Tic tac',
+    hint: 'Die Olive rollt gleich los. Häng sie schnell an einen Faden – und schneid im richtigen Moment.',
+    olive: { x: 7.6, y: 2.82, vx: -3.2 },
+    glass: { x: 0.5, y: -0.9, depth: 1.0, stem: 0.9 },
+    autoRelease: 3,
+    statics: [ledge(6.6, 14, 2.5, 1.0), ground(-0.8, 1.8, -2.85, 'cheese', 4)],
+    anchors: [{ x: 3.6, y: 4.6 }],
+    cheese: 6,
+    par: 5,
+  },
+  {
+    id: 'sotto-sopra',
+    name: 'Sotto e sopra',
+    hint: 'Hinter der Rampe wartet ein tiefer Fall. Erst das Netz, dann die Leine kappen.',
+    olive: { x: -6.72, y: 4.43, vx: 0 },
+    glass: cup(4.0, -4.5),
+    statics: [
+      ground(-14, -7, 4.2),
+      ramp(-7, 4.2, -3.5, 2.6),
+      ground(2.5, 5.2, -4.5, 'board', 2),
+      ground(5.2, 14, -0.5, 'cheese', 4),
+    ],
+    anchors: [
+      { x: -8.5, y: 5.0 },
+      { x: -4.8, y: 0.0 },
+      { x: 2.5, y: -1.6 },
+    ],
+    strands: [{ from: 0, to: 'olive', T: 0 }],
+    cheese: 9.5,
+    par: 8.4,
+  },
+  {
+    id: 'labirinto',
+    name: 'Il labirinto',
+    hint: 'Leine, Brücke, Netz. Plane die Reihenfolge.',
+    olive: { x: -7.82, y: 4.58, vx: 0 },
+    glass: cup(8.3, -5.2),
+    statics: [
+      ground(-14, -8, 4.3),
+      ramp(-8, 4.3, -5, 2.4),
+      ground(-5, -3.6, 2.4),
+      ground(0.4, 1.6, 2.4),
+      ground(7.1, 9.5, -5.2, 'board', 2),
+      ground(9.5, 14, -1.5, 'cheese', 3.7),
+    ],
+    anchors: [
+      { x: -9.6, y: 5.2 },
+      { x: -3.48, y: 2.34 },
+      { x: 0.28, y: 2.34 },
+      { x: 2.4, y: -0.6 },
+      { x: 7.0, y: -2.6 },
+    ],
+    strands: [{ from: 0, to: 'olive', T: 0 }],
+    cheese: 11,
+    par: 10,
+  },
+  {
+    id: 'gran-finale',
+    name: 'Gran finale',
+    hint: 'Brücke, Schaukel, Schnitt. Alles, was du gelernt hast.',
+    olive: { x: -9.4, y: 2.32, vx: 3.5 },
+    glass: cup(5.6, -2.95),
+    statics: [
+      ground(-14, -6.2, 2),
+      ground(-2.4, -0.4, 2),
+      ground(4.3, 6.9, -2.95, 'board', 2),
+      ground(6.9, 14, 1, 'cheese', 3.95),
+    ],
+    anchors: [
+      { x: -6.08, y: 1.94 },
+      { x: -2.52, y: 1.94 },
+      { x: 2.6, y: 5.0 },
+    ],
+    cheese: 10,
+    par: 9,
   },
 ];

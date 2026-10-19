@@ -146,45 +146,26 @@ button {
   text-decoration: line-through;
 }
 
-.cheese-meter {
-  position: absolute;
-  top: calc(max(14px, env(safe-area-inset-top)) + 54px);
-  left: 50%;
-  transform: translateX(-50%);
-  display: flex;
-  align-items: center;
-  gap: 10px;
-  padding: 6px 14px;
-  background: rgba(251, 243, 226, 0.92);
-  border-radius: 999px;
-  box-shadow: var(--shadow);
-  font-weight: 800;
-  font-size: 13px;
-  letter-spacing: 0.6px;
-  text-transform: uppercase;
-  color: var(--ink-soft);
-  pointer-events: none;
-}
-
-.cheese-meter .bar {
-  width: 170px;
-  height: 12px;
+.level-title .bar {
+  width: 96px;
+  height: 10px;
+  margin-left: 4px;
   border-radius: 999px;
   background: #e2d2ae;
   overflow: hidden;
   box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.2);
 }
 
-.cheese-meter .fill {
+.level-title .fill {
   height: 100%;
   width: 100%;
   border-radius: 999px;
-  background: linear-gradient(180deg, #fffaf0, #f6e3b0);
+  background: linear-gradient(180deg, #fffaf0, #f3dc9f);
   box-shadow: inset 0 -2px 0 rgba(200, 160, 80, 0.4);
   transition: width 0.1s linear;
 }
 
-.cheese-meter.low .fill {
+.level-title.low .fill {
   background: linear-gradient(180deg, #ffd7c4, #f0a07a);
 }
 
@@ -200,11 +181,12 @@ button {
   font-size: 14px;
   line-height: 1.4;
   pointer-events: none;
-  transition: opacity 0.6s ease;
+  transition: opacity 0.5s ease, transform 0.5s ease;
 }
 
 .hint.dim {
-  opacity: 0.3;
+  opacity: 0;
+  transform: translateY(8px);
 }
 
 .hint p {
@@ -441,9 +423,12 @@ kbd {
 
 .level-grid {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(130px, 1fr));
-  gap: 12px;
+  grid-template-columns: repeat(auto-fill, minmax(112px, 1fr));
+  gap: 10px;
   margin: 16px 0 20px;
+  max-height: min(60vh, 520px);
+  overflow-y: auto;
+  padding: 4px;
 }
 
 .level-card {
@@ -461,6 +446,25 @@ kbd {
 
 .level-card.current {
   outline: 3px solid var(--tomato);
+}
+
+.level-card.locked {
+  opacity: 0.45;
+  cursor: default;
+}
+
+.level-card.locked .n {
+  background: #c9b48c;
+}
+
+.level-card.locked:hover {
+  transform: none;
+  background: var(--cream-2);
+}
+
+.go.countdown {
+  background: var(--tomato);
+  box-shadow: 0 5px 0 var(--tomato-dark), var(--shadow);
 }
 
 .level-card .n {
@@ -513,10 +517,12 @@ kbd {
     padding-right: 12px;
   }
   .hint {
-    display: none;
+    max-width: 260px;
+    font-size: 12px;
+    padding: 9px 12px;
   }
-  .cheese-meter .bar {
-    width: 110px;
+  .level-title .bar {
+    width: 60px;
   }
   .icon-btn {
     width: 36px;
@@ -584,16 +590,17 @@ kbd {
     height: 34px;
     font-size: 15px;
   }
-  .cheese-meter {
-    top: 46px;
-    padding: 3px 10px;
-    font-size: 10px;
-  }
-  .cheese-meter .bar {
-    width: 110px;
-    height: 9px;
+  .level-title .bar {
+    width: 64px;
   }
   .hint {
+    max-width: 260px;
+    font-size: 12px;
+    padding: 8px 12px;
+    bottom: 10px;
+    left: 12px;
+  }
+  .legend {
     display: none;
   }
   .go {

@@ -17,6 +17,7 @@ export const A0 = Math.PI * THREAD_RADIUS * THREAD_RADIUS;
 export const MIN_RADIUS = THREAD_RADIUS * 0.3;
 
 const SUBSTEPS = 20;
+const AIR_DRAG = 0.4; // geringer Luftwiderstand für Fäden; die Zähigkeit wirkt intern
 const ANCHOR_PICK_RADIUS = 0.65;
 const MIN_STRAND_LENGTH = 0.35;
 const DRAW_SLACK = 1.06; // gezogener Faden hängt leicht durch
@@ -181,6 +182,42 @@ export class World {
       goalTime: 0,
     };
     this.glass = level.glass ? glassGeometry(level.glass) : null;
+    this.autoRelease = level.autoRelease ?? null; // Sekunden bis zum automatischen Start
+
+    // Vorgespannte Fäden aus den Leveldaten (zählen nicht zum Käsevorrat)
+    for (const def of level.strands || []) this.addStrand(def);
+  }
+
+  // Legt einen geraden Faden zwischen zwei Endpunkten an.
+  // Endpunkt: Ankerindex oder 'olive'; T: Temperatur (0 = fest); slack: Durchhang-Faktor
+  addStrand({ from, to, T = 0, slack = 1 }) {
+    const o = this.olive;
+    const endpoint = (e) => (e === 'olive' ? { x: o.x, y: o.y, olive: true } : this.anchors[e]);
+    const a = endpoint(from);
+    const b = endpoint(to);
+    const surface = (p, q) => {
+      if (!p.olive) return p;
+      const d = Math.hypot(q.x - p.x, q.y - p.y) || 1;
+      return { x: p.x + ((q.x - p.x) / d) * o.r, y: p.y + ((q.y - p.y) / d) * o.r, olive: true };
+    };
+    const pa = surface(a, b);
+    const pb = surface(b, a);
+    const L = Math.hypot(pb.x - pa.x, pb.y - pa.y);
+    const n = Math.max(2, Math.round(L / SEGMENT_LENGTH));
+    const particles = [];
+    for (let i = 0; i <= n; i++) {
+      const t = i / n;
+      particles.push(new Particle(pa.x + (pb.x - pa.x) * t, pa.y + (pb.y - pa.y) * t));
+    }
+    const pin = (q, e) => (e.olive ? { kind: 'olive' } : { kind: 'anchor', anchor: e });
+    particles[0].pin = pin(particles[0], a);
+    particles[n].pin = pin(particles[n], b);
+    const rest = new Array(n).fill((L / n) * slack);
+    const s = new Strand(particles, rest, rest.map((r) => r * A0), T);
+    s.preset = true;
+    s.updateMasses();
+    this.strands.push(s);
+    return s;
   }
 
   get cheeseLeft() {
@@ -342,13 +379,14 @@ export class World {
 
     this._postStep(dt);
     this.time += dt;
+    if (this.autoRelease !== null && this.olive.state === 'waiting' && this.time >= this.autoRelease) this.releaseOlive();
   }
 
   _integrate(h, cx, cy) {
     const g = GRAVITY * h;
     const gs = g * STRAND_GRAVITY_SCALE;
     for (const s of this.strands) {
-      const damp = Math.exp(-s.mat.damping * h);
+      const damp = Math.exp(-AIR_DRAG * h);
       for (const p of s.particles) {
         p.contact = false;
         if (p.pin) {
@@ -376,6 +414,7 @@ export class World {
     }
     const o = this.olive;
     o.contact = false;
+    o.touchPreset = false;
     o.px = o.x;
     o.py = o.y;
     if (o.state === 'rolling' || o.state === 'won') {
@@ -476,7 +515,8 @@ export class World {
     const R = o.r;
     for (const s of this.strands) {
       const p = s.particles;
-      // Der Faden, an dem die Olive hängt, kollidiert nicht mit ihr
+      // Der Faden, an dem die Olive hängt (oder der gerade gezogen wird), kollidiert nicht mit ihr
+      if (s.state === 'drawing') continue;
       if ((p[0].pin && p[0].pin.kind === 'olive') || (p[p.length - 1].pin && p[p.length - 1].pin.kind === 'olive')) continue;
       for (let i = 0; i < p.length - 1; i++) {
         const a = p[i];
@@ -521,6 +561,7 @@ export class World {
         o.cnx = nx;
         o.cny = ny;
         o.friction = 0.6; // Käse ist etwas klebrig
+        if (s.preset) o.touchPreset = true;
       }
     }
   }
@@ -570,9 +611,18 @@ export class World {
           const vn = p.vx * p.cnx + p.vy * p.cny;
           const tx = p.vx - vn * p.cnx;
           const ty = p.vy - vn * p.cny;
-          p.vx = vn * p.cnx + tx * 0.6;
-          p.vy = vn * p.cny + ty * 0.6;
+          p.vx = vn * p.cnx + tx * 0.9;
+          p.vy = vn * p.cny + ty * 0.9;
         }
+      }
+      // Innere Zähigkeit: dämpft Verformungsschwingungen, nicht die Bewegung des ganzen Fadens
+      const k = 1 - Math.exp(-s.mat.damping * h * 3);
+      const ps = s.particles;
+      for (let i = 1; i < ps.length - 1; i++) {
+        const q = ps[i];
+        if (q.pin && q.pin.kind !== 'olive') continue;
+        q.vx += ((ps[i - 1].vx + ps[i + 1].vx) * 0.5 - q.vx) * k;
+        q.vy += ((ps[i - 1].vy + ps[i + 1].vy) * 0.5 - q.vy) * k;
       }
     }
     const o = this.olive;
@@ -763,14 +813,20 @@ export class World {
       }
     }
     // Feststecken: Olive bleibt längere Zeit in einem kleinen Umkreis
-    if (!o.home || Math.hypot(o.x - o.home.x, o.y - o.home.y) > 1.2) {
+    // (nicht, solange sie an einem Faden hängt – dann kann man sie noch abschneiden)
+    const hanging = this.strands.some((s) => {
+      const a = s.particles[0].pin;
+      const b = s.particles[s.particles.length - 1].pin;
+      return (a?.kind === 'olive' && b?.kind === 'anchor') || (a?.kind === 'anchor' && b?.kind === 'olive');
+    });
+    if (hanging || o.touchPreset || !o.home || Math.hypot(o.x - o.home.x, o.y - o.home.y) > 1.2) {
       o.home = { x: o.x, y: o.y };
       o.stillTime = 0;
     } else {
       o.stillTime += dt;
     }
     const fell = o.y < this.killY || Math.abs(o.x) > 40;
-    if (fell || o.stillTime > 3.5) {
+    if (fell || o.stillTime > 4) {
       o.state = 'lost';
       o.w = 0;
       this.emit({ type: 'lost', reason: fell ? 'fell' : 'stuck', x: o.x, y: o.y });

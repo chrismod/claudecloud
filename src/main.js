@@ -89,7 +89,7 @@ class Game {
     $('level-num').textContent = String(this.index + 1);
     $('level-name').textContent = this.level.name;
     $('hint-text').textContent = this.level.hint;
-    $('hint').classList.remove('dim');
+    this.showHint(8);
     this.hidePanels();
     this._updateHud();
   }
@@ -99,8 +99,13 @@ class Game {
   }
 
   go() {
-    if (this.world.releaseOlive()) this.sound.release();
+    this.world.releaseOlive();
     this._updateHud();
+  }
+
+  // Ein Level ist spielbar, wenn es das erste ist oder das vorherige geschafft wurde
+  unlocked(i) {
+    return i === 0 || !!this.progress[LEVELS[i].id] || !!this.progress[LEVELS[i - 1].id];
   }
 
   // ---------------------------------------------------------------- UI
@@ -112,6 +117,7 @@ class Game {
     });
     $('btn-restart').addEventListener('click', () => this.restart());
     $('btn-levels').addEventListener('click', () => this.openLevels());
+    $('btn-hint').addEventListener('click', () => this.toggleHint());
     $('btn-close-levels').addEventListener('click', () => this.hidePanels());
     $('btn-play').addEventListener('click', () => {
       this.sound.unlock();
@@ -126,6 +132,23 @@ class Game {
       this.sound.unlock();
       soundBtn.classList.toggle('muted', this.sound.toggleMute());
     });
+  }
+
+  // Hinweis zeigen und nach einigen Sekunden (oder beim ersten Eingriff) ausblenden
+  showHint(seconds) {
+    $('hint').classList.remove('dim');
+    clearTimeout(this.hintTimer);
+    this.hintTimer = setTimeout(() => this.hideHint(), seconds * 1000);
+  }
+
+  hideHint() {
+    clearTimeout(this.hintTimer);
+    $('hint').classList.add('dim');
+  }
+
+  toggleHint() {
+    if ($('hint').classList.contains('dim')) this.showHint(10);
+    else this.hideHint();
   }
 
   showPanel(id) {
@@ -144,10 +167,12 @@ class Game {
     grid.innerHTML = '';
     LEVELS.forEach((l, i) => {
       const b = document.createElement('button');
-      b.className = 'level-card' + (i === this.index ? ' current' : '');
+      const open = this.unlocked(i);
+      b.className = 'level-card' + (i === this.index ? ' current' : '') + (open ? '' : ' locked');
+      b.disabled = !open;
       const stars = this.progress[l.id] || 0;
-      b.innerHTML = `<div class="n">${i + 1}</div><div class="name"></div><div class="mini-stars">${'●'.repeat(stars)}${'○'.repeat(3 - stars)}</div>`;
-      b.querySelector('.name').textContent = l.name;
+      b.innerHTML = `<div class="n">${open ? i + 1 : ''}</div><div class="name"></div><div class="mini-stars">${'●'.repeat(stars)}${'○'.repeat(3 - stars)}</div>`;
+      b.querySelector('.name').textContent = open ? l.name : '· · ·';
       b.addEventListener('click', () => this.load(i));
       grid.appendChild(b);
     });
@@ -158,11 +183,14 @@ class Game {
     const w = this.world;
     const frac = w.cheeseLeft / w.budget;
     $('cheese-fill').style.width = `${(frac * 100).toFixed(1)}%`;
-    $('cheese-fill').parentElement.parentElement.classList.toggle('low', frac < 0.2);
+    $('cheese-fill').closest('.level-title').classList.toggle('low', frac < 0.2);
     const btn = $('btn-go');
     const waiting = w.olive.state === 'waiting';
     btn.disabled = !waiting;
-    btn.firstChild.textContent = w.olive.state === 'rolling' ? 'Olive rollt … ' : 'Olive los! ';
+    let label = w.olive.state === 'rolling' ? 'Olive rollt … ' : 'Olive los! ';
+    if (waiting && w.autoRelease !== null) label = `Start in ${Math.max(0, Math.ceil(w.autoRelease - w.time))} s · Olive los! `;
+    btn.firstChild.textContent = label;
+    btn.classList.toggle('countdown', waiting && w.autoRelease !== null);
   }
 
   _onWin() {
@@ -183,7 +211,9 @@ class Game {
     const pct = Math.round((used / this.level.cheese) * 100);
     $('win-text').textContent =
       stars === 3 ? `${pct} % Mozzarella verbraucht – meisterhaft!` : `${pct} % Mozzarella verbraucht. Geht's sparsamer?`;
-    $('btn-next').textContent = this.index === LEVELS.length - 1 ? 'Von vorn →' : 'Weiter →';
+    const last = this.index === LEVELS.length - 1;
+    if (last) $('win-text').textContent += ' Alle Level geschafft – bravissimo!';
+    $('btn-next').textContent = last ? 'Von vorn →' : 'Weiter →';
     this.showPanel('panel-win');
   }
 
@@ -219,6 +249,7 @@ class Game {
   _down(e) {
     this.sound.unlock();
     if (this.panel || this.pointer.mode) return;
+    this.hideHint();
     const p = this.stage.toWorld(e.clientX, e.clientY);
     if (!p) return;
     e.preventDefault();
@@ -230,7 +261,6 @@ class Game {
     if (anchor && this.world.cheeseLeft > 0.05 && this.world.olive.state !== 'won') {
       this.world.beginStrand(anchor, p.x, p.y);
       this.pointer.mode = 'draw';
-      $('hint').classList.add('dim');
     } else {
       this.pointer.mode = 'cut';
       this.trail.push({ x: e.clientX, y: e.clientY, t: this.time });
@@ -298,6 +328,8 @@ class Game {
     } else if (k === 'l') {
       if (this.panel === 'panel-levels') this.hidePanels();
       else this.openLevels();
+    } else if (k === 'h') {
+      this.toggleHint();
     } else if (k === 'm') {
       this.sound.unlock();
       $('btn-sound').classList.toggle('muted', this.sound.toggleMute());
@@ -338,6 +370,8 @@ class Game {
         if (e.cause === 'impact') this.stage.addShake(0.12);
       } else if (e.type === 'attach' && e.result !== 'free') {
         this.effects.burst(e.x, e.y, 0, 5, { speed: 0.8, up: 0.4 });
+      } else if (e.type === 'release') {
+        this.sound.release();
       } else if (e.type === 'won') {
         this.effects.burst(e.x, e.y + 0.2, 2, 34, { speed: 2.6, up: 2.2 });
         this.sound.win();
@@ -373,7 +407,7 @@ class Game {
       this.endTimer = null;
       fn();
     }
-    if (this.world.drawing) this._updateHud();
+    if (this.world.drawing || (this.world.autoRelease !== null && this.world.olive.state === 'waiting')) this._updateHud();
 
     this.view.update(this.world, dt, { hover: this.hover, target: this.target, oliveTarget: this.oliveTarget });
     this.strandView.sync(this.world);
