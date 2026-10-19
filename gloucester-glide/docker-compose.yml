@@ -1,0 +1,10 @@
+services:
+  glide:
+    build: .
+    restart: unless-stopped
+    ports:
+      - '8787:8787'
+    volumes:
+      - glide-data:/data
+volumes:
+  glide-data:

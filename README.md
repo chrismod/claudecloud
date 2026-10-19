@@ -1,5 +1,7 @@
 # Filatura
 
+> Im selben Repo: [**Gloucester Glide**](gloucester-glide/) – Käserennen den Hang hinunter (three.js + Rapier, mit geprüfter Bestenliste).
+
 *Ein Physik-Puzzle mit Käsefäden – gebaut mit three.js.*
 
 Eine gefüllte Olive will ins Martiniglas. Dein Werkzeug: geschmolzener Mozzarella,

@@ -1,0 +1,113 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover, user-scalable=no" />
+    <meta name="theme-color" content="#2f4a1f" />
+    <title>Gloucester Glide</title>
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Ccircle cx='32' cy='32' r='28' fill='%23e07a1f'/%3E%3Ccircle cx='32' cy='32' r='17' fill='%23f3b45a'/%3E%3C/svg%3E" />
+    <link rel="stylesheet" href="./style.css" />
+  </head>
+  <body>
+    <div id="stage"></div>
+
+    <!-- Hauptmenü -->
+    <section id="menu" class="screen">
+      <div class="menu-panel">
+        <header class="brand">
+          <div class="brand-mark" aria-hidden="true"></div>
+          <div>
+            <h1>Gloucester Glide</h1>
+            <p class="kicker">Käserennen am Hang · seit 1826</p>
+          </div>
+        </header>
+
+        <div class="step">
+          <h2><span>1</span> Strecke</h2>
+          <div id="track-list" class="cards"></div>
+        </div>
+
+        <div class="step">
+          <h2><span>2</span> Käse</h2>
+          <div id="cheese-list" class="cheeses"></div>
+        </div>
+
+        <div class="step">
+          <h2><span>3</span> Fahrer</h2>
+          <div class="row">
+            <input id="name" maxlength="16" placeholder="Dein Name" autocomplete="nickname" spellcheck="false" />
+            <select id="ghost-mode" title="Gegen wen fährst du?">
+              <option value="best">Ghost: Bestzeit</option>
+              <option value="own">Ghost: eigene</option>
+              <option value="off">Ghost: aus</option>
+            </select>
+          </div>
+        </div>
+
+        <button id="start" class="primary">Los! <kbd>Enter</kbd></button>
+        <p class="hint">Lenken <kbd>A</kbd><kbd>D</kbd> oder <kbd>←</kbd><kbd>→</kbd> · Springen / Aufstellen <kbd>Leertaste</kbd> · Zurücksetzen <kbd>R</kbd> · Neustart <kbd>⌫</kbd> · Pause <kbd>Esc</kbd></p>
+      </div>
+
+      <aside class="board-panel">
+        <h3 id="board-title">Bestenliste</h3>
+        <div class="board-filter" id="board-filter"></div>
+        <ol id="board" class="board"></ol>
+        <p id="board-status" class="muted"></p>
+      </aside>
+    </section>
+
+    <!-- Anzeige im Rennen -->
+    <section id="hud" class="hidden">
+      <div class="hud-top">
+        <div class="hud-track">
+          <span id="hud-track-name"></span>
+          <div class="progress"><div id="hud-progress"></div><div id="hud-ghost-progress" class="ghost-dot"></div></div>
+        </div>
+        <div class="hud-time">
+          <div id="hud-time">0:00.00</div>
+          <div id="hud-delta" class="delta"></div>
+        </div>
+        <div class="hud-respawns" id="hud-respawns"></div>
+      </div>
+      <div id="hud-center" class="hud-center"></div>
+      <div class="hud-speed"><span id="hud-speed">0</span><small>km/h</small></div>
+      <div id="hud-toast" class="toast"></div>
+    </section>
+
+    <!-- Touch-Steuerung -->
+    <section id="touch" class="hidden">
+      <div class="pad pad-left" data-steer="-1" aria-label="Links">‹</div>
+      <div class="pad pad-right" data-steer="1" aria-label="Rechts">›</div>
+      <div class="pad pad-jump" data-action="jump" aria-label="Springen">⤒</div>
+      <div class="pad pad-reset" data-action="respawn" aria-label="Zurücksetzen">↺</div>
+    </section>
+
+    <!-- Pause -->
+    <section id="pause" class="screen overlay hidden">
+      <div class="card">
+        <h2>Pause</h2>
+        <button data-act="resume" class="primary">Weiter <kbd>Esc</kbd></button>
+        <button data-act="restart">Neustart <kbd>⌫</kbd></button>
+        <button data-act="menu">Zum Menü</button>
+      </div>
+    </section>
+
+    <!-- Ziel -->
+    <section id="finish" class="screen overlay hidden">
+      <div class="card finish-card">
+        <p class="kicker" id="finish-kicker">Im Ziel</p>
+        <div class="finish-time" id="finish-time">0:00.00</div>
+        <div class="finish-meta" id="finish-meta"></div>
+        <ol id="finish-board" class="board"></ol>
+        <div class="row">
+          <button data-act="restart" class="primary">Nochmal <kbd>Enter</kbd></button>
+          <button data-act="menu">Menü <kbd>Esc</kbd></button>
+        </div>
+      </div>
+    </section>
+
+    <div id="loading" class="screen loading"><div class="brand-mark spin" aria-hidden="true"></div><p>Der Käse wird angeschnitten …</p></div>
+
+    <script type="module" src="./main.js"></script>
+  </body>
+</html>
