@@ -1,0 +1,10 @@
+import { World } from '../src/physics/world.js';
+import { drawStrand, run } from './sim.mjs';
+const H = 3, wait = +process.argv[2];
+const lvl = { statics: [], anchors: [{ x: -3, y: -1 }, { x: 3, y: -2.2 }], olive: { x: -1.2, y: -1 + H, vx: 0 }, cheese: 12, killY: -7 };
+const w = new World(lvl);
+drawStrand(w, lvl.anchors[0], lvl.anchors[1]);
+run(w, wait);
+w.releaseOlive();
+let f=0;
+run(w, 1.5, (w) => { const s=w.strands[0]; let mf=0; for (const ss of w.strands) for (const x of ss.force) mf=Math.max(mf,x); if (f++%3==0) console.log(w.time.toFixed(2), 'olive', w.olive.x.toFixed(2), w.olive.y.toFixed(2), 'v', w.olive.vy.toFixed(2), 'contact', w.olive.contact, 'force', mf.toFixed(0), 'strands', w.strands.length, 'T', s.T.toFixed(2)); });

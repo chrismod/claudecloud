@@ -1,0 +1,10 @@
+import { World } from '../src/physics/world.js';
+import { LEVELS } from '../src/levels.js';
+import { drawStrand, run } from './sim.mjs';
+const lvl = LEVELS[0];
+const w = new World(lvl);
+drawStrand(w, lvl.anchors[0], lvl.anchors[1]);
+run(w, +(process.argv[2]||0));
+w.releaseOlive();
+let f = 0;
+run(w, 16, (w) => { if (f++ % 15 === 0) { const s = w.strands[0]; console.log(w.time.toFixed(1), w.olive.x.toFixed(2), w.olive.y.toFixed(3), 'v', Math.hypot(w.olive.vx, w.olive.vy).toFixed(3), 'still', (w.olive.stillTime||0).toFixed(2), 'T', s.T.toFixed(2), 'n', s.particles.length, 'strands', w.strands.length); } });
