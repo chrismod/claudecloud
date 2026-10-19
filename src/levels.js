@@ -26,7 +26,7 @@ export const LEVELS = [
     hint: 'Zieh einen Käsefaden von Spieß zu Spieß. Lass ihn kurz fest werden – dann: Olive los!',
     olive: { x: -8, y: 0.32, vx: 3.5 },
     glass: { x: 7.4, y: -0.9 },
-    statics: [ground(-10.5, -2.6, 0), ground(2.6, 6, 0), ground(6, 10.5, -3.4, 'board', 3)],
+    statics: [ground(-14, -2.6, 0), ground(2.6, 6, 0), ground(6, 14, -3.4, 'board', 3)],
     anchors: [
       { x: -2.48, y: -0.06 },
       { x: 2.48, y: -0.06 },
@@ -41,10 +41,10 @@ export const LEVELS = [
     olive: { x: -8.4, y: 3.32, vx: 3 },
     glass: { x: 7.0, y: -2.9, depth: 1.0, stem: 0.9 },
     statics: [
-      ledge(-10.5, -5.2, 3, 1.1),
+      ledge(-14, -5.2, 3, 1.1),
       ground(1.85, 5.6, -2.0),
-      ground(5.6, 10.5, -4.85, 'board', 2),
-      ground(8.15, 10.5, -0.4, 'cheese', 4.5),
+      ground(5.6, 14, -4.85, 'board', 2),
+      ground(8.15, 14, -0.4, 'cheese', 4.5),
     ],
     anchors: [
       { x: -5.3, y: -0.6 },
@@ -61,10 +61,10 @@ export const LEVELS = [
     olive: { x: -8.6, y: 1.32, vx: 3.4 },
     glass: { x: 7.1, y: -2.6, depth: 1.0, stem: 0.9 },
     statics: [
-      ground(-10.5, -5.2, 1),
+      ground(-14, -5.2, 1),
       ground(-1.6, 1.4, 1, 'cheese'),
-      ground(5.5, 10.5, -4.55, 'board', 2),
-      ground(8.25, 10.5, -1.2, 'bread', 3.4),
+      ground(5.5, 14, -4.55, 'board', 2),
+      ground(8.25, 14, -1.2, 'bread', 3.4),
     ],
     anchors: [
       { x: -5.08, y: 0.94 },
@@ -78,10 +78,10 @@ export const LEVELS = [
   {
     id: 'altalena',
     name: "L'altalena",
-    hint: 'Häng die Olive an einen Faden, lass sie schwingen und schneide im richtigen Moment (wischen).',
+    hint: 'Häng die Olive an einen Faden und lass sie schwingen, solange er noch warm ist. Dann im richtigen Moment durchschneiden (wischen).',
     olive: { x: -7.6, y: 2.82, vx: 3.2 },
-    glass: { x: 0, y: -0.9, depth: 1.0, stem: 0.9 },
-    statics: [ledge(-10.5, -6.6, 2.5, 1.0), ground(-1.3, 1.3, -2.85, 'cheese', 4)],
+    glass: { x: -0.5, y: -0.9, depth: 1.0, stem: 0.9 },
+    statics: [ledge(-14, -6.6, 2.5, 1.0), ground(-1.8, 0.8, -2.85, 'cheese', 4)],
     anchors: [{ x: -3.6, y: 4.6 }],
     cheese: 6,
     par: 4.5,

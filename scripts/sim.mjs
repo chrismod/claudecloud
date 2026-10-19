@@ -1,4 +1,5 @@
-// Headless-Simulation zum Tunen: node scripts/sim.mjs
+// Hilfsfunktionen für Headless-Simulationen (Level-Design, Tuning).
+// Direkt ausgeführt: Brücken-Experiment mit verschiedenen Wartezeiten.
 import { World } from '../src/physics/world.js';
 
 export function drawStrand(world, from, to, seconds = 0.5) {

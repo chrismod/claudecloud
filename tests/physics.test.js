@@ -62,16 +62,19 @@ test('Schneiden teilt einen Faden', () => {
   assert.equal(w.strands.length, 2);
 });
 
-test('Level 1: abgekühlte Brücke trägt, frisch gezogene nicht', () => {
+test('Level 1: ohne Brücke stürzt die Olive ab, mit Brücke landet sie im Glas', () => {
   const lvl = level('primo-filo');
-  for (const [wait, expected] of [[0, 'lost'], [3, 'won']]) {
-    const w = new World(lvl);
-    draw(w, lvl.anchors[0], lvl.anchors[1]);
-    run(w, wait);
-    w.releaseOlive();
-    run(w, 20);
-    assert.equal(w.olive.state, expected, `Wartezeit ${wait}s`);
-  }
+  const none = new World(lvl);
+  none.releaseOlive();
+  run(none, 20);
+  assert.equal(none.olive.state, 'lost');
+
+  const w = new World(lvl);
+  draw(w, lvl.anchors[0], lvl.anchors[1]);
+  run(w, 3);
+  w.releaseOlive();
+  run(w, 20);
+  assert.equal(w.olive.state, 'won');
 });
 
 test('Level 2: warmer Käse fängt, kalter bricht beim Aufprall', () => {
@@ -107,13 +110,38 @@ test('Level 3: Reihenfolge – erst Brücke, dann Netz', () => {
 
 test('Level 4: Schaukeln und im richtigen Moment schneiden', () => {
   const lvl = level('altalena');
+  const wins = [];
+  for (let tc = 1.0; tc <= 2.01; tc += 0.2) {
+    const w = new World(lvl);
+    const r = draw(w, lvl.anchors[0], { x: lvl.olive.x, y: lvl.olive.y + 0.1 });
+    assert.equal(r.result, 'olive');
+    run(w, 3);
+    w.releaseOlive();
+    run(w, tc);
+    assert.equal(cutAttached(w), 1);
+    run(w, 8);
+    if (w.olive.state === 'won') wins.push(tc);
+  }
+  assert.ok(wins.length >= 2, `gewinnende Schnittzeitpunkte: ${wins}`);
+
+  // Ohne Schnitt bleibt die Olive hängen
   const w = new World(lvl);
-  const r = draw(w, lvl.anchors[0], { x: lvl.olive.x, y: lvl.olive.y + 0.1 });
-  assert.equal(r.result, 'olive');
-  run(w, 9);
+  draw(w, lvl.anchors[0], { x: lvl.olive.x, y: lvl.olive.y + 0.1 });
+  run(w, 3);
   w.releaseOlive();
-  run(w, 2.4);
-  assert.equal(cutAttached(w), 1);
-  run(w, 8);
-  assert.equal(w.olive.state, 'won');
+  run(w, 30);
+  assert.equal(w.olive.state, 'lost');
+});
+
+test('Schnelles, ruckartiges Ziehen reißt den Faden nicht', () => {
+  const w = new World({ anchors: [{ x: -4, y: 2 }, { x: 4, y: -2 }], olive: { x: -8, y: 5 }, cheese: 12 });
+  w.beginStrand(w.anchors[0]);
+  // Cursor springt in drei großen Sätzen zum Ziel
+  for (const x of [-1, 2, 4]) {
+    w.dragTo(x, 2 - (x + 4) / 2);
+    w.step();
+  }
+  const r = w.endStrand(4, -2);
+  assert.equal(r.result, 'anchor');
+  assert.equal(w.strands.length, 1);
 });

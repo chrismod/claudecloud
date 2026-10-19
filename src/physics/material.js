@@ -18,7 +18,7 @@ const HOT = {
   yieldStrain: 0.015,
   shrink: 0.1, // aktives Zusammenziehen (1/s) – macht Fäden straff
   bendFlow: 40, // Biege-Ruhelage folgt sofort der aktuellen Form
-  damping: 2.2,
+  damping: 5,
   breakStrain: 2.5, // praktisch unzerreißbar – heißer Käse fließt stattdessen
 };
 

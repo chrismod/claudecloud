@@ -1,3 +1,4 @@
+// Spielt für jedes Level typische Lösungs- und Fehlversuche durch: npm run levels
 import { World } from '../src/physics/world.js';
 import { LEVELS } from '../src/levels.js';
 import { drawStrand, run } from './sim.mjs';

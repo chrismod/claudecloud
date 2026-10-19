@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <title>Filatura</title>
+    <meta name="description" content="Filatura – ein Physik-Puzzle mit Käsefäden." />
+    <link
+      rel="icon"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cellipse cx='32' cy='32' rx='24' ry='20' fill='%234e6b24'/%3E%3Ccircle cx='32' cy='32' r='9' fill='%23d42a24'/%3E%3C/svg%3E"
+    />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@0,9..144,600;1,9..144,500;1,9..144,700&family=Nunito:wght@500;700;800&display=swap"
+      rel="stylesheet"
+    />
+  </head>
+  <body>
+    <div id="app">
+      <div id="stage"></div>
+      <canvas id="overlay"></canvas>
+      <div class="vignette"></div>
+
+      <header class="hud-top">
+        <div class="brand">Filatura</div>
+        <div class="level-title">
+          <span class="level-num" id="level-num">1</span>
+          <span id="level-name"></span>
+        </div>
+        <div class="actions">
+          <button class="icon-btn" id="btn-sound" title="Ton an/aus (M)" aria-label="Ton an/aus">♪</button>
+          <button class="icon-btn" id="btn-restart" title="Neustart (R)" aria-label="Neustart">↺</button>
+          <button class="icon-btn" id="btn-levels" title="Level (L)" aria-label="Levelauswahl">☰</button>
+        </div>
+      </header>
+
+      <div class="cheese-meter" title="Käsevorrat">
+        <span class="label">Mozzarella</span>
+        <div class="bar"><div class="fill" id="cheese-fill"></div></div>
+      </div>
+
+      <aside class="hint" id="hint">
+        <p id="hint-text"></p>
+        <div class="legend">
+          <span>heiß · weich</span>
+          <div class="thermo"></div>
+          <span>kalt · fest</span>
+        </div>
+      </aside>
+
+      <button class="go" id="btn-go">Olive los! <kbd>Leertaste</kbd></button>
+
+      <section class="panel" id="panel-start" hidden>
+        <div class="card">
+          <h1>Filatura</h1>
+          <p class="sub">Ein Physik-Puzzle mit Käsefäden</p>
+          <ul class="controls">
+            <li><b>Ziehen</b> von einem Cocktailspieß zum nächsten – oder zur Olive</li>
+            <li><b>Wischen</b> über einen Faden schneidet ihn durch</li>
+            <li><b>Leertaste</b> lässt die Olive los · <b>R</b> startet neu</li>
+          </ul>
+          <p class="note">Frischer Käse ist weich und dehnbar. Mit der Zeit wird er fest – und spröde.</p>
+          <button class="primary" id="btn-play">Andiamo!</button>
+        </div>
+      </section>
+
+      <section class="panel" id="panel-win" hidden>
+        <div class="card">
+          <h2>Perfetto!</h2>
+          <div class="stars" id="win-stars"></div>
+          <p class="sub" id="win-text"></p>
+          <div class="row">
+            <button class="secondary" id="btn-win-retry">Nochmal</button>
+            <button class="primary" id="btn-next">Weiter →</button>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel" id="panel-lose" hidden>
+        <div class="card">
+          <h2>Mamma mia!</h2>
+          <p class="sub" id="lose-text"></p>
+          <div class="row">
+            <button class="primary" id="btn-retry">Nochmal <kbd>R</kbd></button>
+          </div>
+        </div>
+      </section>
+
+      <section class="panel" id="panel-levels" hidden>
+        <div class="card wide">
+          <h2>Menù</h2>
+          <div class="level-grid" id="level-grid"></div>
+          <button class="secondary" id="btn-close-levels">Zurück</button>
+        </div>
+      </section>
+    </div>
+    <div class="rotate-hint">
+      <div class="olive-icon"></div>
+      <p>Bitte das Gerät quer halten</p>
+    </div>
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>

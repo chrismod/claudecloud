@@ -3,9 +3,10 @@ import * as THREE from 'three';
 import { setness } from '../physics/material.js';
 
 const RADIAL = 12;
+const VISUAL_SCALE = 1.25; // Fäden etwas dicker zeichnen als ihr Kollisionsradius
 const SUB = 3; // Catmull-Rom-Unterteilungen je Segment
 
-const HOT_COLOR = new THREE.Color('#fff4d8');
+const HOT_COLOR = new THREE.Color('#fff2d2');
 const COLD_COLOR = new THREE.Color('#f1c153');
 const HOT_SHEEN = new THREE.Color('#fff2c4');
 const GLOW = new THREE.Color('#ff9440');
@@ -52,11 +53,11 @@ class StrandMesh {
         const a = r * (RADIAL + 1) + j;
         const b = a + RADIAL + 1;
         idx[k++] = a;
-        idx[k++] = b;
         idx[k++] = a + 1;
         idx[k++] = b;
+        idx[k++] = a + 1;
         idx[k++] = b + 1;
-        idx[k++] = a + 1;
+        idx[k++] = b;
       }
     }
     const g = this.geometry;
@@ -78,7 +79,7 @@ class StrandMesh {
 
     // Radius je Partikel aus den angrenzenden Segmenten
     const segR = new Float32Array(n - 1);
-    for (let i = 0; i < n - 1; i++) segR[i] = strand.segmentRadius(i);
+    for (let i = 0; i < n - 1; i++) segR[i] = strand.segmentRadius(i) * VISUAL_SCALE;
     const partR = (i) => {
       if (i <= 0) return segR[0];
       if (i >= n - 1) return segR[n - 2];

@@ -14,7 +14,7 @@ import {
 export const GRAVITY = -18;
 export const OLIVE_RADIUS = 0.32;
 export const A0 = Math.PI * THREAD_RADIUS * THREAD_RADIUS;
-export const MIN_RADIUS = THREAD_RADIUS * 0.28;
+export const MIN_RADIUS = THREAD_RADIUS * 0.3;
 
 const SUBSTEPS = 20;
 const ANCHOR_PICK_RADIUS = 0.65;
@@ -236,7 +236,7 @@ export class World {
     this.cursor.y = y;
   }
 
-  endStrand(x = this.cursor.x, y = this.cursor.y) {
+  endStrand(x = this.cursor.x, y = this.cursor.y, pickRadius = ANCHOR_PICK_RADIUS) {
     const s = this.drawing;
     if (!s) return null;
     this.drawing = null;
@@ -250,7 +250,7 @@ export class World {
       return { result: 'cancelled' };
     }
 
-    const anchor = this.pickAnchor(x, y, ANCHOR_PICK_RADIUS, s.startAnchor);
+    const anchor = this.pickAnchor(x, y, pickRadius, s.startAnchor);
     const o = this.olive;
     let result = 'free';
     if (anchor) {
@@ -323,6 +323,7 @@ export class World {
     const h = dt / SUBSTEPS;
     const c = this.cursor;
     for (const s of this.strands) materialAt(s.T, s.mat);
+    if (this.drawing) this._spool(this.drawing, c.x, c.y);
 
     for (let k = 0; k < SUBSTEPS; k++) {
       const t = (k + 1) / SUBSTEPS;
@@ -414,6 +415,15 @@ export class World {
         a.y -= ny * dl * a.w;
         b.x += nx * dl * b.w;
         b.y += ny * dl * b.w;
+      }
+      // Oberflächenspannung glättet den Faden, solange er gezogen wird
+      if (s.state === 'drawing') {
+        for (let i = 1; i < n; i++) {
+          const q = p[i];
+          if (q.w === 0) continue;
+          q.x += ((p[i - 1].x + p[i + 1].x) * 0.5 - q.x) * 0.04;
+          q.y += ((p[i - 1].y + p[i + 1].y) * 0.5 - q.y) * 0.04;
+        }
       }
       if (m.bendCompliance === Infinity) continue;
       for (let i = 1; i < n; i++) {
@@ -601,7 +611,7 @@ export class World {
     for (const s of [...this.strands]) {
       if (s.state === 'live') s.T = Math.max(0, s.T - dt / COOL_TIME);
       const m = materialAt(s.T, s.mat);
-      if (s.state === 'drawing') this._spool(s);
+      if (s.state === 'drawing') this._spool(s, this.cursor.x, this.cursor.y);
       this._plastic(s, m, dt);
       if (this.strands.includes(s)) this._resample(s);
     }
@@ -613,39 +623,21 @@ export class World {
     this._oliveState(dt);
   }
 
-  _spool(s) {
-    const p = s.particles;
-    const anchor = p[0];
-    const cur = p[p.length - 1];
-    const target = Math.hypot(cur.x - anchor.x, cur.y - anchor.y) * DRAW_SLACK;
+  // Beim Ziehen wächst der Faden gleichmäßig über seine ganze Länge –
+  // so wie sich Mozzarella auseinanderziehen lässt.
+  _spool(s, cx, cy) {
+    const anchor = s.particles[0];
+    const target = Math.hypot(cx - anchor.x, cy - anchor.y) * DRAW_SLACK;
     const total = s.totalRest();
-    if (target > total) {
-      const grow = Math.min(target - total, this.cheeseLeft);
-      if (grow > 0) {
-        s.rest[0] += grow;
-        s.vol[0] += A0 * grow;
-        this.used += grow;
-      }
+    if (target <= total) return;
+    const grow = Math.min(target - total, this.cheeseLeft);
+    if (grow <= 0) return;
+    const k = (total + grow) / total;
+    for (let i = 0; i < s.rest.length; i++) {
+      s.rest[i] *= k;
+      s.vol[i] *= k;
     }
-    // Neues Partikel direkt am Anker einfügen, wenn das Zufuhrsegment zu lang wird
-    let guard = 0;
-    while (s.rest[0] > SEGMENT_LENGTH * 1.25 && guard++ < 50) {
-      const r0 = s.rest[0];
-      const f = (r0 - SEGMENT_LENGTH) / r0;
-      const a = p[0];
-      const b = p[1];
-      const np = new Particle(a.x + (b.x - a.x) * f, a.y + (b.y - a.y) * f, b.vx * f, b.vy * f);
-      np.px = np.x - np.vx / 600;
-      np.py = np.y - np.vy / 600;
-      p.splice(1, 0, np);
-      const v0 = s.vol[0];
-      s.rest.splice(0, 1, r0 - SEGMENT_LENGTH, SEGMENT_LENGTH);
-      s.vol.splice(0, 1, v0 * f, v0 * (1 - f));
-      s.strain.splice(0, 1, 0, 0);
-      s.base.splice(0, 1, 0, 0);
-      s.bendRest.splice(1, 0, 0);
-      s.updateMasses();
-    }
+    this.used += grow;
   }
 
   _plastic(s, m, dt) {
@@ -661,13 +653,13 @@ export class World {
       const e = L / rest - 1;
       s.strain[i] += (e - s.strain[i]) * ema;
       s.base[i] += (s.strain[i] - s.base[i]) * Math.min(1, m.baseFollow * dt);
-      if (!(drawing && i === 0)) {
-        const shrink = drawing ? 0 : m.shrink;
-        const rate = m.flow * Math.max(0, e - m.yieldStrain) - shrink;
-        s.rest[i] = Math.max(rest * (1 + rate * dt), SEGMENT_LENGTH * 0.2);
-      }
+      const shrink = drawing ? 0 : m.shrink;
+      const rate = m.flow * Math.max(0, e - m.yieldStrain) - shrink;
+      s.rest[i] = Math.max(rest * (1 + rate * dt), SEGMENT_LENGTH * 0.2);
       const r = Math.sqrt(s.vol[i] / (Math.PI * Math.max(L, 1e-4)));
-      const score = Math.max(MIN_RADIUS / r, (s.strain[i] - Math.max(0, s.base[i])) / m.breakStrain);
+      // Beim Ziehen reißt der Faden nur, wenn er zu dünn wird
+      const strainScore = drawing ? 0 : (s.strain[i] - Math.max(0, s.base[i])) / m.breakStrain;
+      const score = Math.max(MIN_RADIUS / r, strainScore);
       if (score > worstScore) {
         worstScore = score;
         worst = i;
@@ -684,7 +676,6 @@ export class World {
     const p = s.particles;
     // zu lange Segmente teilen
     for (let i = 0; i < p.length - 1; i++) {
-      if (s.state === 'drawing' && i === 0) continue;
       if (s.rest[i] > SEGMENT_LENGTH * 1.9) {
         const a = p[i];
         const b = p[i + 1];
@@ -708,7 +699,6 @@ export class World {
     }
     // zu kurze Segmente (durch Zusammenziehen) zusammenlegen
     for (let i = 1; i < p.length - 1; i++) {
-      if (s.state === 'drawing' && i === 1) continue;
       if (s.rest[i - 1] + s.rest[i] < SEGMENT_LENGTH * 0.9 && !p[i].pin) {
         p.splice(i, 1);
         s.rest.splice(i - 1, 2, s.rest[i - 1] + s.rest[i]);
