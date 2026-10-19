@@ -187,10 +187,12 @@ class Game {
     const btn = $('btn-go');
     const waiting = w.olive.state === 'waiting';
     btn.disabled = !waiting;
-    let label = w.olive.state === 'rolling' ? 'Olive rollt … ' : 'Olive los! ';
+    const held = w.olive.state === 'rolling' && w.oliveHeld();
+    let label = held ? 'Faden durchschneiden ' : w.olive.state === 'rolling' ? 'Olive rollt … ' : 'Olive los! ';
     if (waiting && w.autoRelease !== null) label = `Start in ${Math.max(0, Math.ceil(w.autoRelease - w.time))} s · Olive los! `;
     btn.firstChild.textContent = label;
     btn.classList.toggle('countdown', waiting && w.autoRelease !== null);
+    btn.classList.toggle('held', held);
   }
 
   _onWin() {
@@ -388,7 +390,7 @@ class Game {
         this.sound.lose();
         this.endTimer = { at: this.time + (e.reason === 'stuck' ? 0.4 : 0.9), fn: () => this._onLose(e.reason) };
       }
-      if (e.type !== 'draw-start' && e.type !== 'attach') this._updateHud();
+      this._updateHud();
     }
   }
 

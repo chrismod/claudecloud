@@ -188,6 +188,21 @@ export class World {
 
     // Vorgespannte Fäden aus den Leveldaten (zählen nicht zum Käsevorrat)
     for (const def of level.strands || []) this.addStrand(def);
+    // Hält ein Faden die Olive (Leine, Aufhängung), ist sie von Anfang an frei –
+    // dann gibt allein der Schnitt sie frei, kein zusätzliches „Olive los!“
+    if (this.oliveHeld()) {
+      this.olive.state = 'rolling';
+      this.olive.w = 1;
+    }
+  }
+
+  // Hängt die Olive an einem Faden, der an einem Spieß befestigt ist?
+  oliveHeld() {
+    return this.strands.some((s) => {
+      const a = s.particles[0].pin;
+      const b = s.particles[s.particles.length - 1].pin;
+      return (a?.kind === 'olive' && b?.kind === 'anchor') || (a?.kind === 'anchor' && b?.kind === 'olive');
+    });
   }
 
   // Legt einen geraden Faden zwischen zwei Endpunkten an.
@@ -834,11 +849,7 @@ export class World {
     // Feststecken: Die Olive kommt in den letzten Sekunden nicht mehr vom Fleck
     // (auch nicht, wenn sie in einer Käse-Hängematte hin- und herschaukelt).
     // Ausnahme: Sie hängt an einem Faden oder liegt an einer Leine – dann kann man sie noch abschneiden.
-    const hanging = this.strands.some((s) => {
-      const a = s.particles[0].pin;
-      const b = s.particles[s.particles.length - 1].pin;
-      return (a?.kind === 'olive' && b?.kind === 'anchor') || (a?.kind === 'anchor' && b?.kind === 'olive');
-    });
+    const hanging = this.oliveHeld();
     const track = (o.track ||= []);
     if (hanging || o.touchPreset) track.length = 0;
     else track.push(o.x, o.y);
