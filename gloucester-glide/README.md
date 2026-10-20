@@ -4,8 +4,13 @@ Käserennen den Hang hinunter – frei nach dem Cheese Rolling am Cooper's Hill 
 Du lenkst einen rollenden Käselaib durch eine steile, buckelige Mulde voller Felsen und
 Strohballen, vorbei an jubelnden Zuschauern, ins Ziel. Gebaut mit three.js und der Physik-Engine Rapier.
 
-- **Drei Käsesorten** mit eigenem Fahrverhalten: Double Gloucester (ausgewogen), Camembert (wendig, springt
-  gern), Parmigiano (schwer und schnell, lenkt sich träge).
+- **Vier Käsesorten** mit eigenem Fahrverhalten: Double Gloucester (ausgewogen), Emmentaler (runder Riese,
+  schnell, aber zerbrechlich), Camembert (wendig, springt gern, steckt viel weg), Parmigiano (schwer, schnell
+  und hart, lenkt sich träge).
+- **Laib-Integrität:** Harte Stöße beschädigen den Käse. Seitliche Treffer an Felsen und Ballen und Landungen
+  auf der flachen Seite kosten am meisten, saubere Landungen auf der Kante wenig. Dellen und abgeplatzte Rinde
+  sieht man am Laib, beim Emmentaler kommen die Löcher zum Vorschein. Ein angeschlagener Laib eiert, bei 0 %
+  zerbricht er und das Rennen ist vorbei. Die Integrität im Ziel steht in der Bestenliste.
 - **Strecken:** Cooper's Hill, Brockworth Bowl und jeden Tag ein neues **Tagesrennen**, für alle gleich.
 - **Ghosts:** Fahr gegen den Rekordlauf, deine eigene Bestzeit oder einen beliebigen Lauf aus der Bestenliste.
   An jedem Kontrollpunkt siehst du deinen Abstand.
@@ -85,3 +90,4 @@ im Log (`desync`).
 - Online-Rennen gegeneinander: Die Simulation ist schon tick-basiert und eingabegetrieben, also bereit
   für Lockstep oder einen autoritativen Server.
 - Mehr Strecken und Wetter (nasser Hang = weniger Grip)
+- Grafikqualität im Menü einstellbar machen (derzeit automatisch: auf Handys weniger Gras und Bäume)

@@ -5,6 +5,7 @@ import { TRACKS, buildTrack, dailyTrack, trackById } from '../shared/track.js';
 import { CHEESES } from '../shared/cheeses.js';
 import { encodeInputs, decodeInputs, encodeFrames, decodeFrames } from '../shared/inputs.js';
 import { botRun } from './helpers.js';
+import { botInput } from '../shared/bot.js';
 
 await initPhysics();
 
@@ -43,6 +44,8 @@ for (const def of [TRACKS['coopers-hill'], dailyTrack('2026-10-19')]) {
       assert.ok(run.time > 10 && run.time < 60, `plausible Zeit ${run.time}`);
       const r = replay(track, cheese, decodeInputs(encodeInputs(run.inputs)));
       assert.equal(r.time, run.time);
+      assert.equal(r.integrity, run.integrity);
+      assert.ok(run.integrity > 0.3, `Laib hält: ${run.integrity}`);
     });
   }
 }
@@ -52,6 +55,46 @@ test('Nichtstun führt nicht schneller ins Ziel als Fahren', () => {
   const idle = replay(track, 'gloucester', Array.from({ length: 60 * 40 }, () => ({ steer: 0, flags: 0 })));
   const bot = botRun(track, 'gloucester');
   assert.ok(!idle.finished || idle.time >= bot.time - 0.5);
+});
+
+test('Harte Stöße kosten Integrität, bei 0 zerbricht der Laib', () => {
+  const track = buildTrack(TRACKS['coopers-hill']);
+  const race = new Race(track, 'gloucester');
+  race.integrity = 0.02;
+  let broke = null;
+  while (!race.finished && !race.broken && race.tick < 60 * 60) {
+    const inp = botInput(race);
+    race.step(inp.steer, inp.flags);
+    for (const e of race.events) if (e.type === 'break') broke = e;
+    race.events.length = 0;
+  }
+  assert.ok(race.broken && broke, 'zerbrochen');
+  assert.equal(race.integrity, 0);
+  const t = race.tick;
+  race.step(0, 0);
+  assert.equal(race.tick, t, 'zerbrochener Laib fährt nicht weiter');
+  race.free();
+});
+
+test('Seitlicher Aufprall schadet mehr als eine gleich harte Landung', () => {
+  const track = buildTrack(TRACKS['coopers-hill']);
+  const hit = (vel) => {
+    const race = new Race(track, 'parmigiano');
+    const b = race.body;
+    const p = track.rocks[0];
+    if (vel.y) b.setTranslation({ x: p.x + 4, y: track.heightAt(p.x + 4, p.z) + 3, z: p.z }, true);
+    else b.setTranslation({ x: p.x, y: p.y + 0.1, z: p.z - p.radius - 1 }, true);
+    b.setLinvel(vel, true);
+    b.setAngvel({ x: 0, y: 0, z: 0 }, true);
+    for (let i = 0; i < 40; i++) race.step(0, 0);
+    const lost = 1 - race.integrity;
+    race.free();
+    return lost;
+  };
+  const lateral = hit({ x: 0, y: 0, z: 22 });
+  const landing = hit({ x: 0, y: -22, z: 0 });
+  assert.ok(lateral > 0, 'Felsen kostet etwas');
+  assert.ok(lateral > landing, `Felsen ${lateral} > Landung ${landing}`);
 });
 
 test('Zurücksetzen springt zum letzten Kontrollpunkt', () => {

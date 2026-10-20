@@ -9,6 +9,9 @@ export const DT = 1 / 60;
 export const MAX_TICKS = 60 * 180; // 3 Minuten
 const MAX_YAW = 2.2; // rad/s
 const JUMP_COOLDOWN = 45;
+// Bruchschaden: Stöße oberhalb der Schwelle kosten Laib-Integrität (quadratisch mit der Stärke)
+// Seitliche Treffer wiegen schwerer als Landungen; wer auf der flachen Seite aufschlägt, zahlt doppelt.
+export const DAMAGE = { threshold: 8, factor: 0.0012, vertical: 0.65, lateral: 1.5 };
 export const TUNE = { base: 20, speed: 1.5, damp: 6 };
 
 let ready = null;
@@ -59,6 +62,8 @@ export class Race {
     this.grounded = false;
     this.maxSpeed = 0;
     this.flatTicks = 0;
+    this.integrity = 1; // 1 = unversehrt, 0 = zerbrochen
+    this.broken = false;
 
     const world = new RAPIER.World({ x: 0, y: -9.81, z: 0 });
     world.timestep = DT;
@@ -74,9 +79,14 @@ export class Race {
       .setFriction(0.9)
       .setRestitution(0.1);
     this.groundCollider = world.createCollider(ground);
+    // Hindernisliste für den Bot
+    this.obstacles = [...track.rocks.map((r) => ({ x: r.x, z: r.z, r: r.radius })), ...track.bales.map((b) => ({ x: b.x, z: b.z, r: b.hx }))];
 
     for (const r of track.rocks) {
       world.createCollider(RAPIER.ColliderDesc.ball(r.radius).setTranslation(r.x, r.y, r.z).setFriction(0.6).setRestitution(0.35));
+    }
+    for (const b of track.catchBales) {
+      world.createCollider(RAPIER.ColliderDesc.cuboid(b.hx, b.hy, b.hz).setTranslation(b.x, b.y, b.z).setFriction(0.9).setRestitution(0.05));
     }
     this.bales = track.bales.map((b) => {
       const body = world.createRigidBody(
@@ -97,7 +107,7 @@ export class Race {
         .setAngularDamping(0.05),
     );
     world.createCollider(
-      RAPIER.ColliderDesc.roundCylinder(C.halfWidth - 0.04, C.radius - 0.04, 0.04)
+      RAPIER.ColliderDesc.roundCylinder(C.halfWidth - C.edge, C.radius - C.edge, C.edge)
         .setDensity(C.density)
         .setFriction(C.friction)
         .setRestitution(C.restitution),
@@ -138,7 +148,7 @@ export class Race {
   }
 
   step(steer = 0, flags = 0) {
-    if (this.finished || this.tick >= MAX_TICKS) return;
+    if (this.finished || this.broken || this.tick >= MAX_TICKS) return;
     const C = this.cheese;
     const b = this.body;
     if (flags & RESPAWN) this.respawn();
@@ -169,7 +179,8 @@ export class Race {
     const flat = tilt > 0.8 || tilt < -0.8;
     if (flat) this.flatTicks++;
     if (!flat) {
-      const k = C.stability * (TUNE.base + Math.min(speed, 25) * TUNE.speed);
+      // ein angeschlagener Laib eiert
+      const k = C.stability * (0.6 + 0.4 * this.integrity) * (TUNE.base + Math.min(speed, 25) * TUNE.speed);
       const wf = dot(w, fwd);
       b.applyTorqueImpulse(scale(fwd, (-tilt * k - wf * TUNE.damp) * I * DT), true);
     }
@@ -197,14 +208,34 @@ export class Race {
     }
 
     this.prev = { ...b.translation() };
+    const vPre = b.linvel(); // inkl. eigener Impulse (Sprung), damit nur echte Stöße zählen
     this.world.step();
     this.tick++;
 
     const p = b.translation();
     const nv = b.linvel();
     // Aufprall-Ereignisse (für Ton und Partikel)
-    const dv = len({ x: nv.x - v.x, y: nv.y - v.y, z: nv.z - v.z });
-    if (dv > 2.5) this.events.push({ type: 'impact', strength: dv, x: p.x, y: p.y, z: p.z });
+    const dv = len({ x: nv.x - vPre.x, y: nv.y - vPre.y, z: nv.z - vPre.z });
+    if (dv > 2.5) {
+      // Richtung des Stoßes (auch für Delle und Krümel in der Darstellung)
+      const nx = (nv.x - vPre.x) / dv;
+      const ny = (nv.y - vPre.y) / dv;
+      const nz = (nv.z - vPre.z) / dv;
+      const dvv = (ny < 0 ? -ny : ny) * dv * DAMAGE.vertical;
+      const dvh = Math.sqrt(nx * nx + nz * nz) * dv * DAMAGE.lateral;
+      const over = Math.sqrt(dvv * dvv + dvh * dvh) - DAMAGE.threshold;
+      const flatHit = 1 + (tilt < 0 ? -tilt : tilt);
+      const damage = over > 0 ? (over * over * DAMAGE.factor * flatHit) / C.durability : 0;
+      this.events.push({ type: 'impact', strength: dv, damage, x: p.x, y: p.y, z: p.z, nx, ny, nz });
+      if (damage > 0) {
+        this.integrity = this.integrity > damage ? this.integrity - damage : 0;
+        if (this.integrity === 0) {
+          this.broken = true;
+          this.events.push({ type: 'break', x: p.x, y: p.y, z: p.z });
+          return;
+        }
+      }
+    }
     const ns = len(nv);
     if (ns > this.maxSpeed) this.maxSpeed = ns;
 
@@ -244,14 +275,22 @@ export class Race {
 export function replay(track, cheeseId, ticks, { recordEvery = 2 } = {}) {
   const race = new Race(track, cheeseId);
   const frames = [];
-  for (let i = 0; i < ticks.length && !race.finished; i++) {
+  for (let i = 0; i < ticks.length && !race.finished && !race.broken; i++) {
     race.step(ticks[i].steer, ticks[i].flags);
     if (recordEvery && race.tick % recordEvery === 0) {
       const { p, q } = race.transform();
       frames.push(p.x, p.y, p.z, q.x, q.y, q.z, q.w);
     }
   }
-  const result = { finished: race.finished, time: race.finished ? race.finishTime : null, ticks: race.tick, respawns: race.respawns, frames };
+  const result = {
+    finished: race.finished,
+    broken: race.broken,
+    time: race.finished ? race.finishTime : null,
+    ticks: race.tick,
+    respawns: race.respawns,
+    integrity: race.integrity,
+    frames,
+  };
   race.free();
   return result;
 }

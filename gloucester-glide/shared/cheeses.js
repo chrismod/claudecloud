@@ -12,8 +12,27 @@ export const CHEESES = {
     steer: 1.0, // Lenkfreude
     stability: 1.0, // richtet sich auf
     drag: 1.0, // Luftwiderstand
+    durability: 1.0, // Bruchfestigkeit
+    edge: 0.06, // Rundung der Kante (m)
     rind: '#c8641e',
     paste: '#f0a64a',
+  },
+  emmentaler: {
+    id: 'emmentaler',
+    name: 'Emmentaler',
+    blurb: 'Ein runder Riese. Gleitet über jeden Buckel – aber die Löcher machen ihn zerbrechlich.',
+    radius: 0.68,
+    halfWidth: 0.25,
+    density: 620,
+    friction: 0.95,
+    restitution: 0.2,
+    steer: 0.85,
+    stability: 0.9,
+    drag: 0.85,
+    durability: 0.8,
+    edge: 0.15,
+    rind: '#d9a441',
+    paste: '#f6dc8a',
   },
   camembert: {
     id: 'camembert',
@@ -27,6 +46,8 @@ export const CHEESES = {
     steer: 1.4,
     stability: 0.8,
     drag: 1.25,
+    durability: 1.3, // weich: verformt sich, statt zu brechen
+    edge: 0.06,
     rind: '#f2eee4',
     paste: '#f6e7b8',
   },
@@ -42,6 +63,8 @@ export const CHEESES = {
     steer: 0.7,
     stability: 1.5,
     drag: 0.8,
+    durability: 1.6,
+    edge: 0.05,
     rind: '#d9a64e',
     paste: '#f3d27a',
   },

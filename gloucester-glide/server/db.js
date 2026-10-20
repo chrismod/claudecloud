@@ -21,13 +21,16 @@ export function openDb(file) {
     );
     CREATE INDEX IF NOT EXISTS runs_track_time ON runs (track, time_ms);
   `);
+  // Spalten, die später dazukamen
+  const cols = db.prepare('PRAGMA table_info(runs)').all().map((c) => c.name);
+  if (!cols.includes('integrity')) db.exec('ALTER TABLE runs ADD COLUMN integrity INTEGER NOT NULL DEFAULT 100');
 
   const insert = db.prepare(
-    'INSERT INTO runs (track, cheese, name, time_ms, respawns, inputs, frames, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?)',
+    'INSERT INTO runs (track, cheese, name, time_ms, respawns, integrity, inputs, frames, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
   );
   // Bestenliste: je Name nur der beste Lauf
   const best = db.prepare(`
-    SELECT id, name, cheese, time_ms AS timeMs, respawns, created_at AS createdAt FROM (
+    SELECT id, name, cheese, time_ms AS timeMs, respawns, integrity, created_at AS createdAt FROM (
       SELECT *, ROW_NUMBER() OVER (PARTITION BY name ORDER BY time_ms, id) AS rn
       FROM runs WHERE track = ? AND (? IS NULL OR cheese = ?)
     ) WHERE rn = 1 ORDER BY time_ms, id LIMIT ?
@@ -45,8 +48,8 @@ export function openDb(file) {
   const counts = db.prepare('SELECT track, COUNT(*) AS runs, MIN(time_ms) AS bestMs FROM runs GROUP BY track');
 
   return {
-    addRun({ track, cheese, name, timeMs, respawns, inputs, frames }) {
-      const r = insert.run(track, cheese, name, timeMs, respawns, inputs, frames, Date.now());
+    addRun({ track, cheese, name, timeMs, respawns, integrity = 100, inputs, frames }) {
+      const r = insert.run(track, cheese, name, timeMs, respawns, integrity, inputs, frames, Date.now());
       return Number(r.lastInsertRowid);
     },
     leaderboard(track, { cheese = null, limit = 20 } = {}) {

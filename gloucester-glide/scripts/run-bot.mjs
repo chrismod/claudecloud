@@ -16,7 +16,7 @@ for (const def of defs) {
     const race = new Race(track, cheese);
     const inputs = [];
     let flips = 0;
-    while (!race.finished && race.tick < 60 * 120) {
+    while (!race.finished && !race.broken && race.tick < 60 * 120) {
       const inp = botInput(race);
       inputs.push(inp);
       race.step(inp.steer, inp.flags);
@@ -26,7 +26,7 @@ for (const def of defs) {
     const p = race.transform().p;
     const r2 = replay(track, cheese, inputs);
     const same = r2.time === race.finishTime;
-    console.log(`${def.id.padEnd(18)} ${cheese.padEnd(11)} ${race.finished ? `Ziel ${race.finishTime.toFixed(3)} s` : `NICHT im Ziel (z=${p.z.toFixed(0)})`}  vmax ${(race.maxSpeed * 3.6).toFixed(0)} km/h  respawns ${race.respawns} aufgestellt ${flips} flach ${((race.flatTicks / race.tick) * 100).toFixed(0)}%  replay ${same ? 'identisch' : 'ABWEICHUNG ' + r2.time}`);
+    console.log(`${def.id.padEnd(18)} ${cheese.padEnd(11)} ${race.finished ? `Ziel ${race.finishTime.toFixed(3)} s` : `NICHT im Ziel (z=${p.z.toFixed(0)})`}  vmax ${(race.maxSpeed * 3.6).toFixed(0)} km/h  Laib ${Math.round(race.integrity * 100)} %  respawns ${race.respawns} aufgestellt ${flips} flach ${((race.flatTicks / race.tick) * 100).toFixed(0)}%  replay ${same ? 'identisch' : 'ABWEICHUNG ' + r2.time}`);
     race.free();
   }
 }

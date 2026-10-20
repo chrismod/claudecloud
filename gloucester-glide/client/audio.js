@@ -91,6 +91,28 @@ export const audio = {
     n.start(t, Math.random());
     n.stop(t + 0.2);
   },
+  // Bruch: trockenes Knacken, bei schwerem Schaden mehrere Risse
+  crack(amount) {
+    if (!ctx) return;
+    const t = ctx.currentTime;
+    const n = 1 + Math.min(4, Math.floor(amount * 20));
+    for (let i = 0; i < n; i++) {
+      const s = t + i * (0.025 + Math.random() * 0.03);
+      const src = ctx.createBufferSource();
+      src.buffer = noiseBuf;
+      const f = ctx.createBiquadFilter();
+      f.type = 'bandpass';
+      f.frequency.value = 1800 + Math.random() * 1600;
+      f.Q.value = 1.5;
+      const g = ctx.createGain();
+      g.gain.setValueAtTime(0.0001, s);
+      g.gain.exponentialRampToValueAtTime(0.25 + Math.min(0.4, amount * 2), s + 0.004);
+      g.gain.exponentialRampToValueAtTime(0.0001, s + 0.06);
+      src.connect(f).connect(g).connect(master);
+      src.start(s, Math.random());
+      src.stop(s + 0.08);
+    }
+  },
   whoosh() {
     if (!ctx) return;
     const t = ctx.currentTime;

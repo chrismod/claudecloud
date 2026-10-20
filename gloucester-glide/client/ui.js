@@ -32,9 +32,10 @@ export function renderTracks(el, tracks, selected, localBest, onPick) {
 }
 
 const STATS = {
-  gloucester: { tempo: 0.7, lenken: 0.65, stabil: 0.7 },
-  camembert: { tempo: 0.5, lenken: 0.95, stabil: 0.4 },
-  parmigiano: { tempo: 0.95, lenken: 0.35, stabil: 0.95 },
+  gloucester: { tempo: 0.7, lenken: 0.65, stabil: 0.7, robust: 0.55 },
+  emmentaler: { tempo: 0.85, lenken: 0.5, stabil: 0.6, robust: 0.3 },
+  camembert: { tempo: 0.5, lenken: 0.95, stabil: 0.4, robust: 0.7 },
+  parmigiano: { tempo: 0.95, lenken: 0.35, stabil: 0.95, robust: 0.95 },
 };
 
 export function renderCheeses(el, selected, onPick) {
@@ -43,16 +44,19 @@ export function renderCheeses(el, selected, onPick) {
     const s = STATS[C.id];
     const b = document.createElement('button');
     b.className = `cheese-opt${C.id === selected ? ' selected' : ''}`;
+    b.title = C.blurb;
     b.innerHTML = `
-      <span class="wheel" style="background: radial-gradient(circle, ${C.paste} 0 48%, ${C.rind} 50% 100%); box-shadow: inset 0 0 0 2px rgba(0,0,0,.15)"></span>
+      <span class="wheel wheel-${C.id}" style="--rind:${C.rind}; --paste:${C.paste}"></span>
       <strong>${esc(C.name)}</strong>
-      <p>${esc(C.blurb)}</p>
       <span class="stat">Tempo<i><b style="width:${s.tempo * 100}%"></b></i></span>
       <span class="stat">Lenkung<i><b style="width:${s.lenken * 100}%"></b></i></span>
-      <span class="stat">Stabilität<i><b style="width:${s.stabil * 100}%"></b></i></span>`;
+      <span class="stat">Stabil<i><b style="width:${s.stabil * 100}%"></b></i></span>
+      <span class="stat">Robust<i><b style="width:${s.robust * 100}%"></b></i></span>`;
     b.onclick = () => onPick(C.id);
     el.appendChild(b);
   }
+  const blurb = document.getElementById('cheese-blurb');
+  if (blurb) blurb.textContent = CHEESES[selected]?.blurb ?? '';
 }
 
 export function renderBoard(el, entries, { me, onGhost, limit = 10, personalBestMs } = {}) {
@@ -78,7 +82,8 @@ function row(e, rank, me, onGhost) {
   const li = document.createElement('li');
   if (e.name === me) li.className = 'me';
   const C = CHEESES[e.cheese];
-  li.innerHTML = `<span class="rank">${rank}.</span><span class="dot" title="${esc(C?.name ?? '')}" style="background:${C?.rind ?? '#999'}"></span><span class="who">${esc(e.name)}</span><span class="t">${fmt(e.timeMs)}</span>`;
+  const integ = e.integrity != null ? `<small class="integ" title="Laib-Integrität im Ziel">${e.integrity} %</small>` : '';
+  li.innerHTML = `<span class="rank">${rank}.</span><span class="dot" title="${esc(C?.name ?? '')}" style="background:${C?.rind ?? '#999'}"></span><span class="who">${esc(e.name)}${integ}</span><span class="t">${fmt(e.timeMs)}</span>`;
   if (onGhost) {
     const b = document.createElement('button');
     b.className = 'watch';

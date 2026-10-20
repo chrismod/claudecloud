@@ -27,7 +27,7 @@ test('Strecken-Liste enthält das Tagesrennen', async () => {
   const body = res.json();
   assert.equal(res.statusCode, 200);
   assert.ok(body.tracks.some((t) => t.id === 'daily-2026-10-19' && t.daily));
-  assert.equal(body.cheeses.length, 3);
+  assert.equal(body.cheeses.length, 4);
 });
 
 test('Gültiger Lauf wird nachgespielt und eingetragen', async () => {
@@ -38,6 +38,7 @@ test('Gültiger Lauf wird nachgespielt und eingetragen', async () => {
   assert.equal(body.rank, 1);
   assert.equal(body.desync, false);
   assert.equal(body.personalBest, true);
+  assert.equal(body.integrity, Math.round(run.integrity * 100));
 
   const lb = (await app.inject('/api/leaderboard/coopers-hill?name=Bot')).json();
   assert.equal(lb.entries.length, 1);

@@ -10,6 +10,8 @@
   </head>
   <body>
     <div id="stage"></div>
+    <div id="speedfx" aria-hidden="true"></div>
+    <div id="vignette" aria-hidden="true"></div>
 
     <!-- Hauptmenü -->
     <section id="menu" class="screen">
@@ -30,6 +32,7 @@
         <div class="step">
           <h2><span>2</span> Käse</h2>
           <div id="cheese-list" class="cheeses"></div>
+          <p id="cheese-blurb" class="blurb"></p>
         </div>
 
         <div class="step">
@@ -71,6 +74,11 @@
       </div>
       <div id="hud-center" class="hud-center"></div>
       <div class="hud-speed"><span id="hud-speed">0</span><small>km/h</small></div>
+      <div class="hud-integrity" id="hud-integrity" data-level="ok" title="Laib-Integrität">
+        <small>Laib</small>
+        <i><b></b></i>
+        <span>100 %</span>
+      </div>
       <div id="hud-toast" class="toast"></div>
     </section>
 

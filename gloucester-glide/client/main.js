@@ -12,7 +12,7 @@ import { botInput } from '../shared/bot.js';
 import { encodeInputs, encodeFrames, decodeFrames } from '../shared/inputs.js';
 import { createScene } from './render/scene.js';
 import { buildWorld } from './render/terrain.js';
-import { createCheese, createGhost, createBale } from './render/cheese.js';
+import { createCheese, createGhost, createBale, damageCheese, createShards, disposeCheese } from './render/cheese.js';
 import { createParticles } from './render/particles.js';
 import { createChaseCam } from './render/camera.js';
 import { createInput } from './input.js';
@@ -33,7 +33,9 @@ const app = {
 };
 local.set('name', app.name);
 
-const view = createScene($('#stage'));
+// Auf Handys weniger Gras, Bäume und Schattenauflösung
+const quality = matchMedia('(pointer: coarse)').matches || Math.min(screen.width, screen.height) < 700 ? 0.5 : 1;
+const view = createScene($('#stage'), { quality });
 const cam = createChaseCam(view.camera);
 const particles = createParticles(view.scene);
 const input = createInput({ onKey });
@@ -45,6 +47,7 @@ const trackCache = new Map();
 // Laufende Sitzung (Rennen oder Menü-Vorführung)
 let race = null;
 let cheeseMesh = null;
+let shards = null;
 let baleMeshes = [];
 let ghost = null; // { mesh, frames, splits, timeMs, name }
 let log = [];
@@ -62,13 +65,16 @@ function useTrack(id) {
   if (!trackCache.has(id)) trackCache.set(id, buildTrack(trackById(id)));
   track = trackCache.get(id);
   world?.dispose();
-  world = buildWorld(view.scene, track);
+  world = buildWorld(view.scene, track, { quality });
 }
 
 function clearSession() {
   if (race) race.free();
   race = null;
-  if (cheeseMesh) view.scene.remove(cheeseMesh);
+  if (cheeseMesh) (view.scene.remove(cheeseMesh), disposeCheese(cheeseMesh));
+  cheeseMesh = null;
+  shards?.dispose();
+  shards = null;
   for (const m of baleMeshes) view.scene.remove(m);
   baleMeshes = [];
   if (ghost) view.scene.remove(ghost.mesh);
@@ -91,6 +97,7 @@ function newSession({ isDemo }) {
   frames = [];
   splits = [];
   finishInfo = null;
+  setIntegrity(1, false);
   input.reset();
   cam.reset();
   snapshot();
@@ -239,10 +246,33 @@ function finishRace() {
   setTimeout(() => showFinish(timeMs, isPb), 900);
 }
 
+function breakRace() {
+  app.state = 'broken';
+  input.showTouch(false);
+  audio.crack(1);
+  audio.cheer(0.5);
+  cam.bump(30);
+  shards = createShards(view.scene, cheeseMesh, cur.v, world.groundAt);
+  cheeseMesh.visible = false;
+  for (let i = 0; i < 3; i++) particles.emit(cur.p, cur.v, 40, 3, CHEESES[app.cheese].paste);
+  center('Zerbrochen!', `nach ${Math.round(cur.p.z - track.start.z)} m`);
+  setTimeout(() => {
+    if (app.state !== 'broken') return;
+    center('');
+    show('#finish');
+    $('#finish-kicker').textContent = `${track.name} · ${CHEESES[app.cheese].name}`;
+    $('#finish-time').textContent = 'Laib zerbrochen';
+    $('#finish-time').classList.add('small');
+    $('#finish-meta').innerHTML = `<span>nach ${fmt(race.tick * DT * 1000)}</span><span>${Math.round(((cur.p.z - track.start.z) / (track.finishZ - track.start.z)) * 100)} % der Strecke</span>`;
+    $('#finish-board').innerHTML = '<li class="gap">Tipp: Felsen und Ballen kosten am meisten. Flach aufschlagen auch – lieber rechtzeitig aufstellen.</li>';
+  }, 1600);
+}
+
 async function showFinish(timeMs, isPb) {
   if (app.state !== 'finish') return;
   show('#finish');
   $('#finish-time').textContent = fmt(timeMs);
+  $('#finish-time').classList.remove('small');
   $('#finish-kicker').textContent = `${track.name} · ${CHEESES[app.cheese].name}`;
   const meta = [];
   if (isPb) meta.push('<span class="hot">Persönliche Bestzeit</span>');
@@ -252,6 +282,7 @@ async function showFinish(timeMs, isPb) {
     const label = Math.abs(d) < 5 ? `Gleichauf mit ${who}` : `${who} ${fmt(d, { sign: true })}`;
     meta.push(`<span${d < 0 ? ' class="hot"' : ''}>${escapeHtml(label)}</span>`);
   }
+  meta.push(`<span${race.integrity > 0.95 ? ' class="hot"' : ''}>Laib ${Math.round(race.integrity * 100)} %${race.integrity > 0.95 ? ' – fast wie neu' : ''}</span>`);
   if (race.respawns) meta.push(`<span>${race.respawns}× zurückgesetzt</span>`);
   const metaEl = $('#finish-meta');
   metaEl.innerHTML = meta.join('');
@@ -298,15 +329,15 @@ function togglePause() {
 function onKey(code, e) {
   if (code === 'Escape') {
     if (app.state === 'race' || app.state === 'paused') togglePause();
-    else if (app.state === 'finish') toMenu();
+    else if (app.state === 'finish' || app.state === 'broken') toMenu();
   } else if (code === 'Enter' || code === 'GamepadStart') {
     if (app.state === 'menu') {
       e?.target?.blur?.();
       startRace();
-    } else if (app.state === 'finish') startRace();
+    } else if (app.state === 'finish' || app.state === 'broken') startRace();
     else if (app.state === 'paused') togglePause();
   } else if (code === 'Backspace') {
-    if (app.state === 'race' || app.state === 'paused' || app.state === 'finish') startRace();
+    if (['race', 'paused', 'finish', 'broken'].includes(app.state)) startRace();
   }
 }
 
@@ -405,6 +436,21 @@ async function refreshBoard() {
   }
 }
 
+// ---------- Laib-Integrität (HUD) ----------
+const integrityEl = $('#hud-integrity');
+const speedFx = $('#speedfx');
+function setIntegrity(value, flash) {
+  const pct = Math.round(value * 100);
+  integrityEl.querySelector('b').style.width = `${pct}%`;
+  integrityEl.querySelector('span').textContent = `${pct} %`;
+  integrityEl.dataset.level = pct > 60 ? 'ok' : pct > 30 ? 'warn' : 'bad';
+  if (flash) {
+    integrityEl.classList.remove('hit');
+    void integrityEl.offsetWidth;
+    integrityEl.classList.add('hit');
+  }
+}
+
 // ---------- Hauptschleife ----------
 let acc = 0;
 let last = performance.now();
@@ -432,7 +478,9 @@ function stepOnce() {
     particles.emit(tmpV, cur.v, 1, 0.8);
   }
   if (demo && (race.finished || race.tick > 60 * 45)) newSession({ isDemo: true });
+  else if (demo && race.broken) newSession({ isDemo: true });
   else if (!demo && race.finished) finishRace();
+  else if (!demo && race.broken) breakRace();
   else if (!demo && race.tick >= MAX_TICKS) {
     toast('Zeit abgelaufen', 2500);
     toMenu();
@@ -447,6 +495,19 @@ function handleEvents() {
         cam.bump(e.strength);
       }
       if (e.strength > 4) particles.emit({ x: e.x, y: e.y - 0.3, z: e.z }, cur.v, Math.min(30, e.strength * 2), 2);
+      if (e.damage > 0.004) {
+        // Delle und Krümel an der Stelle, die den Boden bzw. das Hindernis getroffen hat
+        cheeseMesh.position.copy(cur.p);
+        cheeseMesh.quaternion.copy(cur.q);
+        damageCheese(cheeseMesh, { x: e.nx, y: e.ny, z: e.nz }, e.damage);
+        const R = race.cheese.radius;
+        particles.emit({ x: e.x - e.nx * R, y: e.y - e.ny * R, z: e.z - e.nz * R }, cur.v, Math.round(6 + e.damage * 160), 1.6, race.cheese.paste);
+        if (!demo) {
+          audio.crack(e.damage);
+          setIntegrity(race.integrity, true);
+          if (e.damage > 0.08) toast(`Autsch! −${Math.round(e.damage * 100)} %`);
+        }
+      }
     } else if (demo) continue;
     else if (e.type === 'jump' || e.type === 'flip') {
       input.jumped();
@@ -487,12 +548,15 @@ function frame(now) {
   if (running) {
     acc += dt;
     let n = 0;
-    while (acc >= DT && n++ < 8) {
+    const maxSteps = app.maxSteps ?? 8; // Tests im Software-Renderer drehen das hoch
+    while (acc >= DT && n++ < maxSteps) {
       acc -= DT;
       stepOnce();
       if (app.state !== 'race' && !(app.state === 'menu' && demo)) break;
     }
-    if (acc > DT * 8) acc = 0;
+    if (acc > DT * maxSteps) acc = 0;
+  } else if (race && app.state === 'broken') {
+    shards?.update(dt);
   } else if (race && app.state === 'finish') {
     // Nach dem Ziel rollt der Käse frei aus (gehört nicht mehr zum gewerteten Lauf)
     acc += dt;
@@ -511,10 +575,14 @@ function frame(now) {
     placeGhost(race.tick + (running ? alpha : 0));
     const groundAt = world.groundAt;
     cam.update(dt, cheeseMesh.position, cur.v, groundAt, app.state === 'menu' ? 'orbit' : 'chase', time);
-    view.followSun(cheeseMesh.position);
+    view.followSun(cheeseMesh.position, cam.dir);
     const speed = cur.v.length();
     world.update(time, cheeseMesh.position, speed);
-    particles.update(dt);
+    particles.update(dt, view.camera.position);
+
+    const fx = app.state === 'race' ? Math.max(0, Math.min(1, (speed * 3.6 - 55) / 50)) : 0;
+    speedFx.style.opacity = fx.toFixed(2);
+    if (fx > 0) speedFx.style.transform = `rotate(${(Math.random() * 6).toFixed(1)}deg) scale(1.1)`;
 
     if (app.state === 'race' || app.state === 'countdown' || app.state === 'finish') {
       const t = app.state === 'finish' ? race.finishTime : race.tick * DT;
@@ -555,6 +623,11 @@ window.__glide = {
   get race() {
     return race;
   },
+  get world() {
+    return world;
+  },
+  view,
+  debug: { THREE, createCheese, damageCheese, CHEESES },
   app,
   startRace,
   toMenu,

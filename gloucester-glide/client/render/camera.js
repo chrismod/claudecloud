@@ -11,6 +11,7 @@ export function createChaseCam(camera) {
   const tmp = new THREE.Vector3();
 
   return {
+    dir,
     reset() {
       first = true;
       dir.set(0, 0, 1);

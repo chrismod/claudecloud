@@ -92,18 +92,21 @@ export async function buildApp({ dbFile = 'data/glide.db', staticDir = null, now
 
     const r = await v.verify(def.id, cheese, inputs);
     if (!r.ok) return reply.code(400).send({ error: r.error });
+    if (r.broken) return reply.code(422).send({ error: 'Der Laib ist unterwegs zerbrochen' });
     if (!r.finished) return reply.code(422).send({ error: 'Lauf hat das Ziel nicht erreicht' });
 
     const timeMs = Math.round(r.time * 1000);
     const desync = typeof claimed === 'number' && Math.abs(claimed - timeMs) > 1;
     if (desync) req.log.warn({ track, cheese, claimed, timeMs }, 'Abweichung zwischen Client und Server');
     const previousBest = db.personalBest(def.id, name);
-    const id = db.addRun({ track: def.id, cheese, name, timeMs, respawns: r.respawns, inputs, frames: r.frames });
+    const integrity = Math.round(r.integrity * 100);
+    const id = db.addRun({ track: def.id, cheese, name, timeMs, respawns: r.respawns, integrity, inputs, frames: r.frames });
     return {
       ok: true,
       id,
       timeMs,
       respawns: r.respawns,
+      integrity,
       rank: db.rank(def.id, timeMs),
       personalBest: previousBest === null || timeMs < previousBest,
       desync,

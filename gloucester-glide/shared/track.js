@@ -186,6 +186,17 @@ export function buildTrack(def) {
     bales.push({ x, z, hx, hy, hz, y: heightAt(x, z) + hy + 0.02, yaw: r() * 3 });
   }
 
+  // Strohballenwand im Auslauf, fängt die Laibe hinter dem Ziel auf (liegt hinter der Ziellinie, beeinflusst keine Zeit)
+  const catchZ = def.finish + 24;
+  const catchBales = [];
+  const cc = centerAt(catchZ);
+  for (let k = 0, x = cc - inner - 3; x <= cc + inner + 3; k++, x += 1.25) {
+    for (let level = 0; level < 2; level++) {
+      const xx = x + (level ? 0.62 : 0);
+      catchBales.push({ x: xx, z: catchZ, y: heightAt(xx, catchZ) + 0.42 + level * 0.84, hx: 0.6, hy: 0.42, hz: 0.42 });
+    }
+  }
+
   // Kontrollpunkte für das Zurücksetzen (alle 40 m)
   const checkpoints = [];
   for (let z = 6; z < def.finish; z += 40) checkpoints.push({ z, x: centerAt(z), y: heightAt(centerAt(z), z) });
@@ -207,6 +218,7 @@ export function buildTrack(def) {
     outer,
     rocks,
     bales,
+    catchBales,
     checkpoints,
     finishZ: def.finish,
     start: { x: centerAt(startZ), z: startZ, y: heightAt(centerAt(startZ), startZ) },

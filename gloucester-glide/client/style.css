@@ -284,8 +284,21 @@ h1 {
 
 .cheeses {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  gap: 8px;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 6px;
+}
+.blurb {
+  margin: 8px 2px 0;
+  font-size: 0.86rem;
+  line-height: 1.35;
+  color: var(--muted);
+  min-height: 2.7em;
+}
+.board li .integ {
+  margin-left: 6px;
+  font: 600 0.72rem var(--display);
+  color: var(--muted);
+  letter-spacing: 0.04em;
 }
 .cheese-opt {
   display: flex;
@@ -310,13 +323,26 @@ h1 {
   box-shadow: 0 0 0 3px rgba(224, 122, 31, 0.18);
 }
 .cheese-opt .wheel {
-  width: 34px;
-  height: 34px;
+  width: 38px;
+  height: 38px;
   border-radius: 50%;
   align-self: center;
+  background: radial-gradient(circle at 42% 38%, color-mix(in srgb, var(--rind) 70%, white) 0 18%, var(--rind) 60%, color-mix(in srgb, var(--rind) 70%, black) 100%);
+  box-shadow: inset 0 0 0 2px rgba(0, 0, 0, 0.08), 0 2px 4px rgba(0, 0, 0, 0.15);
+}
+.cheese-opt .wheel-emmentaler {
+  width: 42px;
+  height: 42px;
+}
+.cheese-opt .wheel-camembert {
+  width: 32px;
+  height: 32px;
 }
 .cheese-opt strong {
-  font: 700 1rem/1.05 var(--display);
+  font: 700 0.92rem/1.05 var(--display);
+  min-height: 2.1em;
+  display: grid;
+  place-items: center;
   text-transform: uppercase;
   text-align: center;
 }
@@ -329,7 +355,7 @@ h1 {
 }
 .stat {
   display: grid;
-  grid-template-columns: 4.6em 1fr;
+  grid-template-columns: 3.9em 1fr;
   align-items: center;
   gap: 6px;
   font: 600 0.66rem var(--display);
@@ -616,6 +642,9 @@ h1 {
   font: 800 4.4rem/0.95 var(--display);
   font-variant-numeric: tabular-nums;
 }
+.finish-time.small {
+  font-size: 3rem;
+}
 .finish-meta {
   display: flex;
   flex-wrap: wrap;
@@ -728,7 +757,7 @@ body.touch .hud-speed {
 }
 @media (max-width: 480px) {
   .cheeses {
-    grid-template-columns: 1fr;
+    grid-template-columns: 1fr 1fr;
   }
   .cheese-opt p {
     min-height: 0;
@@ -739,4 +768,86 @@ body.touch .hud-speed {
   .hud-respawns {
     display: none;
   }
+}
+
+/* ---------- Laib-Integrität ---------- */
+.hud-integrity {
+  position: absolute;
+  left: 22px;
+  bottom: 22px;
+  display: grid;
+  grid-template-columns: auto 150px auto;
+  align-items: center;
+  gap: 10px;
+  font: 700 1.1rem var(--display);
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+}
+.hud-integrity small {
+  font: inherit;
+  font-size: 0.85rem;
+  opacity: 0.85;
+}
+.hud-integrity i {
+  display: block;
+  height: 10px;
+  border-radius: 5px;
+  background: rgba(255, 255, 255, 0.25);
+  overflow: hidden;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.3);
+}
+.hud-integrity b {
+  display: block;
+  height: 100%;
+  width: 100%;
+  border-radius: 5px;
+  background: #f3b45a;
+  transition: width 0.25s ease-out, background 0.3s;
+}
+.hud-integrity[data-level='warn'] b {
+  background: #f08a24;
+}
+.hud-integrity[data-level='bad'] b {
+  background: #e0442a;
+}
+.hud-integrity span {
+  min-width: 3.2em;
+  font-variant-numeric: tabular-nums;
+}
+.hud-integrity.hit {
+  animation: hit 0.45s ease-out;
+}
+@keyframes hit {
+  20% {
+    transform: translateX(-4px) scale(1.06);
+    color: #ffb4a6;
+  }
+  40% {
+    transform: translateX(4px);
+  }
+}
+body.touch .hud-integrity {
+  bottom: auto;
+  top: 70px;
+  left: 20px;
+  grid-template-columns: auto 90px auto;
+  font-size: 0.9rem;
+}
+
+/* ---------- Bildeffekte ---------- */
+#vignette,
+#speedfx {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 1;
+}
+#vignette {
+  background: radial-gradient(ellipse at 50% 45%, transparent 55%, rgba(10, 18, 6, 0.38) 100%);
+}
+#speedfx {
+  opacity: 0;
+  background: repeating-conic-gradient(from 0deg at 50% 45%, rgba(255, 255, 255, 0) 0deg 2.2deg, rgba(255, 255, 255, 0.22) 2.4deg 2.6deg, rgba(255, 255, 255, 0) 2.8deg 5deg);
+  -webkit-mask-image: radial-gradient(ellipse at 50% 45%, transparent 38%, black 80%);
+  mask-image: radial-gradient(ellipse at 50% 45%, transparent 38%, black 80%);
 }
