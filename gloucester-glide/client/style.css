@@ -883,6 +883,7 @@ body.touch .hud-integrity {
 }
 .hud-track small {
   display: block;
+  white-space: nowrap;
   margin-top: 2px;
   font: 600 0.82rem var(--display);
   letter-spacing: 0.1em;

@@ -9,7 +9,7 @@ const ZENITH = new THREE.Color('#4f8cc9');
 // Stimmungen je Strecke: Wiese (Cooper's Hill) und Hochgebirge (Everest: dünne Luft, tiefblauer Himmel, weite Sicht)
 export const THEMES = {
   meadow: { horizon: '#d6e0dc', zenith: '#4f8cc9', fog: [90, 650], far: 2500, hemiSky: '#dbe9fb', hemiGround: '#51602e', hemi: 1.0, sun: 2.9, exposure: 1.1, clouds: 0.85 },
-  everest: { horizon: '#c9dbea', zenith: '#1f5fb8', fog: [400, 5200], far: 9000, hemiSky: '#dfeeff', hemiGround: '#6d7680', hemi: 1.15, sun: 3.2, exposure: 1.0, clouds: 0.6 },
+  everest: { horizon: '#c9dbea', zenith: '#1f5fb8', fog: [350, 4200], far: 9000, hemiSky: '#dfeeff', hemiGround: '#6d7680', hemi: 1.15, sun: 3.2, exposure: 1.0, clouds: 0.6 },
 };
 
 function skyMaterial() {

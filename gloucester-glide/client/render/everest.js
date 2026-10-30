@@ -7,7 +7,7 @@ import { rng } from '../../shared/rng.js';
 import { crownGeometry, coniferGeometry, prismGeometry, stripes } from './props.js';
 import { tuftAssets } from './grass.js';
 import { crowdMeshes, person, OUTFITS } from './crowd.js';
-import { banner, checkerTexture, grassTexture } from './terrain.js';
+import { banner, checkerTexture } from './terrain.js';
 import { createBale } from './cheese.js';
 import { buildMountains } from './mountains.js';
 
@@ -19,7 +19,7 @@ const col = (h) => new THREE.Color(h);
 
 const C = {
   snow: col('#f2f6fb'),
-  snowShade: col('#c6d6ea'),
+  snowShade: col('#d5e1ef'),
   ice: col('#9fd0ea'),
   iceDeep: col('#5fa3cc'),
   crevasse: col('#0d2b4a'),
@@ -78,8 +78,11 @@ export function buildEverestWorld(scene, track, { quality = 1 } = {}) {
     if (out > 0) {
       // steile Talflanken mit Graten, nach außen höher, weit draußen flacher (dort stehen die Gipfel)
       const rise = out < 300 ? out * 0.5 : 150 + (out - 300) * 0.2;
-      h += out * 1.1 * (1 - smooth(out / 40)) + smooth(out / 40) * 35 + rise;
-      h += fbm2(x * 0.012, z * 0.012, seed + 99, 4) * 45 * smooth(out / 80);
+      // Basislager: neben der Bahn eine flache Ebene für die Zeltstadt, die Flanken beginnen erst weiter draußen
+      const camp = smooth((zc - 1490) / 40) * (1 - smooth((zc - 1800) / 40)) * (1 - smooth((out - 70) / 60));
+      h += (out * 1.1 * (1 - smooth(out / 40)) + smooth(out / 40) * 35 + rise) * (1 - camp);
+      h += fbm2(x * 0.012, z * 0.012, seed + 99, 4) * 45 * smooth(out / 80) * (1 - camp);
+      h += fbm2(x * 0.05, z * 0.05, seed + 98, 2) * 1.2 * camp;
     }
     if (z < 0) h += z * 0.7 + fbm2(x * 0.02, z * 0.02, seed + 7, 3) * 8 * smooth(-z / 30); // hinter dem Gipfel geht es abwärts
     if (z > L) {
@@ -102,7 +105,7 @@ export function buildEverestWorld(scene, track, { quality = 1 } = {}) {
     const k = noise2(x * 0.08, z * 0.08, seed + 5);
     // Umgebung nach Höhe: Schnee – Fels/Geröll – Almwiese – Grün
     const snowLine = 5150 + (noise2(x * 0.01, z * 0.01, seed + 6) - 0.5) * 700;
-    if (alt > snowLine) c.copy(C.snow).lerp(C.snowShade, (1 - ny) * 1.2 + k * 0.15);
+    if (alt > snowLine) c.copy(C.snow).lerp(C.snowShade, (1 - ny) * 0.6 + k * 0.2);
     else if (alt > 4250) c.copy(C.gravel).lerp(C.rockWarm, k);
     else if (alt > 3850) c.copy(C.alpine).lerp(C.alpineDry, k * 0.7);
     else c.copy(C.grass).lerp(C.grassDeep, k);
@@ -128,7 +131,25 @@ export function buildEverestWorld(scene, track, { quality = 1 } = {}) {
   };
 
   // ---------- Gelände-Mesh für einen Bereich ----------
-  const detail = grassTexture();
+  // feine, körnige Struktur (passt zu Schnee, Geröll und Gras)
+  const detail = (() => {
+    const n = 256;
+    const cv = document.createElement('canvas');
+    cv.width = cv.height = n;
+    const g = cv.getContext('2d');
+    g.fillStyle = '#e6e6e6';
+    g.fillRect(0, 0, n, n);
+    for (let i = 0; i < 14000; i++) {
+      const v = 190 + Math.floor(Math.random() * 65);
+      g.fillStyle = `rgb(${v},${v},${v})`;
+      g.fillRect(Math.random() * n, Math.random() * n, 1 + Math.random() * 1.5, 1 + Math.random() * 1.5);
+    }
+    const t = new THREE.CanvasTexture(cv);
+    t.wrapS = t.wrapT = THREE.RepeatWrapping;
+    t.colorSpace = THREE.SRGBColorSpace;
+    t.anisotropy = 8;
+    return t;
+  })();
   const groundMat = new THREE.MeshLambertMaterial({ vertexColors: true, map: detail });
   function groundMesh(xs, zs, { ao = false } = {}) {
     const cols = xs.length;
@@ -526,17 +547,18 @@ export function buildEverestWorld(scene, track, { quality = 1 } = {}) {
     }
     if (zone.id === 'basecamp') {
       // Zeltstadt auf beiden Seiten
-      for (let i = 0; i < 46; i++) {
+      // auf der Ebene neben dem Höhenfeld (|x| > Rand), in Grüppchen
+      for (let i = 0; i < 60; i++) {
         const z = z0 + rnd() * (z1 - z0);
         const side = rnd() < 0.5 ? -1 : 1;
-        const x = sideX(z, side, track.inner + 4 + rnd() * 26);
+        const x = side * (half + 4 + rnd() * 55);
         tent(g, x, z, 1.1 + rnd() * 0.8, tentColors[Math.floor(rnd() * tentColors.length)]);
       }
       // große Gemeinschaftszelte
       for (let i = 0; i < 3; i++) {
         const z = z0 + 15 + rnd() * 70;
         const side = rnd() < 0.5 ? -1 : 1;
-        const x = sideX(z, side, track.outer + 6 + rnd() * 10);
+        const x = side * (half + 8 + rnd() * 30);
         const y = groundAt(x, z);
         const body = new THREE.Mesh(new THREE.BoxGeometry(6, 2.4, 4), new THREE.MeshLambertMaterial({ map: stripes('#f2b51a', '#e8a312', 6) }));
         body.position.set(x, y + 1, z);

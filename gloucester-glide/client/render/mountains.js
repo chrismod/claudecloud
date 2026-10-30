@@ -11,9 +11,9 @@ function peakGeometry(R, H, seed, altitudeAt, baseY) {
   const col = [];
   const snow = new THREE.Color('#f3f6fb');
   const shade = new THREE.Color('#c9d6e6');
-  const rock = new THREE.Color('#5d5f66');
-  const rockWarm = new THREE.Color('#77706a');
-  const green = new THREE.Color('#3f5f2c');
+  const rock = new THREE.Color('#80838c');
+  const rockWarm = new THREE.Color('#8f877d');
+  const green = new THREE.Color('#5a7a3e');
   const c = new THREE.Color();
   const pt = (ring, seg) => {
     const t = ring / rings; // 0 = Gipfel, 1 = Fuß
@@ -46,8 +46,8 @@ function peakGeometry(R, H, seed, altitudeAt, baseY) {
     const alt = altitudeAt(baseY + y);
     const k = noise2(a[0] * 0.004, a[2] * 0.004 + y * 0.003, 31);
     // Schnee bleibt auf flacheren Stellen liegen; steile Wände zeigen Fels
-    const snowLine = 5000 + (k - 0.5) * 900;
-    if (alt > snowLine && ny > 0.42) c.copy(snow).lerp(shade, (1 - ny) * 0.8);
+    const snowLine = 4700 + (k - 0.5) * 900;
+    if (alt > snowLine && ny > 0.35) c.copy(snow).lerp(shade, (1 - ny) * 0.7);
     else if (alt < 3900) c.copy(green).lerp(rock, Math.max(0, (alt - 3500) / 400));
     else c.copy(rock).lerp(rockWarm, k);
     for (const v of [a, b, d]) {
@@ -81,13 +81,15 @@ export function buildMountains(group, track) {
   for (let i = 0; i < 34; i++) {
     const side = i % 2 ? 1 : -1;
     const z = -900 + r() * (L + 2400);
-    const dist = 700 + r() * 2300;
+    const dist = 1100 + r() * 2600;
     const x = side * dist;
     const baseY = valleyY(z) - 250 - dist * 0.1;
     // Gipfelhöhe: in der Nähe des Starts knapp unter dem Everest, sonst darunter streuend
     const top = startY - 150 - r() * 1300 - Math.max(0, -z) * 0.2;
-    const H = Math.max(700, top - baseY);
-    const R = H * (0.9 + r() * 0.7);
+    let H = Math.max(700, top - baseY);
+    // Der Fuß darf nicht bis an die Strecke reichen
+    const R = Math.min(H * (0.9 + r() * 0.7), dist - 400);
+    H = Math.min(H, R * 1.9);
     const m = new THREE.Mesh(peakGeometry(R, H, i * 1.7 + 0.3, track.altitudeAt, baseY), mat);
     m.position.set(x, baseY, z);
     m.rotation.y = r() * 6.28;
@@ -98,8 +100,8 @@ export function buildMountains(group, track) {
   }
   // Ein markanter Spitzberg (wie die Ama Dablam) über dem Tal
   const H = startY - valleyY(2600) - 900;
-  const ama = new THREE.Mesh(peakGeometry(H * 0.55, H, 9.1, track.altitudeAt, valleyY(2600) - 150), mat);
-  ama.position.set(900, valleyY(2600) - 150, 2600);
+  const ama = new THREE.Mesh(peakGeometry(Math.min(H * 0.55, 1000), H, 9.1, track.altitudeAt, valleyY(2600) - 150), mat);
+  ama.position.set(1500, valleyY(2600) - 150, 2600);
   ama.matrixAutoUpdate = false;
   ama.updateMatrix();
   group.add(ama);

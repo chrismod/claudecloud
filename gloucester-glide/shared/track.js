@@ -120,12 +120,12 @@ TRACKS.everest = {
   ],
   // Untergrund: 0 Gras, 1 Schnee, 2 Eis, 3 Geröll; ice = Schwelle für Eisflecken (≥ 1: keine)
   zones: [
-    { id: 'summit', from: 0, to: 1200, name: 'Gipfelflanke', bumps: 0.6, surface: 1, ice: 0.63, rocks: 9, boxes: 0 },
-    { id: 'icefall', from: 1200, to: 1500, name: 'Khumbu-Eisbruch', bumps: 1.0, surface: 1, ice: 0.5, rocks: 4, boxes: 0, seracs: 14 },
-    { id: 'basecamp', from: 1500, to: 1810, name: 'Basislager', bumps: 0.5, surface: 3, ice: 2, rocks: 5, boxes: 12, boxKind: 'duffel' },
-    { id: 'moraine', from: 1810, to: 2500, name: 'Moräne', bumps: 1.2, surface: 3, ice: 0.78, rocks: 38, boxes: 0 },
-    { id: 'alpine', from: 2500, to: 2950, name: 'Almen', bumps: 0.9, surface: 0, ice: 2, rocks: 12, boxes: 4, boxKind: 'hay' },
-    { id: 'valley', from: 2950, to: 3600, name: 'Tal', bumps: 0.7, surface: 0, ice: 2, rocks: 5, boxes: 8, boxKind: 'hay' },
+    { id: 'summit', from: 0, to: 1200, name: 'Gipfelflanke', wall: 1, bumps: 0.6, surface: 1, ice: 0.63, rocks: 9, boxes: 0 },
+    { id: 'icefall', from: 1200, to: 1500, name: 'Khumbu-Eisbruch', wall: 1, bumps: 1.0, surface: 1, ice: 0.5, rocks: 4, boxes: 0, seracs: 14 },
+    { id: 'basecamp', from: 1500, to: 1810, name: 'Basislager', wall: 0.45, bumps: 0.5, surface: 3, ice: 2, rocks: 5, boxes: 12, boxKind: 'duffel' },
+    { id: 'moraine', from: 1810, to: 2500, name: 'Moräne', wall: 1, bumps: 1.2, surface: 3, ice: 0.78, rocks: 38, boxes: 0 },
+    { id: 'alpine', from: 2500, to: 2950, name: 'Almen', wall: 1, bumps: 0.9, surface: 0, ice: 2, rocks: 12, boxes: 4, boxKind: 'hay' },
+    { id: 'valley', from: 2950, to: 3600, name: 'Tal', wall: 1, bumps: 0.7, surface: 0, ice: 2, rocks: 5, boxes: 8, boxKind: 'hay' },
   ],
   crevasses: [
     { z: 1290, width: 4, depth: 9 },
@@ -231,7 +231,8 @@ export function buildTrack(def) {
     const dx = Math.abs(x - centers[i]);
     // Mulde: seitliche Wälle halten den Käse (meistens) auf der Strecke
     const t = (dx - inner) / (outer - inner);
-    const wall = t <= 0 ? 0 : t <= 1 ? 7 * t * t : 7 + (dx - outer) * 1.4;
+    let wall = t <= 0 ? 0 : t <= 1 ? 7 * t * t : 7 + (dx - outer) * 1.4;
+    if (def.zones) wall *= zoneBlend(def, z, 'wall'); // im Basislager flachere Wände
     // Bodenwellen – am Start und im Auslauf ruhiger
     let calm = smooth(z / 25) * (1 - smooth((z - def.finish + 10) / 30));
     // rund um Gletscherspalten glatt, damit Absprung und Landung sauber sind
