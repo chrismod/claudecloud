@@ -391,7 +391,35 @@ export function createGhost(C) {
 }
 
 let baleMat = null;
+// Seesäcke im Basislager: robuste Expeditionstaschen mit Riemen
+const DUFFELS = ['#f2b51a', '#d6332a', '#1f62c8', '#ff7a1a', '#2f2f36'];
+let duffelGeo = null;
+function createDuffel(b) {
+  if (!duffelGeo) {
+    duffelGeo = new THREE.CapsuleGeometry(1, 2, 4, 12);
+    duffelGeo.rotateZ(Math.PI / 2);
+  }
+  const color = DUFFELS[Math.floor(Math.random() * DUFFELS.length)];
+  const m = new THREE.Mesh(duffelGeo, new THREE.MeshStandardMaterial({ color, roughness: 0.55 }));
+  // Kapsel ist 4 lang und 2 dick → auf die Kollisionsbox skalieren
+  m.geometry = duffelGeo;
+  const g = new THREE.Group();
+  m.scale.set(b.hx / 2, b.hy, b.hz);
+  const strap = new THREE.Mesh(new THREE.TorusGeometry(1, 0.06, 6, 20), new THREE.MeshStandardMaterial({ color: '#1b1d22', roughness: 0.8 }));
+  strap.rotation.y = Math.PI / 2;
+  for (const x of [-0.5, 0.5]) {
+    const s = strap.clone();
+    s.position.x = x * b.hx;
+    s.scale.set(b.hz * 1.02, b.hy * 1.02, 1);
+    g.add(s);
+  }
+  g.add(m);
+  m.castShadow = true;
+  return g;
+}
+
 export function createBale(b) {
+  if (b.kind === 'duffel') return createDuffel(b);
   baleMat ||= (() => {
     const cv = document.createElement('canvas');
     cv.width = cv.height = 256;

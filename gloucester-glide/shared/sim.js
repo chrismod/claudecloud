@@ -6,10 +6,17 @@ import RAPIER from '@dimforge/rapier3d-deterministic-compat';
 import { CHEESES } from './cheeses.js';
 
 export const DT = 1 / 60;
-export const MAX_TICKS = 60 * 180; // 3 Minuten
+export const MAX_TICKS = 60 * 480; // 8 Minuten (Everest dauert gut zwei)
 const MAX_YAW = 2.2; // rad/s
 const JUMP_COOLDOWN = 45;
 // Bruchschaden: Stöße oberhalb der Schwelle kosten Laib-Integrität (quadratisch mit der Stärke)
+// Untergrund: Lenk-Grip und Rollwiderstand (0 Gras, 1 Schnee, 2 Eis, 3 Geröll)
+export const SURFACES = [
+  { name: 'Gras', grip: 1, roll: 0.008 },
+  { name: 'Schnee', grip: 0.85, roll: 0.015 },
+  { name: 'Eis', grip: 0.3, roll: 0.002 },
+  { name: 'Geröll', grip: 0.9, roll: 0.016 },
+];
 // Seitliche Treffer wiegen schwerer als Landungen; wer auf der flachen Seite aufschlägt, zahlt doppelt.
 export const DAMAGE = { threshold: 8, factor: 0.0012, vertical: 0.65, lateral: 1.5 };
 export const TUNE = { base: 20, speed: 1.5, damp: 6 };
@@ -63,6 +70,7 @@ export class Race {
     this.maxSpeed = 0;
     this.flatTicks = 0;
     this.integrity = 1; // 1 = unversehrt, 0 = zerbrochen
+    this.stillTicks = 0;
     this.broken = false;
 
     const world = new RAPIER.World({ x: 0, y: -9.81, z: 0 });
@@ -85,6 +93,14 @@ export class Race {
     for (const r of track.rocks) {
       world.createCollider(RAPIER.ColliderDesc.ball(r.radius).setTranslation(r.x, r.y, r.z).setFriction(0.6).setRestitution(0.35));
     }
+    for (const o of [...track.seracs, ...track.ladders]) {
+      const d = RAPIER.ColliderDesc.cuboid(o.hx, o.hy, o.hz).setTranslation(o.x, o.y, o.z).setFriction(0.5).setRestitution(0.1);
+      if (o.yaw !== undefined) d.setRotation(yawQuat(o.yaw - 1.5));
+      if (o.qx !== undefined) d.setRotation({ x: o.qx, y: 0, z: 0, w: o.qw });
+      world.createCollider(d);
+    }
+    this.obstacles.push(...track.seracs.map((o) => ({ x: o.x, z: o.z, r: Math.max(o.hx, o.hz) * 1.2 })));
+    this.surface = 0;
     for (const b of track.catchBales) {
       world.createCollider(RAPIER.ColliderDesc.cuboid(b.hx, b.hy, b.hz).setTranslation(b.x, b.y, b.z).setFriction(0.9).setRestitution(0.05));
     }
@@ -172,8 +188,14 @@ export class Race {
     // Lenken: Giergeschwindigkeit auf den Zielwert regeln.
     // steer > 0 = nach rechts aus Sicht der Kamera (die hinter dem Käse Richtung +z blickt), also Richtung −x
     const s = Math.max(-100, Math.min(100, steer)) / 100;
-    const target = -s * MAX_YAW * C.steer * (grounded ? 1 : 0.35);
-    b.applyTorqueImpulse(scale(up, (target - w.y) * I * 0.25), true);
+    // Untergrund (nur Strecken mit Zonen; klassische Strecken bleiben unverändert)
+    const pos = b.translation();
+    this.surface = this.track.surfaceAt ? this.track.surfaceAt(pos.x, pos.z) : 0;
+    const surf = this.track.surfaceAt && grounded ? SURFACES[this.surface] : null;
+    const grip = surf ? surf.grip : 1;
+    const target = -s * MAX_YAW * C.steer * (grounded ? 1 : 0.35) * (grip < 1 ? 0.5 + 0.5 * grip : 1);
+    b.applyTorqueImpulse(scale(up, (target - w.y) * I * 0.25 * grip), true);
+    if (surf && speed > 0.5) b.applyImpulse(scale(v, (-surf.roll * 9.81 * DT * this.mass) / speed), true);
 
     // Aufrichten: ein schnell rollender Laib bleibt stabil (vereinfachte Kreiselwirkung)
     const flat = tilt > 0.8 || tilt < -0.8;
@@ -225,7 +247,7 @@ export class Race {
       const dvh = Math.sqrt(nx * nx + nz * nz) * dv * DAMAGE.lateral;
       const over = Math.sqrt(dvv * dvv + dvh * dvh) - DAMAGE.threshold;
       const flatHit = 1 + (tilt < 0 ? -tilt : tilt);
-      const damage = over > 0 ? (over * over * DAMAGE.factor * flatHit) / C.durability : 0;
+      const damage = over > 0 ? (over * over * DAMAGE.factor * flatHit * (this.track.def.damageScale ?? 1)) / C.durability : 0;
       this.events.push({ type: 'impact', strength: dv, damage, x: p.x, y: p.y, z: p.z, nx, ny, nz });
       if (damage > 0) {
         this.integrity = this.integrity > damage ? this.integrity - damage : 0;
@@ -256,6 +278,22 @@ export class Race {
       return;
     }
 
+    // Festgefahren (z. B. zwischen Eistürmen) → nach 4 s automatisch zurück
+    if (ns < 0.6) this.stillTicks++;
+    else this.stillTicks = 0;
+    if (this.stillTicks > 240) {
+      this.stillTicks = 0;
+      this.respawn();
+      return;
+    }
+    // In eine Gletscherspalte gefallen → zurück zum letzten Kontrollpunkt
+    for (const cv of this.track.crevasses) {
+      if (p.z > cv.z0 - 0.5 && p.z < cv.z1 + 0.5 && p.y < cv.rim - 2.5) {
+        this.events.push({ type: 'crevasse' });
+        this.respawn();
+        return;
+      }
+    }
     // Aus der Strecke gefallen → automatisch zurück
     const ground = this.track.heightAt(p.x, p.z);
     if (p.y < ground - 6 || p.x < -this.track.width / 2 - 2 || p.x > this.track.width / 2 + 2 || p.z < -5) this.respawn();
@@ -272,7 +310,7 @@ export class Race {
 }
 
 // Ganzen Lauf aus Eingaben nachspielen (Server-Prüfung, Ghost-Erzeugung)
-export function replay(track, cheeseId, ticks, { recordEvery = 2 } = {}) {
+export function replay(track, cheeseId, ticks, { recordEvery = track.ghostEvery ?? 2 } = {}) {
   const race = new Race(track, cheeseId);
   const frames = [];
   for (let i = 0; i < ticks.length && !race.finished && !race.broken; i++) {

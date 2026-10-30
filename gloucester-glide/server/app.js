@@ -61,6 +61,7 @@ export async function buildApp({ dbFile = 'data/glide.db', staticDir = null, now
         tagline: d.tagline,
         length: d.finish,
         daily: d.daily,
+        theme: d.theme ?? 'meadow',
         runs: stats[d.id]?.runs ?? 0,
         bestMs: stats[d.id]?.bestMs ?? null,
       })),
@@ -116,14 +117,14 @@ export async function buildApp({ dbFile = 'data/glide.db', staticDir = null, now
   app.get('/api/ghost/:id', async (req, reply) => {
     const g = db.ghost(Number(req.params.id));
     if (!g) return reply.code(404).send({ error: 'Ghost nicht gefunden' });
-    return { ...g, every: 2 };
+    return { ...g, every: trackById(g.track)?.ghostEvery ?? 2 };
   });
 
   app.get('/api/ghost/top/:track', async (req, reply) => {
     const cheese = CHEESES[req.query.cheese] ? req.query.cheese : null;
     const g = db.topGhost(req.params.track, cheese);
     if (!g) return reply.code(404).send({ error: 'Noch kein Ghost' });
-    return { ...g, every: 2 };
+    return { ...g, every: trackById(g.track)?.ghostEvery ?? 2 };
   });
 
   if (staticDir && fs.existsSync(staticDir)) {

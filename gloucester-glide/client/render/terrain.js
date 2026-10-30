@@ -244,11 +244,13 @@ export function buildWorld(scene, track, { quality = 1 } = {}) {
   return {
     group,
     groundAt,
-    update(time, cheesePos, speed) {
-      crowd.update(time, cheesePos, speed);
+    // foci: [{ p, speed }] – die Käse, auf die das Publikum reagiert
+    update(time, foci) {
+      crowd.update(time, foci);
       grass.update(time);
       props.update(time);
     },
+    prepareView() {},
     dispose() {
       scene.remove(group);
       group.traverse((o) => {
@@ -297,7 +299,7 @@ function groundMaterial() {
 }
 
 // Feine Grasstruktur, wird mit den Vertexfarben multipliziert
-function grassTexture() {
+export function grassTexture() {
   const n = 256;
   const cv = document.createElement('canvas');
   cv.width = cv.height = n;
@@ -322,7 +324,7 @@ function grassTexture() {
   return t;
 }
 
-function checkerTexture() {
+export function checkerTexture() {
   const cv = document.createElement('canvas');
   cv.width = 256;
   cv.height = 16;
@@ -338,7 +340,7 @@ function checkerTexture() {
   return t;
 }
 
-function banner(track, z, text, color, groundAt) {
+export function banner(track, z, text, color, groundAt) {
   const g = new THREE.Group();
   const cx = track.centerAt(z);
   const w = track.inner * 2 + 3;

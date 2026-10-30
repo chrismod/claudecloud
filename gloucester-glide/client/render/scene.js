@@ -6,6 +6,12 @@ export const SUN_DIR = new THREE.Vector3(-0.55, 0.62, -0.3).normalize();
 const HORIZON = new THREE.Color('#d6e0dc');
 const ZENITH = new THREE.Color('#4f8cc9');
 
+// Stimmungen je Strecke: Wiese (Cooper's Hill) und Hochgebirge (Everest: dünne Luft, tiefblauer Himmel, weite Sicht)
+export const THEMES = {
+  meadow: { horizon: '#d6e0dc', zenith: '#4f8cc9', fog: [90, 650], far: 2500, hemiSky: '#dbe9fb', hemiGround: '#51602e', hemi: 1.0, sun: 2.9, exposure: 1.1, clouds: 0.85 },
+  everest: { horizon: '#c9dbea', zenith: '#1f5fb8', fog: [400, 5200], far: 9000, hemiSky: '#dfeeff', hemiGround: '#6d7680', hemi: 1.15, sun: 3.2, exposure: 1.0, clouds: 0.6 },
+};
+
 function skyMaterial() {
   return new THREE.ShaderMaterial({
     side: THREE.BackSide,
@@ -88,9 +94,11 @@ export function createScene(container, { quality = 1 } = {}) {
   const scene = new THREE.Scene();
   scene.fog = new THREE.Fog(HORIZON.clone(), 90, 650);
 
-  const camera = new THREE.PerspectiveCamera(62, container.clientWidth / container.clientHeight, 0.1, 2500);
+  const camera = new THREE.PerspectiveCamera(62, container.clientWidth / container.clientHeight, 0.3, 2500);
 
   const sky = new THREE.Mesh(new THREE.SphereGeometry(1800, 32, 16), skyMaterial());
+  sky.material.uniforms.horizon.value = HORIZON.clone();
+  sky.material.uniforms.zenith.value = ZENITH.clone();
   sky.frustumCulled = false;
   sky.renderOrder = -1;
   scene.add(sky);
@@ -111,6 +119,7 @@ export function createScene(container, { quality = 1 } = {}) {
   const clouds = new THREE.Group();
   for (let i = 0; i < 34; i++) {
     const m = new THREE.Sprite(new THREE.SpriteMaterial({ map: cloudTex, fog: false, depthWrite: false, transparent: true, opacity: 0.75 + Math.random() * 0.25 }));
+    m.userData.opacity = m.material.opacity;
     const a = Math.random() * Math.PI * 2;
     const d = 350 + Math.random() * 900;
     m.position.set(Math.cos(a) * d, 140 + Math.random() * 160, Math.sin(a) * d + 300);
@@ -139,13 +148,30 @@ export function createScene(container, { quality = 1 } = {}) {
 
   // Schattenbereich folgt dem Käse, leicht nach vorn versetzt (dort schaut die Kamera hin)
   const ahead = new THREE.Vector3();
-  const followSun = (target, dir) => {
+  const followSun = (target, dir, cam = camera) => {
     ahead.copy(target);
     if (dir) ahead.addScaledVector(dir, 15);
     sun.target.position.copy(ahead);
     sun.position.copy(ahead).addScaledVector(SUN_DIR, 120);
-    sky.position.copy(camera.position);
-    clouds.position.set(camera.position.x * 0.9, 0, camera.position.z * 0.9);
+    sky.position.copy(cam.position);
+    clouds.position.set(cam.position.x * 0.9, cam.position.y, cam.position.z * 0.9);
+  };
+
+  let theme = THEMES.meadow;
+  const setTheme = (name) => {
+    theme = THEMES[name] ?? THEMES.meadow;
+    sky.material.uniforms.horizon.value.set(theme.horizon);
+    sky.material.uniforms.zenith.value.set(theme.zenith);
+    scene.fog.color.set(theme.horizon);
+    scene.fog.near = theme.fog[0];
+    scene.fog.far = theme.fog[1];
+    hemi.color.set(theme.hemiSky);
+    hemi.groundColor.set(theme.hemiGround);
+    hemi.intensity = theme.hemi;
+    sun.intensity = theme.sun;
+    renderer.toneMappingExposure = theme.exposure;
+    for (const c of clouds.children) c.material.opacity = c.userData.opacity * theme.clouds;
+    return theme;
   };
 
   const resize = () => {
@@ -157,5 +183,5 @@ export function createScene(container, { quality = 1 } = {}) {
   };
   window.addEventListener('resize', resize);
 
-  return { renderer, scene, camera, sun, followSun, resize };
+  return { renderer, scene, camera, sun, followSun, setTheme, get theme() { return theme; }, resize };
 }

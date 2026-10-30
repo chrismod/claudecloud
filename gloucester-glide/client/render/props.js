@@ -11,7 +11,7 @@ const v = new THREE.Vector3();
 const s = new THREE.Vector3();
 
 // Laubkrone aus mehreren verbeulten Kugeln
-function crownGeometry() {
+export function crownGeometry() {
   const parts = [];
   const offs = [
     [0, 0, 0, 1.6],
@@ -34,7 +34,7 @@ function crownGeometry() {
   return g;
 }
 
-function coniferGeometry() {
+export function coniferGeometry() {
   const parts = [];
   for (let i = 0; i < 4; i++) {
     const c = new THREE.ConeGeometry(1.7 - i * 0.35, 2.2, 7, 1, true);
@@ -46,7 +46,7 @@ function coniferGeometry() {
   return g;
 }
 
-function prismGeometry(w, h, d) {
+export function prismGeometry(w, h, d) {
   const sh = new THREE.Shape();
   sh.moveTo(-w / 2, 0);
   sh.lineTo(w / 2, 0);
@@ -57,7 +57,7 @@ function prismGeometry(w, h, d) {
   return g;
 }
 
-function stripes(a, b, n = 8) {
+export function stripes(a, b, n = 8) {
   const cv = document.createElement('canvas');
   cv.width = 64;
   cv.height = 4;

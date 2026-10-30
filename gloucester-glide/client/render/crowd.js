@@ -1,11 +1,29 @@
 // Zuschauer hinter dem Zaun: Beine, Oberkörper, Kopf, Arme (jubeln, wenn der Käse vorbeirollt), manche mit Hut
 import * as THREE from 'three';
 
+const palette = (list) => list.map((h) => new THREE.Color(h));
+export const OUTFITS = {
+  // Zuschauer am Cooper's Hill
+  village: {
+    shirts: palette(['#c43c2a', '#2b5fa8', '#f2c230', '#f4f1ea', '#3d8a3a', '#e07a1f', '#7a3d8a', '#1b1d17', '#e8a0b4', '#5fa8c4']),
+    trousers: palette(['#2b3346', '#3a3a3a', '#5a4a3a', '#30476b', '#6b6b5a']),
+    skins: palette(['#f1c7a5', '#e2b08c', '#c58e68', '#8d5a3c', '#5e3d2a']),
+    hats: palette(['#1b1d17', '#c43c2a', '#f4f1ea', '#2b5fa8', '#7a5a3a']),
+    hatChance: 0.3,
+  },
+  // Bergsteiger in Daunenjacken, fast alle mit Mütze
+  climbers: {
+    shirts: palette(['#e8402a', '#f2a51a', '#1f6fd1', '#e8e23a', '#2fa36b', '#d02f6b', '#ff7a1a', '#3a3a8a']),
+    trousers: palette(['#1b1d22', '#2d3340', '#3a3a3a', '#5a2a2a']),
+    skins: palette(['#e2b08c', '#c58e68', '#a8714f', '#8d5a3c']),
+    hats: palette(['#d62f2f', '#1f6fd1', '#f2c230', '#1b1d17', '#ffffff']),
+    hatChance: 0.9,
+    bulk: 1.18,
+  },
+};
+
+// Zuschauerplätze entlang des Zauns (klassische Strecken)
 export function buildCrowd(group, track, { groundAt, fenceX, rng: r }) {
-  const shirts = ['#c43c2a', '#2b5fa8', '#f2c230', '#f4f1ea', '#3d8a3a', '#e07a1f', '#7a3d8a', '#1b1d17', '#e8a0b4', '#5fa8c4'].map((h) => new THREE.Color(h));
-  const trousers = ['#2b3346', '#3a3a3a', '#5a4a3a', '#30476b', '#6b6b5a'].map((h) => new THREE.Color(h));
-  const skins = ['#f1c7a5', '#e2b08c', '#c58e68', '#8d5a3c', '#5e3d2a'].map((h) => new THREE.Color(h));
-  const hats = ['#1b1d17', '#c43c2a', '#f4f1ea', '#2b5fa8', '#7a5a3a'].map((h) => new THREE.Color(h));
   const people = [];
   for (let z = 3; z < track.finishZ + 30 && z < track.length; z += 0.85) {
     for (const side of [-1, 1]) {
@@ -17,25 +35,38 @@ export function buildCrowd(group, track, { groundAt, fenceX, rng: r }) {
         const fx = fenceX(side, z);
         const x = fx + side * (0.8 + k * 0.85 + r() * 0.4);
         const zz = z + (r() - 0.5) * 0.6;
-        people.push({
-          x,
-          z: zz,
-          y: groundAt(x, zz),
-          yaw: Math.atan2(-side, 0.35 * (r() - 0.5)) + (r() - 0.5) * 0.5, // Blick zur Bahn
-          h: 0.88 + r() * 0.24,
-          shirt: shirts[Math.floor(r() * shirts.length)],
-          legs: trousers[Math.floor(r() * trousers.length)],
-          skin: skins[Math.floor(r() * skins.length)],
-          hat: r() < 0.3 ? hats[Math.floor(r() * hats.length)] : null,
-          phase: r() * 6.28,
-          temper: 0.6 + r() * 0.8,
-          excite: 0,
-          dirty: true,
-        });
+        people.push(person(x, zz, groundAt(x, zz), Math.atan2(-side, 0.35 * (r() - 0.5)) + (r() - 0.5) * 0.5, OUTFITS.village, r));
       }
     }
   }
+  return crowdMeshes(group, people);
+}
+
+// Eine Person; yaw = Blickrichtung (zur Bahn)
+export function person(x, z, y, yaw, outfit, r) {
+  const pick = (list) => list[Math.floor(r() * list.length)];
+  return {
+    x,
+    z,
+    y,
+    yaw,
+    h: 0.88 + r() * 0.24,
+    bulk: outfit.bulk ?? 1,
+    shirt: pick(outfit.shirts),
+    legs: pick(outfit.trousers),
+    skin: pick(outfit.skins),
+    hat: r() < outfit.hatChance ? pick(outfit.hats) : null,
+    phase: r() * 6.28,
+    temper: 0.6 + r() * 0.8,
+    excite: 0,
+    dirty: true,
+  };
+}
+
+// Zeichnet eine Liste von Personen; update(time, foci) mit foci = [{ p, speed }] lässt Nahe jubeln
+export function crowdMeshes(group, people) {
   const n = people.length;
+  if (!n) return { update() {}, count: 0 };
   const lambert = () => new THREE.MeshLambertMaterial();
   const legs = new THREE.InstancedMesh(new THREE.BoxGeometry(0.34, 0.8, 0.2), lambert(), n);
   const torso = new THREE.InstancedMesh(new THREE.CapsuleGeometry(0.21, 0.42, 2, 7), lambert(), n);
@@ -71,13 +102,16 @@ export function buildCrowd(group, track, { groundAt, fenceX, rng: r }) {
   };
 
   let last = 0;
-  const update = (time, cp, speed) => {
+  const update = (time, foci = []) => {
     const dt = Math.min(0.05, Math.max(0, time - last));
     last = time;
     for (let i = 0; i < n; i++) {
       const p = people[i];
-      const near = cp ? Math.abs(p.z - cp.z) : 99;
-      const target = near < 26 ? Math.min(1, (1 - near / 26) * (0.35 + speed / 22) * p.temper) : 0;
+      let target = 0;
+      for (const f of foci) {
+        const near = Math.abs(p.z - f.p.z);
+        if (near < 26) target = Math.max(target, Math.min(1, (1 - near / 26) * (0.35 + f.speed / 22) * p.temper));
+      }
       if (target < 0.005 && p.excite < 0.005 && !p.dirty) continue;
       p.dirty = false;
       p.excite += (target - p.excite) * Math.min(1, dt * 3);
@@ -85,7 +119,7 @@ export function buildCrowd(group, track, { groundAt, fenceX, rng: r }) {
       const hop = Math.max(0, Math.sin(time * 8 + p.phase)) * 0.22 * x;
       const lean = Math.sin(time * 1.1 + p.phase) * 0.04 + x * 0.12;
       q.setFromEuler(e.set(0, p.yaw, 0));
-      base.compose(v.set(p.x, p.y + hop, p.z), q, sv.setScalar(p.h));
+      base.compose(v.set(p.x, p.y + hop, p.z), q, sv.set(p.h * p.bulk, p.h, p.h * p.bulk));
       place(legs, i, 0, 0.4, 0);
       place(torso, i, 0, 1.08, 0, lean);
       place(head, i, 0, 1.56 + lean * 0.1, lean * 0.5);
@@ -102,6 +136,6 @@ export function buildCrowd(group, track, { groundAt, fenceX, rng: r }) {
     arms.instanceMatrix.needsUpdate = true;
     hatMesh.instanceMatrix.needsUpdate = true;
   };
-  update(0, null, 0);
+  update(0);
   return { update, count: n };
 }

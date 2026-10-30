@@ -5,6 +5,15 @@ export function botInput(race, { aggression = 1 } = {}) {
   const sp = Math.sqrt(v.x * v.x + v.z * v.z);
   const look = 6 + Math.min(sp, 30) * 0.5;
   let tx = track.centerAt(p.z + look);
+  // Gletscherspalte voraus: zu langsam → Leiter anpeilen, sonst an der Kante springen
+  let jumpLip = false;
+  for (const cv of track.crevasses ?? []) {
+    const d = cv.z0 - p.z;
+    if (d < -1 || d > 60) continue;
+    if (sp < 13) tx = track.ladders.find((l) => l.cz === cv.z).x;
+    else if (d < 1.2) jumpLip = true;
+    break;
+  }
   // Hindernisse im Vorausblick: Ziel daneben legen
   const R = race.cheese.radius;
   for (const o of race.obstacles) {
@@ -29,5 +38,6 @@ export function botInput(race, { aggression = 1 } = {}) {
   const ay = 1 - 2 * (q.x * q.x + q.z * q.z);
   let flags = 0;
   if ((ay > 0.75 || ay < -0.75) && race.grounded) flags |= 1;
+  if (jumpLip) flags |= 1;
   return { steer: Math.round(steer), flags };
 }

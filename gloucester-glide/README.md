@@ -11,7 +11,17 @@ Strohballen, vorbei an jubelnden Zuschauern, ins Ziel. Gebaut mit three.js und d
   auf der flachen Seite kosten am meisten, saubere Landungen auf der Kante wenig. Dellen und abgeplatzte Rinde
   sieht man am Laib, beim Emmentaler kommen die Löcher zum Vorschein. Ein angeschlagener Laib eiert, bei 0 %
   zerbricht er und das Rennen ist vorbei. Die Integrität im Ziel steht in der Bestenliste.
-- **Strecken:** Cooper's Hill, Brockworth Bowl und jeden Tag ein neues **Tagesrennen**, für alle gleich.
+- **Strecken:** Cooper's Hill, Brockworth Bowl, jeden Tag ein neues **Tagesrennen** (für alle gleich) und
+  die Expedition **Mount Everest**.
+- **Mount Everest (3,5 km, gut drei Minuten):** Start am Gipfel auf 8.849 m in Schnee und Eis. Eisflächen sind
+  rutschig (kaum Lenkung), Tiefschnee bremst. Im Khumbu-Eisbruch warten Eistürme und drei Gletscherspalten:
+  mit Tempo an der Kante abspringen oder langsam über die schmale Leiter. Wer reinfällt, muss zurück zum
+  letzten Kontrollpunkt. Dann vorbei am Basislager (5.364 m) mit Zeltstadt und Gebetsfahnen, über die Moräne
+  und die Almen mit Yaks hinunter ins grüne Tal bis zum Ziel in Namche Bazar (3.440 m). Die Anzeige zeigt
+  Abschnitt, Höhe über dem Meer und den Untergrund.
+- **Zu zweit im Splitscreen:** Bildschirm links/rechts geteilt, jeder mit eigener Kamera und Anzeige. An jedem
+  Kontrollpunkt sieht man den Abstand zum anderen. Die Käse fahren durcheinander durch. So bleibt jeder Lauf
+  einzeln vom Server prüfbar, und beide Zeiten kommen in die Bestenliste.
 - **Ghosts:** Fahr gegen den Rekordlauf, deine eigene Bestzeit oder einen beliebigen Lauf aus der Bestenliste.
   An jedem Kontrollpunkt siehst du deinen Abstand.
 - **Geprüfte Bestenliste:** Der Browser schickt nur die Eingaben (Lenkung und Sprünge je Tick). Der Server
@@ -59,6 +69,18 @@ Umgebungsvariablen: `PORT` (8787), `HOST` (0.0.0.0), `DB_FILE` (`data/glide.db`)
 | Neustart | `⌫` | | |
 | Pause | `Esc` | Start | |
 
+Zu zweit (Splitscreen):
+
+| Aktion | Spieler 1 | Spieler 2 |
+| --- | --- | --- |
+| Lenken | `A` `D` | `←` `→` |
+| Springen / Aufstellen | `W` (oder `Leertaste`) | `↑` |
+| Zum letzten Kontrollpunkt | `S` | `↓` |
+| Gamepad | erstes Gamepad | zweites Gamepad |
+
+Ist nur ein Gamepad angeschlossen, fährt Spieler 2 damit und Spieler 1 mit WASD. Splitscreen gibt es mit
+Tastatur oder Gamepads, nicht per Touch.
+
 ## Aufbau
 
 ```
@@ -70,6 +92,9 @@ shared/   Läuft im Browser und auf dem Server
   bot.js      einfacher Fahrer (Tests, Menü-Hintergrund)
 server/   Fastify + SQLite (node:sqlite); Läufe werden in Worker-Threads nachgefahren
 client/   three.js-Darstellung, Eingabe, Ton (Web Audio, alles prozedural), Menüs
+  render/everest.js   Everest-Welt in 100-m-Abschnitten: grob für die ganze Strecke, Details nur nahe
+                      den Spielern (werden dahinter wieder abgebaut)
+  render/mountains.js Himalaya-Gipfel ringsum
 tests/    node --test
 ```
 
@@ -89,5 +114,6 @@ im Log (`desync`).
 
 - Online-Rennen gegeneinander: Die Simulation ist schon tick-basiert und eingabegetrieben, also bereit
   für Lockstep oder einen autoritativen Server.
+- Splitscreen mit Zusammenstößen zwischen den Käsen (dann bräuchte die Prüfung beide Eingaben)
 - Mehr Strecken und Wetter (nasser Hang = weniger Grip)
 - Grafikqualität im Menü einstellbar machen (derzeit automatisch: auf Handys weniger Gras und Bäume)

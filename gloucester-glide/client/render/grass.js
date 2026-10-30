@@ -38,7 +38,10 @@ function bladeTexture() {
   return t;
 }
 
-export function buildGrass(group, track, { groundAt, rng: r, quality }) {
+// Geometrie und Material der Büschel (einmal erzeugt, von allen Strecken geteilt)
+let assets = null;
+export function tuftAssets() {
+  if (assets) return assets;
   // Büschel aus drei gekreuzten Flächen, Unterkante bei y = 0
   const parts = [];
   for (let k = 0; k < 3; k++) {
@@ -81,6 +84,12 @@ export function buildGrass(group, track, { groundAt, rng: r, quality }) {
       transformed.z += sway * 0.06 * position.y * 2.0;`,
     );
   };
+  assets = { geo, mat, time };
+  return assets;
+}
+
+export function buildGrass(group, track, { groundAt, rng: r, quality }) {
+  const { geo, mat, time } = tuftAssets();
 
   const count = Math.round(22000 * quality);
   const mesh = new THREE.InstancedMesh(geo, mat, count);

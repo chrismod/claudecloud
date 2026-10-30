@@ -524,7 +524,7 @@ h1 {
 .hud-time {
   text-align: center;
 }
-#hud-time {
+.h-time {
   font: 800 3.2rem/1 var(--display);
   font-variant-numeric: tabular-nums;
   letter-spacing: 0.01em;
@@ -745,7 +745,7 @@ body.touch .hud-speed {
   h1 {
     font-size: 2rem;
   }
-  #hud-time {
+  .h-time {
     font-size: 2.4rem;
   }
   .hud-speed {
@@ -850,4 +850,191 @@ body.touch .hud-integrity {
   background: repeating-conic-gradient(from 0deg at 50% 45%, rgba(255, 255, 255, 0) 0deg 2.2deg, rgba(255, 255, 255, 0.22) 2.4deg 2.6deg, rgba(255, 255, 255, 0) 2.8deg 5deg);
   -webkit-mask-image: radial-gradient(ellipse at 50% 45%, transparent 38%, black 80%);
   mask-image: radial-gradient(ellipse at 50% 45%, transparent 38%, black 80%);
+}
+
+/* ---------- Spieler-Anzeigen und Splitscreen ---------- */
+.hud-player {
+  position: absolute;
+  inset: 0;
+}
+.mode-2 .hud-player[data-slot='0'] {
+  right: 50%;
+}
+.mode-2 .hud-player[data-slot='1'] {
+  left: 50%;
+}
+.mode-2 .hud-player .h-time {
+  font-size: 2.3rem;
+}
+.mode-2 .hud-player .hud-speed {
+  font-size: 2.6rem;
+  right: 16px;
+}
+.mode-2 .hud-player .hud-integrity {
+  grid-template-columns: auto 90px auto;
+  font-size: 0.95rem;
+  left: 16px;
+}
+.mode-2 .hud-player .progress {
+  width: min(160px, 20vw);
+}
+.mode-2 .hud-respawns {
+  display: none;
+}
+.hud-track small {
+  display: block;
+  margin-top: 2px;
+  font: 600 0.82rem var(--display);
+  letter-spacing: 0.1em;
+  text-transform: uppercase;
+  opacity: 0.85;
+}
+.split-line {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 50%;
+  width: 4px;
+  margin-left: -2px;
+  background: rgba(20, 24, 18, 0.85);
+  box-shadow: 0 0 0 1px rgba(255, 255, 255, 0.25);
+}
+.ghost-dot.other {
+  background: var(--orange);
+}
+.surface {
+  position: absolute;
+  left: 50%;
+  bottom: 26px;
+  transform: translateX(-50%);
+  padding: 4px 10px;
+  border-radius: 6px;
+  font: 700 0.9rem var(--display);
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  opacity: 0;
+  transition: opacity 0.2s;
+  text-shadow: none;
+}
+.surface.show {
+  opacity: 1;
+}
+.surface[data-s='2'] {
+  background: rgba(190, 230, 255, 0.92);
+  color: #1d4a6b;
+}
+.surface[data-s='1'] {
+  background: rgba(255, 255, 255, 0.85);
+  color: #44515e;
+}
+.surface[data-s='3'] {
+  background: rgba(120, 110, 95, 0.85);
+  color: #fff;
+}
+.player-banner {
+  position: absolute;
+  top: 38%;
+  left: 0;
+  right: 0;
+  text-align: center;
+  font: 800 clamp(1.8rem, 4.5vw, 3.4rem)/1 var(--display);
+  text-transform: uppercase;
+}
+.player-banner small {
+  display: block;
+  margin-top: 8px;
+  font: 700 1.1rem var(--display);
+  letter-spacing: 0.12em;
+}
+.mode {
+  display: grid;
+  grid-template-columns: 1fr 1.6fr;
+  gap: 6px;
+  margin: 2px 0 6px;
+}
+.mode button,
+.slot-tabs button {
+  padding: 7px 10px;
+  font-size: 0.85rem;
+  border-width: 1px;
+  border-radius: 8px;
+}
+.mode button.selected,
+.slot-tabs button.selected {
+  background: var(--ink);
+  color: var(--cream);
+}
+.step h2 .slot-tabs {
+  display: none;
+  width: auto;
+  height: auto;
+  margin-left: auto;
+  gap: 4px;
+  background: none;
+  border-radius: 0;
+  color: inherit;
+  letter-spacing: 0.06em;
+}
+.mode-2 .step h2 .slot-tabs {
+  display: inline-flex;
+}
+.slot-tabs button {
+  padding: 3px 8px;
+  font-size: 0.72rem;
+}
+.mode-2 .only-1p,
+.mode-1 .only-2p {
+  display: none !important;
+}
+.cheese-opt {
+  position: relative;
+}
+.cheese-opt .who {
+  position: absolute;
+  top: 5px;
+  left: 6px;
+  display: flex;
+  gap: 3px;
+}
+.cheese-opt .who b {
+  padding: 1px 5px;
+  border-radius: 4px;
+  font: 700 0.65rem/1.3 var(--display);
+  color: #fff;
+  background: var(--ink);
+}
+.cheese-opt .who b.p2 {
+  background: var(--orange);
+}
+.duel {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 8px;
+}
+.duel > div {
+  padding: 10px 12px;
+  border-radius: 10px;
+  background: rgba(0, 0, 0, 0.05);
+}
+.duel > div.win {
+  background: rgba(224, 122, 31, 0.16);
+  box-shadow: inset 0 0 0 2px var(--orange);
+}
+.duel strong {
+  display: block;
+  font: 700 1rem var(--display);
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+}
+.duel .t {
+  font: 800 2rem/1.1 var(--display);
+  font-variant-numeric: tabular-nums;
+}
+.duel small {
+  display: block;
+  color: var(--muted);
+  font-size: 0.8rem;
+}
+.card-opt .tag.expedition {
+  background: #1f5fb8;
 }

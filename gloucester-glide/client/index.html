@@ -24,13 +24,18 @@
           </div>
         </header>
 
+        <div class="mode" role="group" aria-label="Spielerzahl">
+          <button data-mode="1" class="selected">1 Spieler</button>
+          <button data-mode="2">2 Spieler · Splitscreen</button>
+        </div>
+
         <div class="step">
           <h2><span>1</span> Strecke</h2>
           <div id="track-list" class="cards"></div>
         </div>
 
         <div class="step">
-          <h2><span>2</span> Käse</h2>
+          <h2><span>2</span> Käse <span class="slot-tabs" id="slot-tabs"><button data-slot="0" class="selected">Spieler 1</button><button data-slot="1">Spieler 2</button></span></h2>
           <div id="cheese-list" class="cheeses"></div>
           <p id="cheese-blurb" class="blurb"></p>
         </div>
@@ -39,7 +44,8 @@
           <h2><span>3</span> Fahrer</h2>
           <div class="row">
             <input id="name" maxlength="16" placeholder="Dein Name" autocomplete="nickname" spellcheck="false" />
-            <select id="ghost-mode" title="Gegen wen fährst du?">
+            <input id="name2" class="only-2p" maxlength="16" placeholder="Spieler 2" spellcheck="false" />
+            <select id="ghost-mode" class="only-1p" title="Gegen wen fährst du?">
               <option value="best">Ghost: Bestzeit</option>
               <option value="own">Ghost: eigene</option>
               <option value="off">Ghost: aus</option>
@@ -48,7 +54,8 @@
         </div>
 
         <button id="start" class="primary">Los! <kbd>Enter</kbd></button>
-        <p class="hint">Lenken <kbd>A</kbd><kbd>D</kbd> oder <kbd>←</kbd><kbd>→</kbd> · Springen / Aufstellen <kbd>Leertaste</kbd> · Zurücksetzen <kbd>R</kbd> · Neustart <kbd>⌫</kbd> · Pause <kbd>Esc</kbd></p>
+        <p class="hint only-1p">Lenken <kbd>A</kbd><kbd>D</kbd> oder <kbd>←</kbd><kbd>→</kbd> · Springen / Aufstellen <kbd>Leertaste</kbd> · Zurücksetzen <kbd>R</kbd> · Neustart <kbd>⌫</kbd> · Pause <kbd>Esc</kbd></p>
+        <p class="hint only-2p"><b>Spieler 1:</b> <kbd>A</kbd><kbd>D</kbd> lenken · <kbd>W</kbd> springen · <kbd>S</kbd> zurücksetzen · Gamepad 1<br /><b>Spieler 2:</b> <kbd>←</kbd><kbd>→</kbd> lenken · <kbd>↑</kbd> springen · <kbd>↓</kbd> zurücksetzen · Gamepad 2<br />Mit nur einem Gamepad fährt Spieler 2 damit. Pause <kbd>Esc</kbd> · Neustart <kbd>⌫</kbd></p>
       </div>
 
       <aside class="board-panel">
@@ -61,26 +68,35 @@
 
     <!-- Anzeige im Rennen -->
     <section id="hud" class="hidden">
-      <div class="hud-top">
-        <div class="hud-track">
-          <span id="hud-track-name"></span>
-          <div class="progress"><div id="hud-progress"></div><div id="hud-ghost-progress" class="ghost-dot"></div></div>
-        </div>
-        <div class="hud-time">
-          <div id="hud-time">0:00.00</div>
-          <div id="hud-delta" class="delta"></div>
-        </div>
-        <div class="hud-respawns" id="hud-respawns"></div>
-      </div>
+      <div id="hud-players"></div>
       <div id="hud-center" class="hud-center"></div>
-      <div class="hud-speed"><span id="hud-speed">0</span><small>km/h</small></div>
-      <div class="hud-integrity" id="hud-integrity" data-level="ok" title="Laib-Integrität">
-        <small>Laib</small>
-        <i><b></b></i>
-        <span>100 %</span>
-      </div>
-      <div id="hud-toast" class="toast"></div>
+      <div id="split-line" class="split-line hidden"></div>
     </section>
+    <template id="hud-player">
+      <div class="hud-player">
+        <div class="hud-top">
+          <div class="hud-track">
+            <span class="h-name"></span>
+            <small class="h-zone"></small>
+            <div class="progress"><div class="h-progress"></div><div class="h-other ghost-dot"></div></div>
+          </div>
+          <div class="hud-time">
+            <div class="h-time">0:00.00</div>
+            <div class="h-delta delta"></div>
+          </div>
+          <div class="hud-respawns h-respawns"></div>
+        </div>
+        <div class="h-surface surface"></div>
+        <div class="hud-speed"><span class="h-speed">0</span><small>km/h</small></div>
+        <div class="hud-integrity h-integrity" data-level="ok" title="Laib-Integrität">
+          <small>Laib</small>
+          <i><b></b></i>
+          <span>100 %</span>
+        </div>
+        <div class="h-toast toast"></div>
+        <div class="h-banner player-banner"></div>
+      </div>
+    </template>
 
     <!-- Touch-Steuerung -->
     <section id="touch" class="hidden">
@@ -106,6 +122,7 @@
         <p class="kicker" id="finish-kicker">Im Ziel</p>
         <div class="finish-time" id="finish-time">0:00.00</div>
         <div class="finish-meta" id="finish-meta"></div>
+        <div id="finish-duel" class="duel hidden"></div>
         <ol id="finish-board" class="board"></ol>
         <div class="row">
           <button data-act="restart" class="primary">Nochmal <kbd>Enter</kbd></button>

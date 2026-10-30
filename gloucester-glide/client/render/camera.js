@@ -1,7 +1,7 @@
 // Verfolgerkamera: hinter dem Käse in Fahrtrichtung, weicher Nachlauf, Sichtfeld wächst mit dem Tempo
 import * as THREE from 'three';
 
-export function createChaseCam(camera) {
+export function createChaseCam(camera, { fov: fovBase = 60 } = {}) {
   const pos = new THREE.Vector3();
   const look = new THREE.Vector3();
   const dir = new THREE.Vector3(0, 0, 1);
@@ -58,7 +58,7 @@ export function createChaseCam(camera) {
         shake *= Math.exp(-dt * 7);
       }
       camera.lookAt(look);
-      const targetFov = 60 + Math.min(speed, 32) * 0.55;
+      const targetFov = fovBase + Math.min(speed, 32) * 0.55;
       fov += (targetFov - fov) * Math.min(1, dt * 2);
       camera.fov = fov;
       camera.updateProjectionMatrix();
