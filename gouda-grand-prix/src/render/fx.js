@@ -26,7 +26,10 @@ function makePoints(max, texture, blending) {
       void main() {
         vColor = color; vRot = rot;
         vec4 mvPosition = modelViewMatrix * vec4(position, 1.0);
-        gl_PointSize = size * scale / max(0.5, -mvPosition.z);
+        float dist = -mvPosition.z;
+        // nahe an der Kamera ausblenden und begrenzen, sonst füllen einzelne Partikel das Bild
+        vColor.a *= smoothstep(0.8, 3.5, dist);
+        gl_PointSize = min(size * scale / max(0.5, dist), scale * 0.12);
         gl_Position = projectionMatrix * mvPosition;
         #include <fog_vertex>
       }`,
