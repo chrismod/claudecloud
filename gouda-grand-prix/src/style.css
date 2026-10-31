@@ -108,8 +108,9 @@ kbd {
   display: flex;
   flex-direction: column;
   align-items: center;
-  justify-content: center;
+  justify-content: safe center;
   padding: 4vh 4vw;
+  overflow-y: auto;
   pointer-events: auto;
   opacity: 0;
   transform: scale(1.02);
@@ -1404,6 +1405,101 @@ kbd {
   opacity: 0.7;
 }
 
+@media (max-height: 760px) {
+  .screen {
+    padding: 2vh 3vw 6vh;
+  }
+  .screen-title {
+    font-size: 36px;
+    margin-bottom: 1.5vh;
+  }
+  .nav-hint {
+    bottom: 1vh;
+    font-size: 13px;
+  }
+  .results table {
+    font-size: 18px;
+    border-spacing: 0 3px;
+  }
+  .results td {
+    padding: 2px 10px;
+  }
+  .results .rk {
+    font-size: 22px;
+  }
+  .results .pic img {
+    width: 34px;
+    height: 34px;
+  }
+  .results .tot {
+    font-size: 20px;
+  }
+  .res-hint {
+    margin-top: 1vh;
+  }
+  .grow {
+    padding: 5px 12px;
+    margin-top: 5px;
+  }
+  .grow b {
+    font-size: 18px;
+  }
+  .grow small {
+    font-size: 12px;
+  }
+  .gcol {
+    padding: 10px 14px;
+  }
+  .gcol header {
+    margin-bottom: 4px;
+  }
+  .gcol header img {
+    width: 46px;
+    height: 46px;
+  }
+  .dgrid {
+    grid-template-columns: repeat(4, minmax(0, 120px));
+    gap: 10px;
+  }
+  .dname {
+    font-size: 15px;
+  }
+  .dinfo {
+    margin-top: 1.5vh;
+  }
+  .dpanel img {
+    width: 76px;
+    height: 76px;
+  }
+  .dpanel h3 {
+    font-size: 24px;
+  }
+  .tgrid {
+    grid-template-columns: repeat(3, minmax(0, 250px));
+  }
+  .tcard p {
+    font-size: 13px;
+  }
+  .mrow {
+    padding: 10px 24px;
+  }
+  .mini-logo {
+    margin-bottom: 2vh;
+  }
+  .step img {
+    width: 110px;
+    height: 110px;
+  }
+  .step.s1 .block {
+    height: 130px;
+  }
+  .step.s2 .block {
+    height: 95px;
+  }
+  .step.s3 .block {
+    height: 70px;
+  }
+}
 @media (max-width: 900px) {
   .dgrid {
     grid-template-columns: repeat(4, minmax(0, 120px));
