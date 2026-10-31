@@ -1,0 +1,21 @@
+{
+  "name": "gouda-grand-prix",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Gouda Grand Prix – Kart-Rennen mit Käse-Upgrades und Käse-Angriffen (three.js, 2 Spieler mit Gamepad)",
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "test": "node --test tests/*.test.js"
+  },
+  "dependencies": {
+    "@fontsource/barlow": "^5.3.0",
+    "@fontsource/barlow-condensed": "^5.3.0",
+    "three": "^0.186.1"
+  },
+  "devDependencies": {
+    "vite": "^8.3.4"
+  }
+}

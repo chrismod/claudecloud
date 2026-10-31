@@ -1,6 +1,8 @@
 # Filatura
 
 > Im selben Repo: [**Gloucester Glide**](gloucester-glide/) – Käserennen den Hang hinunter (three.js + Rapier, mit geprüfter Bestenliste).
+>
+> Und: [**Gouda Grand Prix**](gouda-grand-prix/) – Kart-Rennen mit Käse-Angriffen, Käse-Upgrades und Splitscreen für 2 Spieler mit Gamepads (three.js).
 
 *Ein Physik-Puzzle mit Käsefäden – gebaut mit three.js.*
 
