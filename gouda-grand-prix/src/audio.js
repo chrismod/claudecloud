@@ -179,6 +179,7 @@ function stopMusic() {
 
 // --- Öffentliche Schnittstelle ------------------------------------------------------------------
 const engines = new Map();
+let wantedMusic = null; // Musik, die starten soll, sobald der Ton freigeschaltet ist
 
 export const audio = {
   muted: false,
@@ -200,6 +201,7 @@ export const audio = {
     musicBus.gain.value = 0.55;
     musicBus.connect(master);
     noiseBuf = noiseBuffer();
+    if (wantedMusic) startMusic(wantedMusic);
     return null;
   },
   get ready() {
@@ -211,9 +213,13 @@ export const audio = {
     return this.muted;
   },
   music(name) {
+    wantedMusic = name;
     if (ctx) startMusic(name);
   },
-  stopMusic,
+  stopMusic() {
+    wantedMusic = null;
+    stopMusic();
+  },
   musicRate(r) {
     if (music) music.rate = r;
   },
