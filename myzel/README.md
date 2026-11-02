@@ -5,7 +5,8 @@
 Zwei Waldgeister gleiten durch eine unendliche, erschöpfte Welt: graue Erde, kahle Baumgerippe, trübe Tümpel.
 Wo sie entlangziehen, spinnen sie Myzel – feine, leuchtende Pilzfäden im Boden. Das Myzel wächst in
 fruchtbarer Erde von selbst weiter, und das Leben folgt ihm: erst Gras, dann Farne, Blumen und Pilze, zuletzt
-Sträucher und Bäume. Nichts davon verschwindet wieder. Die Welt merkt sich jede Spur, auch nach dem Neuladen.
+Sträucher und Bäume. Die Welt merkt sich jede Spur, auch nach dem Neuladen – und nur eines kann sie wieder
+zerstören: die **Fäulnis**, die nachts aus den Moderherzen quillt.
 
 - **Hyphe** (Spieler 1) – bernsteinfarbener Pilzgeist mit getupftem Hut
 - **Keim** (Spieler 2) – jadegrüner Samengeist mit zwei Keimblättern
@@ -19,7 +20,7 @@ eure Farben im Netz.
 ```bash
 npm install
 npm run dev     # http://localhost:5173
-npm test        # Welt, Speicher und Zell-Simulation (headless, ~3 s)
+npm test        # Welt, Speicher, Zell-Simulation, Fäulnis, Fortschritt (headless, ~5 s)
 npm run build   # statische Seite in dist/
 ```
 
@@ -33,7 +34,7 @@ Läuft in jedem aktuellen Browser mit WebGL 2. Gamepads werden nach dem ersten T
 | Gleiten | Linker Stick | W A S D | Pfeiltasten |
 | Weben (halten) | RT | Shift links | Shift rechts |
 | Sporenpuls | Ⓐ | Leertaste | Enter |
-| Totholz zersetzen (halten) | Ⓧ | E | Ü / # |
+| Totholz zersetzen / Moderherz läutern (halten) | Ⓧ | E | Ü / # |
 | Schneller gleiten | LT / Ⓑ | Q | . |
 | Rufen (zeigt den Weg) | Ⓨ | R | , |
 | Kamera drehen | Rechter Stick | Y / C | Num 7 / 9 |
@@ -59,18 +60,49 @@ mehr Sporen, üppigere Pfade, schnelleres Gleiten, schnellere Regeneration. Erwa
 regelmäßig Lichtimpulse durch das ganze verbundene Myzelnetz. Ⓨ zeigt die Richtung zum nächsten
 schlafenden Baum.
 
-Ein Tag dauert 12 Minuten. Nachts leuchten Myzeladern, Leuchtpilze, Riesenpilze und Glühwürmchen.
+## Die Fäulnis und die Nacht
+
+Überall im Land schlagen **Moderherzen** – pulsierende, schwarz-violette Nester mit Ranken. Von ihnen breitet
+sich Fäulnis aus: schwarzer Schleim mit giftig glimmenden Adern, in dem Pflanzen welken und Myzel stirbt.
+Tagsüber bleibt sie nah an ihrem Herz (~20 m) und zieht sich zurück; **nachts** schlagen die Herzen schneller,
+die Fäulnis greift bis ~50 m weit und frisst, was ihr gesponnen habt. Seen halten sie auf.
+
+- Ein Tag dauert 5 Minuten, die Nacht knapp 3. Die Anzeige unten zählt bis zur Nacht bzw. zum Morgen herunter.
+  Ein Waldhorn kündigt die Dämmerung an, am Morgen seht ihr, wie viel Wald ihr gehalten oder verloren habt.
+- In der Fäulnis zehrt sie an euren Sporen. **Weben** und der **Sporenpuls** brennen sie aus.
+- Ein **Moderherz läutern**: daneben Ⓧ halten. Das kostet laufend Sporen – zu zweit geht es doppelt so schnell.
+  Danach weicht die Fäulnis, und ein Pilzhain wächst.
+- Ein **erwachter Mutterbaum** schützt seinen Hain (~46 m) für immer vor Fäulnis.
+- Frisst die Fäulnis gerade euer Myzel, zeigt ein violetter Pfeil, wo.
+
+## Fortschritt
+
+- **Erfahrung** für alles, was ihr bewirkt: Boden beleben, Fäulnis läutern, Boviste, Totholz, Tiere,
+  Moderherzen, Mutterbäume, jede überstandene Nacht.
+- **Waldränge** (Keimling, Sprössling, Moosgänger, Hainhüter, Waldweber, Myzelweise, Hüter der Tiefe, Ältester …)
+  mit dauerhaften Vorteilen: mehr Sporen, weiterer Puls, weniger Sporenverlust in der Fäulnis, längerer Fluss,
+  schnellere Regeneration.
+- **Fluss**: Wer zügig in frisches Land webt, kommt in den Fluss – bis ×5 Erfahrung.
+- **Ruf des Waldes**: immer drei Aufträge (z. B. „Lasst 5 Boviste platzen“, „Webt gemeinsam 160 m² mit dem
+  Faden“, „Läutert ein Moderherz“). Einer davon läuft gegen die Uhr: „Vor Einbruch der Nacht: belebt …“
+  bzw. nachts „Bis zum Morgen: läutert …“. Erfüllte Aufträge bringen Erfahrung und füllen eure Sporen auf.
+- **Tiere** kehren in gesunden Wald zurück: Hirsche (nachts mit leuchtenden Geisterflecken), Hasen und
+  Vogelschwärme. Sie fliehen vor der Fäulnis.
+
+Nachts leuchten Myzeladern, Leuchtpilze, Riesenpilze, Glühwürmchen – und die Fäulnis.
 
 ## Technik
 
 Alles ist prozedural – keine Texturen, keine Modelle, keine Sounddateien. three.js, sonst nichts.
 
 - **Welt** (`src/world/field.js`) – Höhe, Fruchtbarkeit, Biome (Laubwald, Nadelhöhen, Ufer, Pilzwälder mit
-  Riesenpilzen) und Mutterbaum-Standorte als reine Funktionen eines Seeds. Endlos in alle Richtungen.
+  Riesenpilzen), Mutterbaum- und Moderherz-Standorte als reine Funktionen eines Seeds. Endlos in alle Richtungen.
 - **Zell-Simulation** (`src/world/sim.js`) – ein toroidales 256 × 256-Fenster (1 Zelle = 1 m²) um die Spieler.
-  Jede Zelle hat Leben, Myzel und Farbton. Myzel wächst über eine Allee-Schwelle (zu wenig stirbt nicht, wächst
-  aber auch nicht) und breitet sich nur in fruchtbaren Boden aus; Leben folgt dem Myzel. Darüber liegt ein
+  Jede Zelle hat Leben, Myzel, Farbton und Fäulnis. Myzel wächst über eine Allee-Schwelle (zu wenig stirbt nicht,
+  wächst aber auch nicht) und breitet sich nur in fruchtbaren Boden aus; Leben folgt dem Myzel. Darüber liegt ein
   *erregbares Medium*: Lichtwellen laufen mit ~15 m/s durch zusammenhängendes Myzel und nirgends sonst hin.
+  Fäulnis wird von den Moderherzen gespeist und verliert pro Meter an Kraft (nachts weniger), frisst Myzel und
+  Leben, wird von kräftigem Myzel gebremst und von Wasser fast gestoppt; erwachte Mutterbäume löschen sie.
 - **Speicher** (`src/world/store.js`) – veränderte Chunks (32 × 32 m) delta- und lauflängenkodiert im
   localStorage, dazu Metadaten (erwachte Bäume, zersetztes Totholz, Tageszeit, Positionen). Ein unberührter
   Chunk kostet keinen Speicher.
@@ -103,12 +135,15 @@ src/
     vegetation.js     instanzierte Pflanzen
     geometries.js     prozedurale Modelle
     motherTrees.js    Mutterbäume
+    nests.js          Moderherzen
+    fauna.js          Hirsche, Hasen, Vogelschwärme
     water.js          Wasser
     wisps.js          die Geister und ihr Faden
     particles.js      Effekte, Pollen, Glühwürmchen
   game/
     input.js          Gamepads und Tastatur
     players.js        Bewegung, Sporen, Gaben
+    progress.js       Erfahrung, Ränge, Fluss, Aufträge
     cameraRig.js      gemeinsame Kamera
 tests/                headless Tests der Welt und Simulation
 ```

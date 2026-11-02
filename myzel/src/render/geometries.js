@@ -26,7 +26,8 @@ function finish(geo, color, mask = [0, 0]) {
   }
   g.setAttribute('color', new THREE.BufferAttribute(col, 3));
   g.setAttribute('aMask', new THREE.BufferAttribute(msk, 2));
-  return g;
+  // gleiche Vertices zusammenfassen: der Vertex-Shader läuft dann nur einmal pro Punkt
+  return mergeVertices(g, 1e-5);
 }
 
 const merge = (list) => {
@@ -226,60 +227,141 @@ export function flower() {
   return merge(parts);
 }
 
-function mushroom({ stemH, stemR, capR, capH, capColor, stemColor = C('#efe6d4'), glow = 0, tint = 1, flat = 0.25 }) {
+// Ein Pilz aus Stiel (mit Knolle und Ring), Lamellen und Hut. Profile als Drehkörper,
+// Muster (Lamellen, Schuppen, Farbverlauf) über Vertexfarben.
+function shroom(o) {
+  const {
+    stemH, stemR, capR, capH,
+    shape = 'dome', // dome | bell | flat | convex
+    bulb = 0.35, ring = 0, bend = 0, segs = 20, stemSegs = 9,
+    capTop = C('#ffffff'), capRim = C('#ffffff'), gill = C('#efe2c8'), stemTop = C('#f4ecdc'), stemBase = C('#d8ccb4'),
+    capTint = 1, capGlow = 0, gillGlow = 0, stemGlow = 0, gillLines = true, scales = 0, bands = 0,
+  } = o;
   const parts = [];
+  const bendAt = (y) => bend * (y / stemH) ** 2;
+  const bendGeo = (g) => {
+    const p = g.attributes.position;
+    for (let i = 0; i < p.count; i++) p.setX(i, p.getX(i) + bendAt(Math.min(p.getY(i), stemH)));
+    g.computeVertexNormals();
+    return g;
+  };
+  // Stiel
   const sp = [];
-  for (let i = 0; i <= 6; i++) {
-    const t = i / 6;
-    sp.push(new THREE.Vector2(stemR * (1.25 - 0.4 * t + 0.25 * Math.sin(t * 3)), stemH * t));
+  for (let i = 0; i <= 8; i++) {
+    const t = i / 8;
+    const r = stemR * (1 + bulb * 2.2 * (1 - t) ** 4 - 0.18 * t + 0.04 * Math.sin(t * 11));
+    sp.push(new THREE.Vector2(Math.max(0.002, r), stemH * t));
   }
-  const stem = new THREE.LatheGeometry(sp, 9);
-  parts.push(finish(stem, stemColor, [0, glow * 0.2]));
-  const cp = [];
-  const n = 9;
-  for (let i = 0; i <= n; i++) {
-    const t = i / n;
-    const a = t * Math.PI * 0.5;
-    // Unterseite (Lamellen) → Kappenrand → Kuppe
-    cp.push(new THREE.Vector2(Math.max(0.001, capR * Math.cos(a)), stemH - capH * flat + capH * Math.sin(a)));
+  sp.unshift(new THREE.Vector2(0.001, 0));
+  const stem = bendGeo(new THREE.LatheGeometry(sp, stemSegs));
+  parts.push(
+    finish(
+      stem,
+      (x, y, z, c) => {
+        c.copy(stemBase).lerp(stemTop, Math.min(1, y / stemH));
+        if (bands) c.multiplyScalar(0.8 + 0.2 * Math.sign(Math.sin(y * bands + Math.atan2(z, x) * 2)));
+        return c;
+      },
+      (x, y) => [0, stemGlow * (y / stemH)],
+    ),
+  );
+  // Ring (Manschette)
+  if (ring) {
+    const ry = stemH * ring;
+    const rg = bendGeo(new THREE.LatheGeometry([new THREE.Vector2(stemR * 0.98, ry), new THREE.Vector2(stemR * 2.1, ry - stemH * 0.05), new THREE.Vector2(stemR * 2.0, ry - stemH * 0.08)], 16));
+    parts.push(finish(rg, stemTop.clone().multiplyScalar(1.05), [0, stemGlow]));
   }
-  // Profil: Unterseite am Stiel → Rand → Kuppe
-  cp.unshift(new THREE.Vector2(stemR * 0.9, stemH - capH * flat - 0.01));
-  const cap = new THREE.LatheGeometry(cp, 12);
-  const under = stemH - capH * flat + 0.02;
+  // Hutprofil: Radius und Höhe über a ∈ [0, 1] (0 = Rand, 1 = Scheitel)
+  const y0 = stemH - capH * (shape === 'bell' ? 0.55 : 0.25);
+  const prof = (a) => {
+    const t = (a * Math.PI) / 2;
+    if (shape === 'bell') return [capR * Math.cos(t) ** 0.55, y0 + capH * Math.sin(t) ** 0.9];
+    if (shape === 'flat') return [capR * Math.cos(t), y0 + capH * (0.35 * Math.sin(t) + 0.65 * Math.sin(t) ** 6)];
+    if (shape === 'convex') return [capR * Math.cos(t) ** 0.8, y0 + capH * Math.sin(t) ** 0.7];
+    return [capR * Math.cos(t), y0 + capH * Math.sin(t)];
+  };
+  const cp = [new THREE.Vector2(capR * 0.97, y0 - capH * 0.07)];
+  for (let i = 0; i <= 10; i++) {
+    const [r, y] = prof(i / 10);
+    cp.push(new THREE.Vector2(Math.max(0.001, r), y));
+  }
+  const cap = bendGeo(new THREE.LatheGeometry(cp, segs));
   parts.push(
     finish(
       cap,
-      (x, y, z, c) => (y < under ? c.copy(C('#d8cbb0')) : c.copy(capColor)),
-      (x, y) => (y < under ? [0, glow] : [tint, glow * 0.7]),
+      (x, y, z, c) => {
+        const r = Math.hypot(x - bendAt(stemH), z) / capR;
+        c.copy(capTop).lerp(capRim, Math.min(1, r ** 2));
+        if (scales) {
+          const a = Math.atan2(z, x - bendAt(stemH));
+          const sc = Math.sin(a * 9 + r * 14) * Math.sin(r * 22);
+          if (r > 0.25 && sc > 0.55) c.multiplyScalar(scales);
+        }
+        return c;
+      },
+      [capTint, capGlow],
     ),
   );
-  return parts;
+  // Lamellen
+  const gp = [new THREE.Vector2(stemR * 0.9, y0 + capH * 0.12), new THREE.Vector2(capR * 0.55, y0 + capH * 0.02), new THREE.Vector2(capR * 0.97, y0 - capH * 0.07)];
+  const gills = bendGeo(new THREE.LatheGeometry(gp, segs));
+  parts.push(
+    finish(
+      gills,
+      (x, y, z, c) => {
+        const a = Math.atan2(z, x - bendAt(stemH));
+        c.copy(gill);
+        if (gillLines) c.multiplyScalar(Math.sin(a * segs * 0.5) > 0 ? 1.0 : 0.72);
+        return c;
+      },
+      [0, gillGlow],
+    ),
+  );
+  return { parts, y0, prof, top: stemH, bendAt };
+}
+
+// Warzen/Tupfen auf dem Hut entlang einer Sonnenblumen-Spirale
+function warts(m, n, size, color, seed, mask = [0, 0.25]) {
+  const r = rng(seed);
+  const out = [];
+  for (let k = 1; k <= n; k++) {
+    const a = 0.12 + 0.82 * (1 - Math.sqrt(k / n)); // nahe Scheitel bis nahe Rand
+    const [rr, y] = m.prof(a);
+    const ang = k * 2.39996;
+    const g = blob(size * (0.6 + r() * 0.7), 0, k + seed, 0.25);
+    g.scale(1, 0.45, 1);
+    g.translate(Math.cos(ang) * rr * 0.97 + m.bendAt(m.top), y, Math.sin(ang) * rr * 0.97);
+    out.push(finish(g, color, mask));
+  }
+  return out;
 }
 
 export function mushRed() {
-  const parts = mushroom({ stemH: 0.32, stemR: 0.045, capR: 0.2, capH: 0.13, capColor: C('#ffffff'), flat: 0.15 });
-  const r = rng(15);
-  for (let i = 0; i < 9; i++) {
-    const a = r() * Math.PI * 2;
-    const rad = 0.04 + r() * 0.11;
-    const d = new THREE.SphereGeometry(0.018 + r() * 0.012, 5, 3);
-    d.scale(1, 0.5, 1);
-    const y = 0.32 + 0.13 * 0.85 * Math.cos((rad / 0.2) * 1.2) - 0.005;
-    d.translate(Math.cos(a) * rad, y, Math.sin(a) * rad);
-    parts.push(finish(d, C('#fff8ec'), [0, 0]));
-  }
+  const parts = [];
+  const big = shroom({ stemH: 0.46, stemR: 0.05, capR: 0.25, capH: 0.14, shape: 'dome', ring: 0.72, bulb: 0.55, bend: 0.03, capTop: C('#c8c8c8'), capRim: C('#ffffff'), gill: C('#f6f0e2') });
+  parts.push(...big.parts, ...warts(big, 13, 0.026, C('#fffaf0'), 3));
+  const small = shroom({ stemH: 0.24, stemR: 0.035, capR: 0.12, capH: 0.1, shape: 'convex', bulb: 0.6, capTop: C('#b0b0b0'), capRim: C('#ffffff'), gill: C('#f6f0e2') });
+  small.parts.push(...warts(small, 5, 0.018, C('#fffaf0'), 9));
+  small.parts.forEach((g) => {
+    g.rotateY(1.2);
+    g.translate(0.22, 0, 0.1);
+  });
+  parts.push(...small.parts);
   return merge(parts);
 }
 
 export function mushBrown() {
   const r = rng(16);
   const parts = [];
-  for (let i = 0; i < 3; i++) {
-    const s = 0.6 + r() * 0.5;
-    const m = mushroom({ stemH: 0.2 * s, stemR: 0.04 * s, capR: 0.13 * s, capH: 0.08 * s, capColor: C('#ffffff') });
-    m.forEach((g) => g.translate((r() - 0.5) * 0.35, 0, (r() - 0.5) * 0.35));
-    parts.push(...m);
+  for (let i = 0; i < 2; i++) {
+    const s = i ? 0.65 : 1;
+    const m = shroom({
+      stemH: 0.26 * s, stemR: 0.075 * s, capR: 0.17 * s, capH: 0.12 * s, shape: 'convex', bulb: 0.9,
+      capTop: C('#a8a8a8'), capRim: C('#ffffff'), gill: C('#d8c47a'), gillLines: false,
+      stemTop: C('#efe6cf'), stemBase: C('#cbb994'), bands: 60,
+    });
+    m.parts.forEach((g) => g.translate(i * 0.24, 0, i * (r() - 0.5) * 0.3));
+    parts.push(...m.parts);
   }
   return merge(parts);
 }
@@ -287,16 +369,31 @@ export function mushBrown() {
 export function mushGlow() {
   const r = rng(17);
   const parts = [];
-  for (let i = 0; i < 4; i++) {
-    const s = 0.6 + r() * 0.6;
-    const m = mushroom({ stemH: 0.35 * s, stemR: 0.018 * s, capR: 0.08 * s, capH: 0.1 * s, capColor: C('#ffffff'), glow: 1, flat: 0.7, stemColor: C('#cfe8e4') });
-    m.forEach((g) => {
-      g.rotateZ((r() - 0.5) * 0.4);
-      g.translate((r() - 0.5) * 0.3, 0, (r() - 0.5) * 0.3);
+  for (let i = 0; i < 5; i++) {
+    const s = 0.55 + r() * 0.6;
+    const m = shroom({
+      stemH: 0.42 * s, stemR: 0.014 * s, capR: 0.075 * s, capH: 0.09 * s, shape: 'bell', bulb: 0.2, bend: (r() - 0.5) * 0.12 * s, segs: 12, stemSegs: 6,
+      capTop: C('#ffffff'), capRim: C('#d8d8d8'), gill: C('#ffffff'), stemTop: C('#e8f4f0'), stemBase: C('#9fb8b0'),
+      capGlow: 1, gillGlow: 1.2, stemGlow: 0.3,
     });
-    parts.push(...m);
+    const a = r() * Math.PI * 2;
+    const d = r() * 0.22;
+    m.parts.forEach((g) => {
+      g.rotateY(r() * 6.28);
+      g.translate(Math.cos(a) * d, 0, Math.sin(a) * d);
+    });
+    parts.push(...m.parts);
   }
   return merge(parts);
+}
+
+export function parasol() {
+  const m = shroom({
+    stemH: 0.95, stemR: 0.03, capR: 0.34, capH: 0.12, shape: 'flat', ring: 0.8, bulb: 0.7, bend: 0.05,
+    capTop: C('#8a6a4a'), capRim: C('#f2e8d6'), gill: C('#fbf6ea'), stemTop: C('#e4d6bc'), stemBase: C('#a08a6a'),
+    capTint: 0.35, scales: 0.55, bands: 40,
+  });
+  return merge(m.parts);
 }
 
 export function puffball() {
@@ -451,27 +548,14 @@ export function fir(seed = 41) {
 }
 
 export function giantMushroom() {
-  const sp = [];
-  for (let i = 0; i <= 10; i++) {
-    const t = i / 10;
-    sp.push(new THREE.Vector2(0.45 * (1.6 - t * 0.7 + 0.25 * Math.sin(t * 5)), t * 6.5));
-  }
-  const stem = finish(new THREE.LatheGeometry(sp, 14), (x, y, z, c) => c.copy(C('#d9d0c0')).lerp(C('#f4efe4'), y / 6.5), (x, y) => [0, y > 5.8 ? 0.4 : 0]);
-  const cp = [];
-  const n = 14;
-  for (let i = 0; i <= n; i++) {
-    const t = i / n;
-    const a = t * Math.PI * 0.5;
-    cp.push(new THREE.Vector2(Math.max(0.01, 4 * Math.cos(a) * (1 + 0.08 * Math.sin(t * 9))), 6.0 + 1.9 * Math.sin(a)));
-  }
-  cp.push(new THREE.Vector2(0.01, 7.9));
-  const under = [new THREE.Vector2(0.4, 6.2), new THREE.Vector2(4.0, 6.0)];
-  const cap = finish(new THREE.LatheGeometry(cp, 22), (x, y, z, c) => c.copy(C('#ffffff')), [1, 0.15]);
-  const gills = finish(new THREE.LatheGeometry(under, 22), C('#f2d9ff'), [0, 1]);
-  // Lamellen nach unten sichtbar machen: Normalen umdrehen
-  const gn = gills.attributes.normal;
-  for (let i = 0; i < gn.count; i++) gn.setXYZ(i, -gn.getX(i), -gn.getY(i), -gn.getZ(i));
-  return { stem: merge([stem]), cap: merge([cap, gills]) };
+  const m = shroom({
+    stemH: 6.5, stemR: 0.42, capR: 4.0, capH: 2.0, shape: 'dome', ring: 0.78, bulb: 0.6, bend: 0.5, segs: 36, stemSegs: 14,
+    capTop: C('#c4c4c4'), capRim: C('#ffffff'), gill: C('#f2d9ff'), stemTop: C('#f4efe4'), stemBase: C('#c9bea8'),
+    capGlow: 0.15, gillGlow: 1, stemGlow: 0.15,
+  });
+  const spots = warts(m, 22, 0.32, C('#fff6e0'), 77, [0, 0.9]);
+  const capParts = m.parts.slice(1 + 1); // ohne Stiel und Ring
+  return { stem: merge(m.parts.slice(0, 2)), cap: merge([...capParts, ...spots]) };
 }
 
 export function deadLog() {

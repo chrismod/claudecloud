@@ -6,10 +6,12 @@
 //   H  Farbton             – wer das Myzel gesponnen hat (0 = Hyphe, 1 = Keim)
 //   G  Leuchten            – erregbares Medium: Lichtwellen laufen durchs Netz
 //   F  frische Spur        – kurzes Nachglühen hinter den Geistern
-// Nicht gespeicherte Hilfswerte: K (Tragfähigkeit aus Fruchtbarkeit), L0 (Grundzustand), Wasser.
+//   B  Fäulnis             – geht von Moderherzen aus, frisst Myzel und Leben, nachts weiter
+// Nicht gespeicherte Hilfswerte: K (Tragfähigkeit aus Fruchtbarkeit), L0 (Grundzustand), Wasser,
+// P (Schutz durch erwachte Mutterbäume).
 //
-// Die Regeln sind bewusst ohne Zerfall: Was die Spieler beleben, bleibt belebt.
-import { CHUNK, WIN, SLOTS, NEAR_R, WATER } from '../config.js';
+// Myzel und Leben vergehen von selbst nie – nur die Fäulnis kann sie zerstören.
+import { CHUNK, WIN, SLOTS, NEAR_R, WATER, PROTECT_R } from '../config.js';
 import { smoothstep } from '../noise.js';
 
 const N = WIN;
@@ -17,8 +19,15 @@ const MASK = N - 1;
 const CELLS = CHUNK * CHUNK;
 const A = 0.3; // Allee-Schwelle: darunter wächst Myzel nicht von selbst
 
-export function createSim(field, store) {
+export function createSim(field, store, opts = {}) {
+  const nestAlive = opts.nestAlive ?? (() => true);
   const size = N * N;
+  const B = new Float32Array(size);
+  const P = new Float32Array(size);
+  let protectors = []; // [{x, z}]
+  let sources = []; // lebende Moderherzen im Fenster
+  let night = 0;
+  const counters = { healed: 0, cleansed: 0 }; // von außen ablesen und zurücksetzen
   const L = new Float32Array(size);
   const M = new Float32Array(size);
   const H = new Float32Array(size).fill(0.5);
@@ -48,7 +57,7 @@ export function createSim(field, store) {
     if (!slotDirty[s]) return;
     const cx = slotCx[s];
     const cz = slotCz[s];
-    const data = { L: new Uint8Array(CELLS), M: new Uint8Array(CELLS), H: new Uint8Array(CELLS) };
+    const data = { L: new Uint8Array(CELLS), M: new Uint8Array(CELLS), H: new Uint8Array(CELLS), B: new Uint8Array(CELLS) };
     for (let lz = 0; lz < CHUNK; lz++)
       for (let lx = 0; lx < CHUNK; lx++) {
         const i = idx(cx * CHUNK + lx, cz * CHUNK + lz);
@@ -56,6 +65,7 @@ export function createSim(field, store) {
         data.L[j] = Math.round(L[i] * 255);
         data.M[j] = Math.round(M[i] * 255);
         data.H[j] = Math.round(H[i] * 255);
+        data.B[j] = Math.round(B[i] * 255);
       }
     store.put(key(cx, cz), data);
     slotChanged[s] = 0;
@@ -65,6 +75,10 @@ export function createSim(field, store) {
     const s = slotOf(cx, cz);
     if (slotActive[s] && slotCx[s] === cx && slotCz[s] === cz) return;
     const saved = store.get(key(cx, cz));
+    const x0 = cx * CHUNK;
+    const z0 = cz * CHUNK;
+    const nests = field.nestsNear(x0 + CHUNK / 2, z0 + CHUNK / 2, CHUNK + 30).filter((n) => nestAlive(n.id));
+    const prot = protectors.filter((p) => Math.abs(p.x - x0 - 16) < PROTECT_R + 24 && Math.abs(p.z - z0 - 16) < PROTECT_R + 24);
     for (let lz = 0; lz < CHUNK; lz++)
       for (let lx = 0; lx < CHUNK; lx++) {
         const x = cx * CHUNK + lx + 0.5;
@@ -76,15 +90,21 @@ export function createSim(field, store) {
         K[i] = 0.4 + 0.6 * f;
         L0[i] = base.life;
         W[i] = h < WATER ? 1 : 0;
+        P[i] = protectionAt(x, z, prot);
         if (saved) {
           const j = lz * CHUNK + lx;
           L[i] = saved.L[j] / 255;
           M[i] = saved.M[j] / 255;
           H[i] = saved.H[j] / 255;
+          B[i] = saved.B ? saved.B[j] / 255 : 0;
         } else {
           L[i] = base.life;
           M[i] = base.myc;
           H[i] = 0.5;
+          // Fäulnis um die Moderherzen im Tagesgleichgewicht
+          let b = 0;
+          for (const n of nests) b = Math.max(b, smoothstep(22, 3, Math.hypot(n.x - x, n.z - z)));
+          B[i] = b * (1 - P[i]);
         }
         G[i] = 0;
         R[i] = 0;
@@ -109,6 +129,8 @@ export function createSim(field, store) {
         const i = row | (sx * CHUNK + lx);
         L[i] = 0.05;
         M[i] = 0;
+        B[i] = 0;
+        P[i] = 0;
         G[i] = 0;
         F[i] = 0;
         R[i] = 0;
@@ -151,6 +173,28 @@ export function createSim(field, store) {
     return queue.length;
   }
 
+  function protectionAt(x, z, list = protectors) {
+    let p = 0;
+    for (const q of list) {
+      const d = Math.hypot(q.x - x, q.z - z);
+      if (d < PROTECT_R) p = Math.max(p, smoothstep(PROTECT_R, PROTECT_R - 10, d));
+    }
+    return p;
+  }
+
+  // Erwachte Mutterbäume schützen ihre Umgebung
+  function setProtectors(list) {
+    protectors = list.map((p) => ({ x: p.x, z: p.z }));
+    for (let s = 0; s < SLOTS * SLOTS; s++) {
+      if (!slotActive[s]) continue;
+      const cx = slotCx[s];
+      const cz = slotCz[s];
+      const near = protectors.filter((p) => Math.abs(p.x - cx * CHUNK - 16) < PROTECT_R + 24 && Math.abs(p.z - cz * CHUNK - 16) < PROTECT_R + 24);
+      for (let lz = 0; lz < CHUNK; lz++)
+        for (let lx = 0; lx < CHUNK; lx++) P[idx(cx * CHUNK + lx, cz * CHUNK + lz)] = near.length ? protectionAt(cx * CHUNK + lx + 0.5, cz * CHUNK + lz + 0.5, near) : 0;
+    }
+  }
+
   const isLoaded = (ix, iz) => {
     const cx = Math.floor(ix / CHUNK);
     const cz = Math.floor(iz / CHUNK);
@@ -181,9 +225,10 @@ export function createSim(field, store) {
         if (!isLoaded(ix, iz)) continue;
         const i = idx(ix, iz);
         const w = smoothstep(1, 0.45, Math.sqrt(d2) / radius);
-        const t = target * w;
+        const t = target * w * (1 - B[i] * 0.75);
         if (t > M[i]) {
           added += t - M[i];
+          if (M[i] < 0.5 && t >= 0.5 && !W[i]) counters.healed++;
           // Farbton gewichtet mischen: wer mehr spinnt, färbt mehr
           H[i] += (hue - H[i]) * Math.min(1, ((t - M[i]) / Math.max(t, 0.05)) * 1.2);
           M[i] = t;
@@ -194,6 +239,25 @@ export function createSim(field, store) {
         if (glow * w > F[i]) F[i] = glow * w;
       }
     return added;
+  }
+
+  // Fäulnis läutern (Weben, Sporenpuls). Gibt die entfernte Fäulnismenge zurück.
+  function cleanse(x, z, radius, amount) {
+    let removed = 0;
+    const r2 = radius * radius;
+    for (let iz = Math.floor(z - radius); iz <= Math.ceil(z + radius); iz++)
+      for (let ix = Math.floor(x - radius); ix <= Math.ceil(x + radius); ix++) {
+        const d2 = (ix + 0.5 - x) ** 2 + (iz + 0.5 - z) ** 2;
+        if (d2 > r2 || !isLoaded(ix, iz)) continue;
+        const i = idx(ix, iz);
+        if (B[i] <= 0) continue;
+        const nb = B[i] * (1 - amount * smoothstep(1, 0.5, Math.sqrt(d2) / radius));
+        removed += B[i] - nb;
+        B[i] = nb < 0.01 ? 0 : nb;
+        markDirty(ix, iz);
+      }
+    counters.cleansed += removed;
+    return removed;
   }
 
   function paintLine(x1, z1, x2, z2, radius, target, hue, glow = 0.5) {
@@ -240,6 +304,20 @@ export function createSim(field, store) {
   function step(dt) {
     const spread = 0.09 * dt;
     const grow = 0.05 * dt;
+    // Moderherzen speisen die Fäulnis
+    for (const n of sources) {
+      const r = 3.5;
+      for (let iz = Math.floor(n.z - r); iz <= Math.ceil(n.z + r); iz++)
+        for (let ix = Math.floor(n.x - r); ix <= Math.ceil(n.x + r); ix++) {
+          if ((ix + 0.5 - n.x) ** 2 + (iz + 0.5 - n.z) ** 2 > r * r || !isLoaded(ix, iz)) continue;
+          B[idx(ix, iz)] = 1;
+        }
+    }
+    // nachts reicht sie weiter und frisst schneller
+    const reach = 0.958 + 0.03 * night;
+    const brate = (0.35 + 1.2 * night) * dt;
+    const brecede = (0.05 * (1 - night)) * dt;
+    const eat = (0.05 + 0.06 * night) * dt;
     for (let s = 0; s < SLOTS * SLOTS; s++) {
       if (!slotActive[s]) continue;
       const sx = s % SLOTS;
@@ -260,23 +338,42 @@ export function createSim(field, store) {
           let best = m;
           let bi = i;
           let j;
+          const b = B[i];
+          let bb = b;
           if (lx > 0 || left) {
             j = (wz << 8) | ((wx - 1) & MASK);
             if (M[j] > best) (best = M[j]), (bi = j);
+            if (B[j] > bb) bb = B[j];
           }
           if (lx < CHUNK - 1 || right) {
             j = (wz << 8) | ((wx + 1) & MASK);
             if (M[j] > best) (best = M[j]), (bi = j);
+            if (B[j] > bb) bb = B[j];
           }
           if (lz > 0 || up) {
             j = (((wz - 1) & MASK) << 8) | wx;
             if (M[j] > best) (best = M[j]), (bi = j);
+            if (B[j] > bb) bb = B[j];
           }
           if (lz < CHUNK - 1 || down) {
             j = (((wz + 1) & MASK) << 8) | wx;
             if (M[j] > best) (best = M[j]), (bi = j);
+            if (B[j] > bb) bb = B[j];
+          }
+          // Fäulnis: schwächer mit jedem Meter vom Herz, gebremst durch kräftiges Myzel und Wasser
+          const p = P[i];
+          let nb = b;
+          const btarget = bb * reach * (1 - p) * (W[i] ? 0.6 : 1);
+          if (bb > 0.22 && btarget > b + 0.005) nb += (btarget - b) * Math.min(1, brate * (1 - 0.6 * m));
+          else if (btarget < b) nb -= Math.min(b - btarget, brecede + (b - btarget) * 0.02 * dt);
+          if (p > 0) nb *= 1 - Math.min(1, p * dt * 3);
+          if (nb < 0.004) nb = 0;
+          if (nb !== b) {
+            B[i] = nb;
+            if (Math.abs(nb - b) > 0.002) changed = true;
           }
           let nm = m;
+          if (nb > 0.3) nm = Math.max(0, nm - eat * nb);
           if (best > m + 0.02 && best > A) {
             // Ausbreitung nur in fruchtbaren Boden, nie über den Nachbarn hinaus
             const gate = smoothstep(0.62, 0.9, k);
@@ -286,16 +383,20 @@ export function createSim(field, store) {
               H[i] += (H[bi] - H[i]) * Math.min(1, (d / Math.max(nm, 0.05)) * 1.5);
             }
           }
-          if (nm > A && nm < k) nm += grow * (k - nm);
+          if (nm > A && nm < k && nb < 0.3) nm += grow * (k - nm);
           if (nm !== m) {
             M[i] = nm;
-            if (nm - m > 0.001) changed = true;
+            if (Math.abs(nm - m) > 0.001) changed = true;
           }
-          // Leben folgt dem Myzel – wächst schnell, vergeht nicht
-          const target = Math.max(L0[i], Math.min(1, nm * (0.55 + 0.55 * k)));
+          // Leben folgt dem Myzel – wächst schnell, vergeht nur durch Fäulnis
+          const rot = nb > 0.25 ? nb : 0;
+          const target = Math.max(L0[i] * (1 - rot), Math.min(1, nm * (0.55 + 0.55 * k)));
           const l = L[i];
-          if (target > l + 0.001) {
+          if (target > l + 0.001 && rot < 0.3) {
             L[i] = l + (target - l) * Math.min(1, 0.4 * dt);
+            changed = true;
+          } else if (rot > 0.3 && l > target) {
+            L[i] = Math.max(target, l - eat * 1.3 * rot);
             changed = true;
           }
         }
@@ -359,12 +460,48 @@ export function createSim(field, store) {
     }
   }
 
+  // Zweite Textur: R = Fäulnis, G = Schutz
+  function writeTexture2(data) {
+    const d32 = new Uint32Array(data.buffer, data.byteOffset, size);
+    for (let i = 0; i < size; i++) d32[i] = ((B[i] * 255) | 0) | (((P[i] * 255) | 0) << 8);
+  }
+
   function sample(x, z) {
     const ix = Math.floor(x);
     const iz = Math.floor(z);
-    if (!isLoaded(ix, iz)) return { L: 0, M: 0, H: 0.5, G: 0, K: 0, water: false, loaded: false };
+    if (!isLoaded(ix, iz)) return { L: 0, M: 0, H: 0.5, G: 0, K: 0, B: 0, P: 0, water: false, loaded: false };
     const i = idx(ix, iz);
-    return { L: L[i], M: M[i], H: H[i], G: Math.max(G[i], F[i]), K: K[i], water: !!W[i], loaded: true };
+    return { L: L[i], M: M[i], H: H[i], G: Math.max(G[i], F[i]), K: K[i], B: B[i], P: P[i], water: !!W[i], loaded: true };
+  }
+
+  // Fäulnis-Lage im Fenster: befallene Fläche, bedrohtes Myzel und der bedrohte Punkt nächst (fx, fz)
+  function rotStats(fx, fz) {
+    let rot = 0;
+    let threat = 0;
+    let best = null;
+    let bd = Infinity;
+    for (let s = 0; s < SLOTS * SLOTS; s++) {
+      if (!slotActive[s]) continue;
+      const cx = slotCx[s];
+      const cz = slotCz[s];
+      for (let lz = 0; lz < CHUNK; lz += 1)
+        for (let lx = 0; lx < CHUNK; lx += 1) {
+          const i = idx(cx * CHUNK + lx, cz * CHUNK + lz);
+          if (B[i] < 0.4) continue;
+          rot++;
+          if (M[i] > 0.35) {
+            threat++;
+            const x = cx * CHUNK + lx + 0.5;
+            const z = cz * CHUNK + lz + 0.5;
+            const d = (x - fx) ** 2 + (z - fz) ** 2;
+            if (d < bd) {
+              bd = d;
+              best = { x, z };
+            }
+          }
+        }
+    }
+    return { rot, threat, nearest: best };
   }
 
   // Anteil der Zellen im Kreis mit Myzel über der Schwelle (Wasser zählt nicht)
@@ -421,8 +558,22 @@ export function createSim(field, store) {
   }
 
   return {
-    L, M, H, G, F, K, W,
+    L, M, H, G, F, K, W, B, P,
+    counters,
     chunkCounts,
+    setProtectors,
+    cleanse,
+    writeTexture2,
+    rotStats,
+    setSources(list) {
+      sources = list;
+    },
+    set night(v) {
+      night = v;
+    },
+    get night() {
+      return night;
+    },
     idx,
     isLoaded,
     get center() {

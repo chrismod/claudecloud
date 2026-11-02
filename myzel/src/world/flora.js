@@ -5,7 +5,7 @@ import { CHUNK, WATER } from '../config.js';
 
 // Art → { trunk/crown teilen sich Einträge über 'group' }
 export const KINDS = [
-  'grass', 'flower', 'fern', 'reed', 'mushRed', 'mushBrown', 'mushGlow', 'puff', 'bush', 'rock',
+  'grass', 'flower', 'fern', 'reed', 'mushRed', 'mushBrown', 'mushGlow', 'parasol', 'puff', 'bush', 'rock',
   'oakTrunk', 'oakCrown', 'birchTrunk', 'birchCrown', 'firTrunk', 'firCrown', 'gmStem', 'gmCap', 'log',
 ];
 
@@ -52,6 +52,7 @@ export function generateFlora(field, cx, cz) {
     scale: [1.3, 2.6],
     accept: (x, z, h, q) => dry(x, z, h) && q < 0.5 + field.mushroomness(x, z) * 0.5,
   });
+  place('parasol', 4, { th: [0.5, 0.9], scale: [0.9, 1.6], accept: (x, z, h, q) => dry(x, z, h) && q < 0.7 });
   place('puff', 5, { th: [0.48, 0.8], scale: [0.9, 1.4], accept: dry, w: -1000 });
   place('bush', 10, { th: [0.4, 0.85], scale: [0.7, 1.4], accept: (x, z, h) => dry(x, z, h) && h < 16 });
   place('rock', 5, { th: [-1, -1], scale: [0.35, 1.9], sink: 0.3, clear: 10, accept: (x, z, h, q) => q < 0.35 + steep(x, z) * 0.6 });

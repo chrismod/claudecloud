@@ -4,18 +4,21 @@ import { CHUNK, DAY_LENGTH, WIN } from './config.js';
 import { createField } from './world/field.js';
 import { createStore, lastSeed } from './world/store.js';
 import { createSim } from './world/sim.js';
-import { U, createVitalityTexture } from './render/shared.js';
+import { U, createVitalityTexture, createRotTexture } from './render/shared.js';
 import { createStage } from './render/stage.js';
 import { createSky } from './render/sky.js';
 import { createTerrain } from './render/terrain.js';
 import { createWater } from './render/water.js';
 import { createVegetation } from './render/vegetation.js';
 import { createMotherTrees } from './render/motherTrees.js';
+import { createNests } from './render/nests.js';
+import { createFauna } from './render/fauna.js';
 import { WispView, Thread } from './render/wisps.js';
 import { Effects, Ambient } from './render/particles.js';
 import { createInput } from './game/input.js';
 import { createCameraRig } from './game/cameraRig.js';
 import { Player, boonsFor, BOONS, COST, NAMES } from './game/players.js';
+import { createProgress, RANKS } from './game/progress.js';
 import { audio } from './audio.js';
 import { smoothstep } from './noise.js';
 
@@ -40,24 +43,30 @@ const seed = pickSeed();
 const field = createField(seed);
 const store = createStore(seed);
 const meta = Object.assign(
-  { created: Date.now(), dayTime: 0.29, awake: [], consumed: [], healed: {}, players: null, playTime: 0, yaw: 0.35 },
+  { created: Date.now(), dayTime: 0.29, awake: [], consumed: [], purged: [], healed: {}, players: null, playTime: 0, yaw: 0.35, progress: null, nights: 0 },
   store.loadMeta() || {},
 );
 const awake = new Set(['0,0', ...meta.awake]);
+const purged = new Set(meta.purged);
 
 // --- Darstellung -----------------------------------------------------------------------------
 const stage = createStage($('stage'));
 const { scene, camera, renderer } = stage;
 const vit = createVitalityTexture();
+const rotTex = createRotTexture();
 const sky = createSky(scene, renderer);
 const terrain = createTerrain(scene, field, store);
 const water = createWater(scene);
 const veg = createVegetation(scene, field);
 veg.setConsumed(meta.consumed);
 const trees = createMotherTrees(scene, field);
+const nests = createNests(scene, field);
 const effects = new Effects(scene);
 const ambient = new Ambient(scene);
-const sim = createSim(field, store);
+const sim = createSim(field, store, { nestAlive: (id) => !purged.has(id) });
+const fauna = createFauna(scene, field, sim);
+const progress = createProgress(meta.progress, onProgress);
+meta.progress = progress.state;
 const input = createInput();
 const rig = createCameraRig(camera);
 rig.yaw = meta.yaw ?? 0.35;
@@ -82,8 +91,26 @@ let awakening = null;
 let newWorldArm = 0;
 let compassFlash = 0;
 let pingTarget = null;
+let purify = { nest: null, t: 0 };
+let rotT = 0;
+let rotInfo = { rot: 0, threat: 0, nearest: null };
+let lastPhase = null;
+let duskHealed = 0;
+let comboShown = 0;
 const active = () => players.filter(Boolean);
-const boons = () => boonsFor(awake.size - 1);
+const boons = () => {
+  const b = boonsFor(awake.size - 1);
+  b.maxSpores += progress.perks.maxSpores;
+  return b;
+};
+
+function updateProtectors() {
+  sim.setProtectors([...awake].map((id) => {
+    const [gx, gz] = id.split(',').map(Number);
+    return field.site(gx, gz);
+  }));
+}
+updateProtectors();
 
 function stream(focus, immediate = false) {
   const ccx = Math.floor(focus.x / CHUNK);
@@ -92,6 +119,10 @@ function stream(focus, immediate = false) {
   U.uWinCenter.value.set((ccx + 0.5) * CHUNK, (ccz + 0.5) * CHUNK);
   terrain.setCenter(ccx, ccz, immediate);
   veg.setCenter(ccx, ccz);
+}
+
+function updateSources(focus) {
+  sim.setSources(field.nestsNear(focus.x, focus.z, 170).filter((n) => !purged.has(n.id)));
 }
 
 function spawnPos(i) {
@@ -123,11 +154,14 @@ function boot() {
   const focus = new THREE.Vector3(0, 0, 0);
   rig.mode = 'title';
   rig.update(0.016, [], field, 0);
+  updateSources(focus);
   stream(focus, true);
   while (veg.pump(1000) > 0);
   veg.rebuild();
   sim.writeTexture(vit.data);
   vit.tex.needsUpdate = true;
+  sim.writeTexture2(rotTex.data);
+  rotTex.tex.needsUpdate = true;
   sky.update(dayTime, rig.focus, 10);
   renderTitle();
   mode = 'title';
@@ -224,7 +258,8 @@ function startGame() {
   setTimeout(() => $('title').classList.add('hidden'), 1300);
   $('hud').classList.remove('hidden');
   rig.snap(active(), field);
-  showToast('Wo ihr gleitet, wächst Myzel', 'Weckt die schlafenden Mutterbäume');
+  showToast('Wo ihr gleitet, wächst Myzel', 'Weckt die Mutterbäume – und hütet euch vor der Fäulnis der Nacht');
+  renderQuests();
   saveNow();
 }
 
@@ -363,6 +398,7 @@ function panOf(x, z) {
 
 function playUpdate(dt) {
   const b = boons();
+  const perks = progress.perks;
   // Spieler können jederzeit dazukommen
   for (const req of input.joinRequests(players.map((p) => p?.binding))) {
     const i = players.findIndex((p) => !p);
@@ -408,7 +444,10 @@ function playUpdate(dt) {
     const bothWeave = inputs[0].weave > 0.3 && inputs[1].weave > 0.3 && a.spores > 0.5 && c.spores > 0.5;
     threadState = { visible: true, weaving: bothWeave, strain };
     if (bothWeave) {
+      const h0 = sim.counters.healed;
       const added = sim.paintLine(a.x, a.z, c.x, c.z, 1.6 * b.radius, 0.92, 0.5, 0.8);
+      const threadHealed = sim.counters.healed - h0;
+      if (threadHealed) progress.event('thread', threadHealed);
       a.spores = Math.max(0, a.spores - added * COST.thread * 0.5);
       c.spores = Math.max(0, c.spores - added * COST.thread * 0.5);
     }
@@ -430,7 +469,7 @@ function playUpdate(dt) {
   let holders = 0;
   for (const p of list) {
     const inp = inputs[p.i];
-    const sample = p.act(inp, dt, { sim, boons: b });
+    const sample = p.act(inp, dt, { sim, boons: b, perks });
     p.sample = sample;
     const nearRitual = ritual.site && ritual.ready && Math.hypot(p.x - ritual.site.x, p.z - ritual.site.z) < 13;
     p.ritual = nearRitual && inp.pulse;
@@ -439,7 +478,7 @@ function playUpdate(dt) {
       if (Math.random() < 0.7)
         effects.emit({ x: p.x, y: p.y, z: p.z, count: 2, speed: 2, color: wispViews[p.i].color.clone().multiplyScalar(2.5), life: 2, size: 0.45, target: { x: ritual.site.x, y: field.height(ritual.site.x, ritual.site.z) + 9, z: ritual.site.z }, gravity: 0, drag: 2 });
     } else if (inp.pulseDown && !nearRitual) {
-      if (p.tryPulse(sim, b)) {
+      if (p.tryPulse(sim, b, perks)) {
         const col = wispViews[p.i].color.clone().multiplyScalar(2.2);
         effects.emit({ x: p.x, y: p.y - 0.8, z: p.z, count: 90, speed: 9, up: 0.15, color: col, life: 1.1, size: 0.4, gravity: -1, drag: 2.2 });
         audio.pulse(panOf(p.x, p.z), p.hue);
@@ -449,8 +488,14 @@ function playUpdate(dt) {
         audio.denied();
       }
     }
-    // Zersetzen: Totholz in Sporen verwandeln
-    if (inp.decompose) {
+    // Zersetzen: Totholz in Sporen verwandeln – oder ein Moderherz läutern
+    const nest = nearestNest(p.x, p.z, 8.5);
+    p.purifying = false;
+    if (inp.decompose && nest) {
+      p.purifying = true;
+      p.decompose = null;
+      if (purify.nest !== nest) purify = { nest, t: 0 };
+    } else if (inp.decompose) {
       const near = veg.nearby('log', p.x, p.z, 5).find((n) => n.e.w >= 1e8);
       if (near) {
         const e = near.e;
@@ -471,6 +516,7 @@ function playUpdate(dt) {
           audio.decomposed(panOf(e.x, e.z));
           input.rumble(p.binding, 0.7, 0.5, 300);
           p.decompose = null;
+          progress.event('log', 1, e);
         }
       } else p.decompose = null;
     } else if (p.decompose) {
@@ -489,6 +535,7 @@ function playUpdate(dt) {
       effects.emit({ x: e.x, y: e.y + 0.4, z: e.z, count: 70, speed: 4, up: 1.2, color: new THREE.Color(1.3, 1.2, 0.85), life: 2.2, size: 0.5, gravity: 0.15, drag: 2.5 });
       audio.puff(panOf(e.x, e.z));
       input.rumble(p.binding, 0.15, 0.35, 90);
+      progress.event('puff', 1, e);
     }
     if (inp.pingDown) {
       compassFlash = 2;
@@ -521,8 +568,11 @@ function playUpdate(dt) {
     const k = Math.min(1, awakening.t / 4.5);
     const r = 46 * (1 - (1 - k) ** 2);
     const s = awakening.site;
+    const c0 = { ...sim.counters };
     sim.paint(s.x, s.z, r, 1, 0.5, 0.3);
     sim.bloom(s.x, s.z, r * 0.85, 0.88);
+    sim.cleanse(s.x, s.z, r, 1);
+    Object.assign(sim.counters, c0);
     if ((awakening.pulse -= dt) <= 0) {
       awakening.pulse = 0.5;
       sim.excite(s.x, s.z, 4);
@@ -535,6 +585,53 @@ function playUpdate(dt) {
     }
     if (awakening.t > 4.8) awakening = null;
   }
+
+  // Moderherz läutern: wer Ⓧ hält, zehrt Sporen auf und brennt das Herz aus
+  const purifiers = list.filter((p) => p.purifying && p.spores > 0.5);
+  if (purify.nest && purifiers.length) {
+    purify.t += dt * 0.13 * purifiers.length;
+    for (const p of purifiers) {
+      p.spores = Math.max(0, p.spores - 7 * dt);
+      input.rumble(p.binding, 0.15 + purify.t * 0.4, 0.3, 60);
+      if (Math.random() < 0.8)
+        effects.emit({ x: p.x, y: p.y, z: p.z, count: 2, speed: 2, color: new THREE.Color(2.2, 1.9, 1.2), life: 1.4, size: 0.4, target: { x: purify.nest.x, y: purify.nest.y + 1.5, z: purify.nest.z }, gravity: 0, drag: 1.5 });
+    }
+    sim.cleanse(purify.nest.x, purify.nest.z, 4 + purify.t * 10, dt * 2);
+    audio.purifying(purify.t);
+    if (purify.t >= 1) purgeNest(purify.nest);
+  } else if (purify.nest) {
+    purify.t = Math.max(0, purify.t - dt * 0.15);
+    if (purify.t <= 0) purify.nest = null;
+  }
+  const no = purify.nest && nests.nests.get(purify.nest.id);
+  if (no) no.purify = purify.t;
+
+  // Fäulnis-Lage: bedrohtes Myzel melden
+  rotT -= dt;
+  if (rotT <= 0) {
+    rotT = 1;
+    rotInfo = sim.rotStats(rig.focus.x, rig.focus.z);
+  }
+
+  // Tiere kehren zurück
+  const returned = fauna.update(dt, { focus: rig.focus, players: list, time, night: U.uNight.value, day: U.uNight.value < 0.3 });
+  if (returned) progress.event('animal', returned);
+
+  // Erfahrung aus dem, was die Spieler bewirken
+  const healedNow = sim.counters.healed;
+  const cleansedNow = sim.counters.cleansed;
+  sim.counters.healed = 0;
+  sim.counters.cleansed = 0;
+  if (healedNow) progress.healed(healedNow, list[0]);
+  if (cleansedNow > 0.5) progress.event('rot', cleansedNow);
+  progress.update(dt, {
+    dayTime,
+    night: U.uNight.value,
+    players: list.length,
+    hasNest: field.nestsNear(rig.focus.x, rig.focus.z, 250).some((n) => !purged.has(n.id)),
+    hasTree: !!dormant && dormant.dist < 400,
+  });
+  dayPhase();
 
   // Die erwachten Mutterbäume senden Lichtwellen durchs Netz
   treePulse -= dt;
@@ -575,7 +672,9 @@ function awaken(site) {
     p.max = b.maxSpores;
     p.spores = p.max;
   }
-  showToast('Ein Mutterbaum erwacht', `Gabe: ${boon.name} – ${boon.text}`, 6);
+  showToast('Ein Mutterbaum erwacht', `Gabe: ${boon.name} – ${boon.text} · Sein Hain ist vor Fäulnis geschützt`, 6);
+  updateProtectors();
+  progress.event('tree', 1, site);
   audio.awaken();
   rig.shake = 1.1;
   stage.grade.uniforms.uFlash.value = 0.75;
@@ -583,6 +682,102 @@ function awaken(site) {
   const y = field.height(site.x, site.z);
   effects.emit({ x: site.x, y: y + 6, z: site.z, count: 400, speed: 16, up: 0.6, color: new THREE.Color(1.8, 1.5, 0.8), life: 2.6, size: 0.7, gravity: -0.4, drag: 1.2 });
   saveNow();
+}
+
+function nearestNest(x, z, r) {
+  let best = null;
+  let bd = r;
+  for (const n of field.nestsNear(x, z, r)) {
+    if (purged.has(n.id)) continue;
+    const d = Math.hypot(n.x - x, n.z - z);
+    if (d < bd) (bd = d), (best = n);
+  }
+  return best;
+}
+
+function purgeNest(n) {
+  const c0 = { ...sim.counters };
+  purged.add(n.id);
+  meta.purged = [...purged];
+  purify = { nest: null, t: 0 };
+  updateSources(rig.focus);
+  sim.cleanse(n.x, n.z, 26, 1);
+  sim.paint(n.x, n.z, 12, 1, 0.5, 1);
+  sim.bloom(n.x, n.z, 9, 0.85);
+  sim.excite(n.x, n.z, 3);
+  Object.assign(sim.counters, c0); // die Läuterungswelle selbst gibt keine Erfahrung
+  for (const p of active()) {
+    p.spores = Math.min(p.max, p.spores + 50);
+    input.rumble(p.binding, 1, 1, 700);
+  }
+  effects.emit({ x: n.x, y: n.y + 2, z: n.z, count: 350, speed: 12, up: 0.8, color: new THREE.Color(2, 1.8, 1.2), life: 2.4, size: 0.6, gravity: -0.3, drag: 1.4 });
+  effects.emit({ x: n.x, y: n.y + 1, z: n.z, count: 160, speed: 5, up: 1.5, color: new THREE.Color(0.8, 0.2, 1.2), life: 2.8, size: 0.5, gravity: 0.6, drag: 2 });
+  stage.grade.uniforms.uFlash.value = 0.5;
+  rig.shake = 0.8;
+  audio.purified();
+  showToast('Ein Moderherz ist geläutert', 'Die Fäulnis weicht – hier kann wieder Leben wachsen', 5);
+  progress.event('nest', 1, n);
+  saveNow();
+}
+
+// Abend, Nacht und Morgen: die Fäulnis-Welle
+function dayPhase() {
+  const ph = dayTime > 0.69 && dayTime < 0.75 ? 'dusk' : U.uNight.value > 0.5 ? 'night' : dayTime > 0.26 && dayTime < 0.69 ? 'day' : lastPhase;
+  if (ph === lastPhase) return;
+  const prev = lastPhase;
+  lastPhase = ph;
+  if (prev === null) return;
+  if (ph === 'dusk') {
+    showToast('Die Dämmerung naht', 'Bald erwacht die Fäulnis – sucht Schutz bei den Mutterbäumen oder läutert ihre Herzen', 5);
+    audio.horn(false);
+  } else if (ph === 'night') {
+    duskHealed = totalHealed();
+    showToast('Die Nacht der Fäulnis', 'Die Moderherzen schlagen schneller – verteidigt euren Wald', 5);
+    audio.horn(true);
+    rumbleAll(0.4, 0.2, 400);
+  } else if (ph === 'day' && prev === 'night') {
+    meta.nights = (meta.nights || 0) + 1;
+    for (const [k, c] of sim.chunkCounts()) meta.healed[k] = c;
+    const diff = totalHealed() - duskHealed;
+    const msg = diff >= 0 ? `Euer Wald ist sogar um ${fmtArea(diff)} gewachsen` : `Die Fäulnis hat ${fmtArea(-diff)} gefressen`;
+    showToast(`Der Morgen graut – Nacht ${meta.nights} überstanden`, msg, 5);
+    progress.addXP(80 + Math.max(0, diff) * 0.1, 'dawn');
+    audio.dawn();
+  }
+}
+
+// Ereignisse aus dem Fortschritt → Anzeige und Klang
+let xpBatch = 0;
+let xpBatchT = 0;
+function onProgress(type, d) {
+  if (type === 'xp') {
+    if (d.reason === 'heal' || d.reason === 'rot' || d.reason === 'thread') {
+      xpBatch += d.amount;
+    } else popup(`+${Math.round(d.amount)}`, d.pos ?? active()[0], d.reason === 'objective' ? 'gold' : '');
+  } else if (type === 'rank') {
+    showToast(`Neuer Rang: ${d.name}`, d.perk ? `Vorteil: ${d.perk}` : 'Der Wald erkennt euch an', 5.5);
+    audio.rank();
+    for (const p of active()) {
+      p.max = boons().maxSpores;
+      p.spores = p.max;
+    }
+    rumbleAll(0.6, 0.8, 500);
+  } else if (type === 'objective') {
+    audio.objective();
+    for (const p of active()) p.spores = Math.min(p.max, p.spores + d.spores);
+    popup(`Auftrag erfüllt · +${d.reward}`, active()[0], 'gold');
+    renderQuests(d.o.id);
+  } else if (type === 'failed') {
+    popup('Auftrag verpasst', active()[0], 'bad');
+    renderQuests();
+  } else if (type === 'changed') renderQuests();
+  else if (type === 'first') {
+    const first = {
+      animal: ['Die Tiere kehren zurück', 'Wo der Wald gesund ist, kommen Hirsche, Hasen und Vögel'],
+      rot: ['Fäulnis geläutert', 'Weben und der Sporenpuls brennen die Fäulnis aus'],
+    }[d.kind];
+    if (first) showToast(...first, 4.5);
+  }
 }
 
 // --- Speichern & Statistik -------------------------------------------------------------------
@@ -599,6 +794,7 @@ function saveNow() {
   meta.dayTime = dayTime;
   meta.yaw = rig.yaw;
   meta.players = players.map((p, i) => (p ? { x: p.x, z: p.z, spores: p.spores } : meta.players?.[i] ?? null));
+  meta.progress = progress.state;
   store.saveMeta(meta);
 }
 window.addEventListener('pagehide', saveNow);
@@ -632,6 +828,39 @@ function toScreen(x, y, z) {
 }
 
 let lastStats = '';
+let questT = 0;
+function popup(text, at, cls = '') {
+  if (!at) return;
+  const sc = toScreen(at.x, (at.y ?? field.height(at.x, at.z)) + 2.5, at.z);
+  if (!sc.on) return;
+  const el = document.createElement('div');
+  el.className = 'pop ' + cls;
+  el.textContent = text;
+  el.style.left = sc.x + (Math.random() - 0.5) * 40 + 'px';
+  el.style.top = sc.y + 'px';
+  $('popups').appendChild(el);
+  setTimeout(() => el.remove(), 1700);
+}
+
+let questHtml = '';
+function renderQuests() {
+  const list = progress.state.objectives;
+  let html = '<div class="head">Ruf des Waldes</div>';
+  for (const o of list) {
+    let left = '';
+    let urgent = false;
+    if (o.timed && !o.done) {
+      const rem = progress.timeLeft(o, dayTime);
+      const secs = (rem * DAY_LENGTH) / (U.uNight.value > 0.5 ? 1.7 : 1);
+      urgent = secs < 45;
+      left = `<span class="left">noch ${Math.floor(secs / 60)}:${String(Math.floor(secs % 60)).padStart(2, '0')}</span>`;
+    }
+    const have = Math.floor(o.have).toLocaleString('de-DE');
+    const goal = Math.round(o.goal).toLocaleString('de-DE');
+    html += `<div class="q${o.timed ? ' timed' : ''}${o.done ? ' done' : ''}${urgent ? ' urgent' : ''}"><div>${o.text}</div><div class="qbar"><i style="width:${(o.have / o.goal) * 100}%"></i></div><div class="qn"><span>${o.done ? 'Erfüllt' : `${have} / ${goal}`}</span>${left}</div></div>`;
+  }
+  if (html !== questHtml) $('quests').innerHTML = questHtml = html;
+}
 function hudUpdate(dt) {
   const b = boons();
   for (let i = 0; i < 2; i++) {
@@ -644,12 +873,16 @@ function hudUpdate(dt) {
     const tp = (COST.pulse / p.max) * 100;
     tick.style[i === 0 ? 'left' : 'right'] = tp + '%';
     let st = '';
-    if (p.ritual) st = 'Weckt den Mutterbaum …';
+    if (p.purifying) st = p.spores > 0.5 ? `Läutert das Moderherz · ${Math.round(purify.t * 100)} %` : 'Keine Sporen mehr zum Läutern';
+    else if (p.ritual) st = 'Weckt den Mutterbaum …';
+    else if (p.inRot) st = 'Die Fäulnis zehrt an euren Sporen – webt, um sie zu läutern';
     else if (p.decompose) st = `Zersetzt Totholz · ${Math.round(p.decompose.t * 100)} %`;
     else if (p.weaving) st = 'Webt Myzel';
     else if (p.spores < COST.pulse) st = 'Sporen erschöpft – sammelt auf lebendigem Boden';
     else if (p.boosting) st = 'Gleitet';
-    card.querySelector('.pstate').textContent = st;
+    const ps = card.querySelector('.pstate');
+    ps.textContent = st;
+    ps.classList.toggle('rot', !!(p.inRot || p.purifying));
   }
   // Statistik
   statT -= dt;
@@ -657,7 +890,14 @@ function hudUpdate(dt) {
     statT = 1;
     for (const [k, c] of sim.chunkCounts()) meta.healed[k] = c;
     const n = awake.size - 1;
-    const s = `<div><b>${fmtArea(totalHealed())}</b><span>belebt</span></div><div><b>${n}</b><span>${n === 1 ? 'Mutterbaum' : 'Mutterbäume'} erweckt</span></div><div><b>${clockText()}</b><span>${U.uNight.value > 0.5 ? 'Nacht' : 'Tag'}</span></div>`;
+    const night = U.uNight.value > 0.5;
+    const left = night ? (((0.25 - dayTime + 1) % 1) * DAY_LENGTH) / 1.7 : ((0.72 - dayTime + 1) % 1) * DAY_LENGTH;
+    const mm = `${Math.floor(left / 60)}:${String(Math.floor(left % 60)).padStart(2, '0')}`;
+    const s =
+      `<div><b>${fmtArea(totalHealed())}</b><span>belebt</span></div>` +
+      `<div><b>${n}</b><span>${n === 1 ? 'Mutterbaum' : 'Mutterbäume'}</span></div>` +
+      `<div><b>${purged.size}</b><span>${purged.size === 1 ? 'Moderherz' : 'Moderherzen'} geläutert</span></div>` +
+      `<div class="${night ? 'warn' : ''}"><b>${mm}</b><span>${night ? 'bis zum Morgen' : 'bis zur Nacht'}</span></div>`;
     if (s !== lastStats) $('stats').innerHTML = lastStats = s;
   }
   // Labels
@@ -678,7 +918,7 @@ function hudUpdate(dt) {
   }
   for (const p of active()) {
     const near = veg.nearby('log', p.x, p.z, 5).find((n) => n.e.w >= 1e8);
-    if (!near) continue;
+    if (!near || nearestNest(p.x, p.z, 8.5)) continue;
     const e = near.e;
     const sc = toScreen(e.x, e.y + 1.8, e.z);
     if (!sc.on) continue;
@@ -689,7 +929,80 @@ function hudUpdate(dt) {
     el.style.left = sc.x + 'px';
     el.style.top = sc.y + 'px';
   }
+  for (const n of field.nestsNear(rig.focus.x, rig.focus.z, 40)) {
+    if (purged.has(n.id)) continue;
+    const near = active().some((p) => Math.hypot(p.x - n.x, p.z - n.z) < 14);
+    if (!near) continue;
+    const sc = toScreen(n.x, n.y + 6, n.z);
+    if (!sc.on) continue;
+    const el = label(li++);
+    el.classList.remove('big');
+    el.classList.add('nest');
+    const prog = purify.nest === n ? purify.t : 0;
+    const pad = active().some((p) => p.binding.type === 'pad');
+    el.innerHTML = `Moderherz · ${pad ? '<span class="btn x">X</span>' : '<kbd>E</kbd> / <kbd>Ü</kbd>'} halten zum Läutern${active().length > 1 ? ' – zu zweit schneller' : ''}<div class="meter"><i style="width:${prog * 100}%"></i></div>`;
+    el.style.left = sc.x + 'px';
+    el.style.top = sc.y + 'px';
+  }
+  for (let i = 0; i < li; i++) if (!labelPool[i].innerHTML.startsWith('Moderherz')) labelPool[i].classList.remove('nest');
   for (let i = li; i < labelPool.length; i++) labelPool[i].style.display = 'none';
+
+  // Rang, Erfahrung, Fluss
+  const info = progress.info;
+  const rk = $('rank');
+  const rn = `${info.name}<small>Rang ${info.level + 1}</small>`;
+  if (rk.dataset.n !== rn) {
+    rk.dataset.n = rn;
+    rk.querySelector('.rname').innerHTML = rn;
+  }
+  rk.querySelector('.xpbar i').style.width = Math.max(0, Math.min(1, info.frac)) * 100 + '%';
+  const mult = progress.multiplier;
+  const combo = rk.querySelector('.combo');
+  combo.classList.toggle('on', mult > 1);
+  if (mult !== comboShown) {
+    combo.textContent = mult > 1 ? `Fluss ×${mult}` : '';
+    if (mult > comboShown) {
+      combo.classList.add('bump');
+      setTimeout(() => combo.classList.remove('bump'), 160);
+      if (mult > 1) audio.flow(mult);
+    }
+    comboShown = mult;
+  }
+  questT -= dt;
+  if (questT <= 0) {
+    questT = 0.25;
+    renderQuests();
+  }
+  xpBatchT -= dt;
+  if (xpBatchT <= 0) {
+    xpBatchT = 0.8;
+    if (xpBatch >= 1) popup(`+${Math.round(xpBatch)}`, active()[0], 'small');
+    xpBatch = 0;
+  }
+
+  // Warnung: die Fäulnis frisst euer Myzel
+  const th = $('threat');
+  if (rotInfo.threat > 25 && rotInfo.nearest) {
+    const q = rotInfo.nearest;
+    const sc = toScreen(q.x, field.height(q.x, q.z) + 1, q.z);
+    const dist = Math.round(Math.hypot(q.x - rig.focus.x, q.z - rig.focus.z));
+    let nx = sc.ndc.x;
+    let ny = sc.ndc.y;
+    if (sc.ndc.z > 1) (nx = -nx), (ny = -ny);
+    const inside = sc.on && Math.abs(nx) < 0.8 && Math.abs(ny) < 0.75;
+    const a = Math.atan2(ny, nx);
+    th.style.opacity = 1;
+    if (inside) {
+      th.style.left = sc.x + 'px';
+      th.style.top = sc.y - 30 + 'px';
+      th.querySelector('.arrow').style.transform = 'rotate(180deg)';
+    } else {
+      th.style.left = innerWidth / 2 + Math.cos(a) * (innerWidth / 2 - 110) + 'px';
+      th.style.top = innerHeight / 2 - Math.sin(a) * (innerHeight / 2 - 120) + 'px';
+      th.querySelector('.arrow').style.transform = `rotate(${90 - (a * 180) / Math.PI}deg)`;
+    }
+    th.querySelector('.dist').textContent = `Fäulnis frisst Myzel · ${dist} m`;
+  } else th.style.opacity = 0;
 
   // Kompass zum nächsten schlafenden Mutterbaum
   const cp = $('compass');
@@ -708,8 +1021,11 @@ function hudUpdate(dt) {
     const rx = innerWidth / 2 - 70;
     const ry = innerHeight / 2 - 90;
     cp.style.opacity = 1;
-    cp.style.left = innerWidth / 2 + Math.cos(a) * rx + 'px';
-    cp.style.top = innerHeight / 2 - Math.sin(a) * ry + 'px';
+    let cx = innerWidth / 2 + Math.cos(a) * rx;
+    const cyy = innerHeight / 2 - Math.sin(a) * ry;
+    if (cyy < 560 && cx < 360) cx = 360; // nicht über der Auftragsliste
+    cp.style.left = cx + 'px';
+    cp.style.top = cyy + 'px';
     cp.querySelector('.arrow').style.transform = `rotate(${90 - (a * 180) / Math.PI}deg)`;
     cp.querySelector('.dist').textContent = Math.round(pingTarget.dist) + ' m';
   } else cp.style.opacity = 0;
@@ -780,6 +1096,13 @@ function drawMap() {
       r += ((p1.r * (1 - H) + p2.r * H) * 255 - r) * m * 0.6;
       g += ((p1.g * (1 - H) + p2.g * H) * 255 - g) * m * 0.6;
       b += ((p1.b * (1 - H) + p2.b * H) * 255 - b) * m * 0.6;
+      const rot = sim.B[i];
+      if (rot > 0.15) {
+        const k = Math.min(1, (rot - 0.15) * 1.6);
+        r += (95 - r) * k;
+        g += (20 - g) * k;
+        b += (120 - b) * k;
+      }
       const glow = Math.max(sim.G[i], sim.F[i]);
       d[o] = r + glow * 120;
       d[o + 1] = g + glow * 120;
@@ -808,6 +1131,16 @@ function drawMap() {
       mctx.stroke();
     }
   }
+  for (const n of field.nestsNear(fx, fz, 140)) {
+    if (purged.has(n.id)) continue;
+    const [mx, my] = toMap(n.x, n.z);
+    mctx.fillStyle = '#c45cff';
+    mctx.shadowColor = '#b040ff';
+    mctx.shadowBlur = 8;
+    mctx.beginPath();
+    mctx.arc(mx, my, 4 + Math.sin(time * 6) * 1, 0, Math.PI * 2);
+    mctx.fill();
+  }
   mctx.shadowBlur = 8;
   for (const p of active()) {
     const [mx, my] = toMap(p.x, p.z);
@@ -821,7 +1154,13 @@ function drawMap() {
 
 // --- Hauptschleife ---------------------------------------------------------------------------
 let last = performance.now();
+let srcT = 0;
 const smoothFocus = new THREE.Vector3();
+function nestProximity() {
+  if (mode !== 'play') return 0;
+  const n = nearestNest(rig.focus.x, rig.focus.z, 45);
+  return n ? 1 - Math.hypot(n.x - rig.focus.x, n.z - rig.focus.z) / 45 : 0;
+}
 function frame(now) {
   requestAnimationFrame(frame);
   const dt = Math.min(0.05, Math.max(0.001, (now - last) / 1000));
@@ -835,7 +1174,10 @@ function tick(dt, draw) {
   time += dt;
   U.uTime.value = time;
   U.uWind.value = 0.8 + 0.4 * Math.sin(time * 0.21);
-  dayTime = (dayTime + dt / DAY_LENGTH * (mode === 'play' ? 1 : mode === 'title' ? 0.6 : 0)) % 1;
+  // die Nacht vergeht schneller als der Tag
+  const nightSpeed = U.uNight.value > 0.5 ? 1.7 : 1;
+  dayTime = (dayTime + (dt / DAY_LENGTH) * nightSpeed * (mode === 'play' ? 1 : mode === 'title' ? 0.6 : 0)) % 1;
+  sim.night = mode === 'play' ? U.uNight.value : 0;
 
   if (mode === 'title') {
     titleUpdate(dt);
@@ -870,6 +1212,15 @@ function tick(dt, draw) {
 
   sim.writeTexture(vit.data);
   vit.tex.needsUpdate = true;
+  sim.writeTexture2(rotTex.data);
+  rotTex.tex.needsUpdate = true;
+  srcT -= dt;
+  if (srcT <= 0) {
+    srcT = 1;
+    updateSources(rig.focus);
+  }
+  nests.update(rig.focus, (id) => !purged.has(id), dt, time);
+  audio.nest(nestProximity());
   sky.update(dayTime, rig.focus, dt);
   water.update(rig.focus);
   trees.update(rig.focus, (id) => awake.has(id), dt, time);
@@ -895,7 +1246,8 @@ function tick(dt, draw) {
     life /= list.length;
     act /= list.length;
   } else life = 0.7;
-  audio.update({ life, night: U.uNight.value, activity: Math.min(1, act), weave });
+  const rotHere = mode === 'play' && list.length ? Math.max(...list.map((p) => p.sample?.B ?? 0)) : 0;
+  audio.update({ life, night: U.uNight.value, activity: Math.min(1, act), weave, rot: rotHere });
 
   if (mode === 'play' || mode === 'pause' || mode === 'help') {
     if (mode === 'play') hudUpdate(dt);
@@ -915,7 +1267,7 @@ function tick(dt, draw) {
 // Testmodus (?manual): keine eigene Schleife, Bilder werden von außen angestoßen
 const manual = params.has('manual');
 window.__myzel = {
-  field, sim, store, players, rig, meta, veg, U, stage, startGame, addPlayer, trees, terrain, sky, water,
+  field, sim, store, players, rig, meta, veg, U, stage, startGame, addPlayer, trees, terrain, sky, water, nests, fauna, progress, purged,
   get mode() {
     return mode;
   },

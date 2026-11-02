@@ -137,6 +137,7 @@ export class Ambient {
       blending: THREE.AdditiveBlending,
       uniforms: {
         uVit: U.uVit,
+        uRot: U.uRot,
         uWin: U.uWin,
         uWinCenter: U.uWinCenter,
         uTime: U.uTime,
@@ -188,6 +189,11 @@ export class Ambient {
             vCol = mix(ash * 0.5, pollen * (0.7 + uNight * 0.8), life);
             a = mix(0.25, 0.6, life) * (1.0 - uNight * 0.4 * (1.0 - life));
             size = mix(0.1, 0.13, life);
+            // Fäulnis: giftige, violett glimmende Sporen
+            float rotF = smoothstep(0.3, 0.7, mzRot(p.xz)) * mzInWin(p.xz);
+            vCol = mix(vCol, mix(vec3(0.7, 0.15, 1.1), vec3(0.5, 1.0, 0.15), aSeed.z * aSeed.z), rotF);
+            a = mix(a, 0.85, rotF);
+            size = mix(size, 0.16, rotF);
           }
           vec3 d = p - uFocus;
           a *= 1.0 - smoothstep(35.0, 55.0, length(d.xz));

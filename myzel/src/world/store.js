@@ -1,5 +1,6 @@
 // Dauerhafte Welt: veränderte Chunks und Metadaten im localStorage.
-// Pro Chunk drei Kanäle (Leben, Myzel, Farbton) à 32×32 Byte, delta- und lauflängenkodiert.
+// Pro Chunk vier Kanäle (Leben, Myzel, Farbton, Fäulnis) à 32×32 Byte, delta- und lauflängenkodiert.
+// Ältere Spielstände mit drei Kanälen werden gelesen (Fäulnis = 0).
 import { CHUNK } from '../config.js';
 
 const CELLS = CHUNK * CHUNK;
@@ -32,9 +33,9 @@ function fromB64(s) {
   return Uint8Array.from(out);
 }
 
-export function encodeChunk({ L, M, H }) {
+export function encodeChunk({ L, M, H, B }) {
   const out = [];
-  for (const ch of [L, M, H]) {
+  for (const ch of [L, M, H, B ?? new Uint8Array(CELLS)]) {
     let prev = 0;
     let run = 0;
     for (let i = 0; i < CELLS; i++) {
@@ -59,7 +60,7 @@ export function encodeChunk({ L, M, H }) {
 
 export function decodeChunk(str) {
   const bytes = fromB64(str);
-  const chans = [new Uint8Array(CELLS), new Uint8Array(CELLS), new Uint8Array(CELLS)];
+  const chans = [new Uint8Array(CELLS), new Uint8Array(CELLS), new Uint8Array(CELLS), new Uint8Array(CELLS)];
   let p = 0;
   for (const ch of chans) {
     let i = 0;
@@ -75,7 +76,7 @@ export function decodeChunk(str) {
       }
     }
   }
-  return { L: chans[0], M: chans[1], H: chans[2] };
+  return { L: chans[0], M: chans[1], H: chans[2], B: chans[3] };
 }
 
 function memoryStorage() {

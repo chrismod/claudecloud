@@ -21,7 +21,10 @@ let pad = [];
 let padFilter;
 let crickets;
 let shimmer;
-let state = { life: 0, night: 0, activity: 0, weave: 0 };
+let state = { life: 0, night: 0, activity: 0, weave: 0, rot: 0 };
+let rotDrone;
+let nextBeat = 0;
+let nestLevel = 0;
 let chordIdx = 0;
 let nextChord = 0;
 let nextNote = 0;
@@ -175,6 +178,20 @@ export const audio = {
     lfo.start();
     crickets = { g: level };
     shimmer = noiseLoop('highpass', 5200, 0.7, sfxBus);
+    // Fäulnis: tiefes, schwebendes Brummen
+    rotDrone = { g: ctx.createGain(), f: ctx.createBiquadFilter() };
+    rotDrone.g.gain.value = 0;
+    rotDrone.f.type = 'lowpass';
+    rotDrone.f.frequency.value = 220;
+    for (const [fr, det] of [[49, 0], [49.7, 0], [73.4, 0]]) {
+      const o = ctx.createOscillator();
+      o.type = 'sawtooth';
+      o.frequency.value = fr;
+      o.detune.value = det;
+      o.connect(rotDrone.f);
+      o.start();
+    }
+    rotDrone.f.connect(rotDrone.g).connect(master);
 
     padFilter = ctx.createBiquadFilter();
     padFilter.type = 'lowpass';
@@ -230,6 +247,15 @@ export const audio = {
     wind.f.frequency.setTargetAtTime(300 + Math.sin(t * 0.13) * 120 + (1 - life) * 200, t, 0.5);
     crickets.g.gain.setTargetAtTime(life * s.night * 0.018, t, 1);
     shimmer.g.gain.setTargetAtTime(s.weave * 0.05, t, 0.08);
+    rotDrone.g.gain.setTargetAtTime((s.rot ?? 0) * 0.07 + nestLevel * 0.03, t, 0.4);
+    rotDrone.f.frequency.setTargetAtTime(160 + (s.rot ?? 0) * 300 + Math.sin(t * 0.7) * 40, t, 0.3);
+    // Herzschlag der Moderherzen
+    if (nestLevel > 0.02 && t > nextBeat) {
+      nextBeat = t + (1 / (0.9 + s.night * 0.6));
+      const v = nestLevel * 0.5;
+      tone(52, { decay: 0.25, gain: v, slide: 0.6, wet: 0.15 });
+      tone(46, { at: 0.17, decay: 0.3, gain: v * 0.7, slide: 0.6, wet: 0.15 });
+    }
     padFilter.frequency.setTargetAtTime(280 + life * 1500 + s.activity * 400, t, 0.8);
 
     if (t > nextChord) {
@@ -323,6 +349,67 @@ export const audio = {
       }
     });
     [24, 28, 31, 36, 40, 43].forEach((s, i) => pluck(hz(s), (i % 2 ? 0.4 : -0.4), 0.08));
+  },
+  nest(level) {
+    nestLevel = level;
+  },
+  purifying(p) {
+    if (!ctx) return;
+    if (Math.random() < 0.18) tone(hz(12 + Math.floor(p * 8) * 2), { decay: 0.4, gain: 0.05 + p * 0.06, wet: 0.5, type: 'triangle' });
+    if (Math.random() < 0.3) noiseHit({ type: 'bandpass', freq: 3000 + p * 3000, q: 4, decay: 0.08, gain: 0.05 });
+  },
+  purified() {
+    if (!ctx) return;
+    noiseHit({ type: 'lowpass', freq: 300, q: 0.5, decay: 2.5, gain: 0.5, sweep: 8 });
+    tone(41, { attack: 0.05, decay: 3, gain: 0.4, slide: 0.5 });
+    [0, 7, 12, 16, 19, 24, 28].forEach((st, i) => tone(hz(st + 12), { at: 0.3 + i * 0.07, decay: 2.5, gain: 0.07, wet: 0.7, pan: (i % 2 ? 0.4 : -0.4) }));
+  },
+  horn(night) {
+    if (!ctx) return;
+    // tiefes Waldhorn: Sägezahn durch Tiefpass, langsam an- und abschwellend
+    const notes = night ? [-12, -9, -14] : [-12, -5];
+    notes.forEach((st, i) => {
+      const t0 = ctx.currentTime + i * 0.9;
+      const o = ctx.createOscillator();
+      o.type = 'sawtooth';
+      o.frequency.value = hz(st);
+      const f = ctx.createBiquadFilter();
+      f.type = 'lowpass';
+      f.frequency.setValueAtTime(300, t0);
+      f.frequency.linearRampToValueAtTime(900, t0 + 0.6);
+      f.frequency.linearRampToValueAtTime(400, t0 + 1.6);
+      const g = ctx.createGain();
+      g.gain.setValueAtTime(0.0001, t0);
+      g.gain.exponentialRampToValueAtTime(0.16, t0 + 0.4);
+      g.gain.exponentialRampToValueAtTime(0.0001, t0 + 1.8);
+      o.connect(f).connect(g);
+      out(g, 0, 0.8, musicBus);
+      o.start(t0);
+      o.stop(t0 + 1.9);
+    });
+  },
+  dawn() {
+    if (!ctx) return;
+    [0, 4, 7, 12, 16, 19].forEach((st, i) => tone(hz(st + 12), { at: i * 0.18, attack: 0.3, decay: 3, gain: 0.06, wet: 0.8 }));
+    bird(-0.5);
+    setTimeout(() => bird(0.5), 600);
+  },
+  rank() {
+    if (!ctx) return;
+    [0, 4, 7, 12].forEach((st, i) => {
+      tone(hz(st + 12), { at: i * 0.12, decay: 1.6, gain: 0.12, wet: 0.6, type: 'triangle' });
+      tone(hz(st + 24), { at: i * 0.12 + 0.02, decay: 1.2, gain: 0.05, wet: 0.6 });
+    });
+    tone(hz(24), { at: 0.5, attack: 0.2, decay: 2.5, gain: 0.1, wet: 0.8 });
+  },
+  objective() {
+    if (!ctx) return;
+    [12, 19, 24].forEach((st, i) => pluck(hz(st + 12), 0, 0.1));
+    tone(hz(31), { at: 0.15, decay: 1.4, gain: 0.06, wet: 0.7 });
+  },
+  flow(mult) {
+    if (!ctx) return;
+    tone(hz(12 + mult * 3), { decay: 0.5, gain: 0.06, wet: 0.5, type: 'triangle' });
   },
   denied() {
     if (!ctx) return;

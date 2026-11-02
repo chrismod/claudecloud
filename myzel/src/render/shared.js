@@ -4,6 +4,7 @@ import { WIN } from '../config.js';
 
 export const U = {
   uVit: { value: null }, // RGBA: Leben, Myzel, Farbton, Leuchten
+  uRot: { value: null }, // R: Fäulnis, G: Schutz durch Mutterbäume
   uWin: { value: WIN },
   uWinCenter: { value: new THREE.Vector2() },
   uTime: { value: 0 },
@@ -25,6 +26,18 @@ export function createVitalityTexture() {
   tex.generateMipmaps = false;
   tex.needsUpdate = true;
   U.uVit.value = tex;
+  return { tex, data };
+}
+
+export function createRotTexture() {
+  const data = new Uint8Array(WIN * WIN * 4);
+  const tex = new THREE.DataTexture(data, WIN, WIN, THREE.RGBAFormat, THREE.UnsignedByteType);
+  tex.wrapS = tex.wrapT = THREE.RepeatWrapping;
+  tex.magFilter = THREE.LinearFilter;
+  tex.minFilter = THREE.LinearFilter;
+  tex.generateMipmaps = false;
+  tex.needsUpdate = true;
+  U.uRot.value = tex;
   return { tex, data };
 }
 
@@ -57,7 +70,9 @@ export const GLSL_VIT = /* glsl */ `
 uniform sampler2D uVit;
 uniform float uWin;
 uniform vec2 uWinCenter;
+uniform sampler2D uRot;
 vec4 mzVit(vec2 xz){ return texture2D(uVit, xz / uWin); }
+float mzRot(vec2 xz){ return texture2D(uRot, xz / uWin).r; }
 float mzInWin(vec2 xz){ vec2 d = abs(xz - uWinCenter); return 1.0 - smoothstep(96.0, 110.0, max(d.x, d.y)); }
 `;
 

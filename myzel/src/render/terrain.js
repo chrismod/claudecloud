@@ -9,6 +9,7 @@ function makeMaterial() {
   mat.onBeforeCompile = (shader) => {
     Object.assign(shader.uniforms, {
       uVit: U.uVit,
+      uRot: U.uRot,
       uWin: U.uWin,
       uWinCenter: U.uWinCenter,
       uTime: U.uTime,
@@ -72,15 +73,34 @@ function makeMaterial() {
           float mv = smoothstep(0.1, 0.45, myc) * (1.0 - rock * 0.7) * (1.0 - shore);
           vec3 veinCol = mix(uP1, uP2, hue);
           col = mix(col, vec3(0.86, 0.83, 0.74), vein * mv * 0.42 * (1.0 - lf * 0.55));
+          vec3 mzEmit = veinCol * vein * mv * (0.03 + uNight * 0.38 * (1.0 - lf * 0.5) + glow * (0.7 + uNight * 1.4));
+          mzEmit += veinCol * glow * mv * 0.08;
+          // Fäulnis: schwarz-violetter Schleim mit giftig glimmenden Adern
+          float rotv = mzRot(xz) * inW;
+          float rn = mzNoise(xz * 0.6 + uTime * 0.05);
+          float rotA = smoothstep(0.12, 0.55, rotv + (n2 - 0.5) * 0.22);
+          vec3 slime = mix(vec3(0.016, 0.006, 0.02), vec3(0.06, 0.018, 0.06), rn);
+          col = mix(col, slime, rotA);
+          // organische, verzweigte Fäulnisadern: verwirbelt, in Flecken, mal fein, mal grob
+          vec2 rw = xz + (vec2(mzFbm(xz * 0.12), mzFbm(xz * 0.12 + 5.3)) - 0.5) * 9.0;
+          float rvf = 1.0 - smoothstep(0.0, 0.035, mzVeins(rw * 0.9));
+          float rvc = 1.0 - smoothstep(0.0, 0.05, mzVeins(rw * 0.25 + 2.0));
+          float patchy = smoothstep(0.35, 0.75, mzNoise(xz * 0.15 + 11.0));
+          float rvein = rvc * 0.8 + rvf * patchy * 0.6;
+          float rfront = smoothstep(0.1, 0.35, rotv) * (1.0 - smoothstep(0.35, 0.6, rotv));
+          vec3 sick = mix(vec3(0.42, 0.04, 0.7), vec3(0.35, 0.8, 0.08), smoothstep(0.55, 0.95, rn));
+          float throb = 0.55 + 0.45 * sin(uTime * 2.2 - length(xz) * 0.25);
+          mzEmit *= 1.0 - rotA;
+          mzEmit += sick * rvein * rotA * (0.06 + 0.24 * uNight) * throb;
+          mzEmit += vec3(0.3, 0.03, 0.45) * rfront * (0.02 + 0.08 * uNight);
           diffuseColor.rgb = col;
-          vec3 mzEmit = veinCol * vein * mv * (0.03 + uNight * 0.5 * (1.0 - lf * 0.45) + glow * (1.1 + uNight * 1.6));
-          mzEmit += veinCol * glow * mv * 0.18;
           `,
         )
         .replace(
           '#include <roughnessmap_fragment>',
           `#include <roughnessmap_fragment>
-          roughnessFactor = mix(roughnessFactor, 0.45, shore);`,
+          roughnessFactor = mix(roughnessFactor, 0.45, shore);
+          roughnessFactor = mix(roughnessFactor, 0.28, rotA);`,
         )
         .replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>\n totalEmissiveRadiance += mzEmit;');
   };

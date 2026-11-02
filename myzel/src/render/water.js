@@ -13,7 +13,7 @@ export function createWater(scene) {
     envMapIntensity: 0.9,
   });
   mat.onBeforeCompile = (shader) => {
-    Object.assign(shader.uniforms, { uVit: U.uVit, uWin: U.uWin, uWinCenter: U.uWinCenter, uTime: U.uTime, uNight: U.uNight });
+    Object.assign(shader.uniforms, { uVit: U.uVit, uRot: U.uRot, uWin: U.uWin, uWinCenter: U.uWinCenter, uTime: U.uTime, uNight: U.uNight });
     shader.vertexShader =
       'varying vec3 vW;\n' +
       shader.vertexShader.replace('#include <project_vertex>', '#include <project_vertex>\n vW = (modelMatrix * vec4(transformed, 1.0)).xyz;');

@@ -20,30 +20,32 @@ function specs() {
   const gm = GEO.giantMushroom();
   const leaves = pal('#ffffff', '#f0f5d0', '#d6ecc0', '#fff2c4');
   return {
-    grass: { geo: GEO.grass(), r: 2, per: 640, mode: GROW, min: 0.42, wind: 1, dry: '#9c8a5e', dryMix: 1, pal: pal('#ffffff', '#e8f2c0', '#d0e6a8', '#f6f0b0'), double: true },
+    grass: { translucent: true, tipH: 0.8, geo: GEO.grass(), r: 2, per: 640, mode: GROW, min: 0.42, wind: 1, dry: '#9c8a5e', dryMix: 1, pal: pal('#ffffff', '#e8f2c0', '#d0e6a8', '#f6f0b0'), double: true },
     flower: { geo: GEO.flower(), r: 2, per: 80, mode: GROW, wind: 0.9, pal: pal('#ffffff', '#ffd84a', '#b78cff', '#ff7fae'), double: true, glow: 0.35 },
-    fern: { geo: GEO.fern(), r: 3, per: 50, mode: GROW, wind: 0.5, pal: pal('#ffffff', '#e6f5c8', '#cfe8b0', '#f0e8b8'), double: true },
+    fern: { translucent: true, tipH: 0.5, geo: GEO.fern(), r: 3, per: 50, mode: GROW, wind: 0.5, pal: pal('#ffffff', '#e6f5c8', '#cfe8b0', '#f0e8b8'), double: true },
     reed: { geo: GEO.reed(), r: 3, per: 70, mode: GROW, min: 0.35, wind: 0.6, dry: '#8d7f5a', dryMix: 1, pal: leaves, double: true },
-    mushRed: { geo: GEO.mushRed(), r: 3, per: 11, mode: GROW, pal: pal('#d42a1e', '#e8521c', '#c01830', '#f0701a'), glow: 0.1 },
-    mushBrown: { geo: GEO.mushBrown(), r: 3, per: 14, mode: GROW, pal: pal('#8a5a32', '#a86e3c', '#6e4528', '#c49a62') },
-    mushGlow: { geo: GEO.mushGlow(), r: 3, per: 16, mode: GROW, pal: pal('#5ff0ff', '#b37bff', '#52ffb0', '#7aa8ff'), glow: 1.3 },
+    mushRed: { rim: true, double: true, geo: GEO.mushRed(), r: 2, per: 11, mode: GROW, pal: pal('#d42a1e', '#e8481c', '#b8142a', '#f0661a'), glow: 0.1 },
+    mushBrown: { rim: true, double: true, geo: GEO.mushBrown(), r: 2, per: 14, mode: GROW, pal: pal('#7a4a26', '#9a6234', '#5e3a20', '#b88a52') },
+    mushGlow: { rim: true, breathe: true, double: true, geo: GEO.mushGlow(), r: 2, per: 16, mode: GROW, pal: pal('#5ff0ff', '#b37bff', '#52ffb0', '#7aa8ff'), glow: 1.4 },
+    parasol: { rim: true, double: true, geo: GEO.parasol(), r: 2, per: 5, mode: GROW, wind: 0.05, pal: pal('#ffffff', '#f0e0c8', '#e8d4b8', '#fff0dc') },
     puff: { geo: GEO.puffball(), r: 3, per: 5, mode: REGROW, pal: leaves, glow: 0.5 },
-    bush: { occlude: true, geo: GEO.bush(), r: 3, per: 10, mode: GROW, wind: 0.15, pal: pal('#ffffff', '#e0f0b0', '#c8e0a0', '#f8e0a0'), shadow: true, glow: 0.4 },
+    bush: { translucent: true, tipH: 1.4, occlude: true, geo: GEO.bush(), r: 3, per: 10, mode: GROW, wind: 0.15, pal: pal('#ffffff', '#e0f0b0', '#c8e0a0', '#f8e0a0'), shadow: true, glow: 0.4 },
     rock: { geo: GEO.rock(), r: 3, per: 5, mode: STATIC, moss: true, shadow: true, pal: leaves },
     oakTrunk: { occlude: true, geo: oak.trunk, r: 3, per: 9, mode: TRUNK, dry: '#6b665f', shadow: true, pal: leaves },
-    oakCrown: { occlude: true, geo: oak.crown, r: 3, per: 9, mode: GROW, wind: 0.04, pal: leaves, shadow: true },
+    oakCrown: { translucent: true, tipH: 8, occlude: true, geo: oak.crown, r: 3, per: 9, mode: GROW, wind: 0.04, pal: leaves, shadow: true },
     birchTrunk: { occlude: true, geo: birch.trunk, r: 3, per: 9, mode: TRUNK, dry: '#8a8680', shadow: true, pal: leaves },
-    birchCrown: { occlude: true, geo: birch.crown, r: 3, per: 9, mode: GROW, wind: 0.05, pal: pal('#ffffff', '#f4f0b0', '#e0f0c0', '#ffe090'), shadow: true },
+    birchCrown: { translucent: true, tipH: 10, occlude: true, geo: birch.crown, r: 3, per: 9, mode: GROW, wind: 0.05, pal: pal('#ffffff', '#f4f0b0', '#e0f0c0', '#ffe090'), shadow: true },
     firTrunk: { occlude: true, geo: fir.trunk, r: 3, per: 9, mode: TRUNK, dry: '#5f5a54', shadow: true, pal: leaves },
     firCrown: { occlude: true, geo: fir.crown, r: 3, per: 9, mode: GROW, wind: 0.02, pal: pal('#ffffff', '#e0f0e0', '#d8e8c8', '#f0f0d8'), shadow: true },
-    gmStem: { occlude: true, geo: gm.stem, r: 3, per: 9, mode: GROW, wind: 0.005, pal: leaves, shadow: true, glow: 0.8 },
-    gmCap: { occlude: true, geo: gm.cap, r: 3, per: 9, mode: GROW, wind: 0.005, pal: pal('#8a4fe0', '#24b3a4', '#e0603a', '#3d7fe0'), shadow: true, glow: 1.4 },
+    gmStem: { breathe: true, occlude: true, geo: gm.stem, r: 3, per: 9, mode: GROW, wind: 0.005, pal: leaves, shadow: true, glow: 0.8 },
+    gmCap: { breathe: true, rim: true, rimStr: 0.3, occlude: true, geo: gm.cap, r: 3, per: 9, mode: GROW, wind: 0.005, pal: pal('#8a4fe0', '#24b3a4', '#e0603a', '#3d7fe0'), shadow: true, glow: 0.7 },
     log: { geo: GEO.deadLog(), r: 3, per: 2, mode: CONSUME, dry: '#5d554c', shadow: true, pal: leaves, glow: 0.7 },
   };
 }
 
 function injectVertex(shader, spec, depth) {
   shader.uniforms.uVit = U.uVit;
+  shader.uniforms.uRot = U.uRot;
   shader.uniforms.uWin = U.uWin;
   shader.uniforms.uWinCenter = U.uWinCenter;
   shader.uniforms.uTime = U.uTime;
@@ -52,9 +54,10 @@ function injectVertex(shader, spec, depth) {
   shader.uniforms.uWind = U.uWind;
   shader.vertexShader =
     `#define MODE ${spec.mode}
+    ${spec.breathe ? '#define BREATHE' : ''}
     uniform float uTime; uniform float uMin; uniform float uWindAmp; uniform float uWind;
     attribute vec4 aInst; attribute vec2 aMask;
-    varying float vGrow; varying float vLife; varying vec4 vVit; varying vec2 vMask; varying float vUp; varying float vHueR;
+    varying float vGrow; varying float vLife; varying vec4 vVit; varying vec2 vMask; varying float vUp; varying float vHueR; varying float vRot; varying float vTip;
     ${GLSL_VIT}
     float mzBack(float t){ float c1 = 1.4; float c3 = c1 + 1.0; float u = t - 1.0; return 1.0 + c3 * u * u * u + c1 * u * u; }
     ` +
@@ -82,7 +85,17 @@ function injectVertex(shader, spec, depth) {
       #else
         g = 1.0;
       #endif
+      // Fäulnis lässt Pflanzen welken und schrumpfen
+      float rot = mzRot(iO.xz);
+      #if MODE != 1 && MODE != 4
+        sc *= 1.0 - smoothstep(0.25, 0.9, rot) * 0.55;
+      #endif
+      #ifdef BREATHE
+        sc *= 1.0 + 0.035 * sin(uTime * 1.4 + aInst.y * 20.0);
+      #endif
       transformed *= sc;
+      vRot = rot;
+      vTip = clamp(position.y / ${(spec.tipH ?? 1).toFixed(2)}, 0.0, 1.0);
       float hgt = max(transformed.y, 0.0);
       float ph = aInst.y * 6.283 + iO.x * 0.21 + iO.z * 0.17;
       float sway = sin(uTime * 1.6 + ph) + 0.5 * sin(uTime * 2.9 + iO.x * 0.5);
@@ -118,7 +131,9 @@ function makeMaterial(spec) {
       `#define MODE ${spec.mode}
       ${spec.moss ? '#define MOSS' : ''}
       uniform float uNight; uniform vec3 uPal[4]; uniform vec3 uDry; uniform float uDryMix; uniform float uGlowStr;
-      varying float vGrow; varying float vLife; varying vec4 vVit; varying vec2 vMask; varying float vUp; varying float vHueR;
+      ${spec.rim ? '#define RIM' : ''}
+      ${spec.translucent ? '#define TRANSLUCENT' : ''}
+      varying float vGrow; varying float vLife; varying vec4 vVit; varying vec2 vMask; varying float vUp; varying float vHueR; varying float vRot; varying float vTip;
       ` +
       shader.fragmentShader
         .replace(
@@ -134,25 +149,37 @@ function makeMaterial(spec) {
           #ifdef MOSS
             diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.06, 0.16, 0.03), smoothstep(0.35, 0.85, vUp) * vLife * 0.9);
           #endif
+          float rotF = smoothstep(0.2, 0.7, vRot);
+          diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.05, 0.02, 0.06) * (0.6 + lum * 2.0), rotF * 0.85);
           `,
         )
         .replace(
           '#include <emissivemap_fragment>',
           /* glsl */ `#include <emissivemap_fragment>
           vec3 gcol = mix(diffuseColor.rgb * 1.6, pal, vMask.x * 0.6);
-          totalEmissiveRadiance += gcol * vMask.y * uGlowStr * (0.1 + uNight * 1.5 + vVit.a * 2.5) * vGrow;
+          totalEmissiveRadiance += gcol * vMask.y * uGlowStr * (0.1 + uNight * 1.5 + vVit.a * 2.5) * vGrow * (1.0 - rotF);
+          #ifdef RIM
+            // weiches Randlicht: Pilzhüte wirken durchscheinend
+            float rimF = pow(1.0 - clamp(abs(dot(normal, normalize(vViewPosition))), 0.0, 1.0), 2.5);
+            totalEmissiveRadiance += mix(diffuseColor.rgb, pal, 0.5) * rimF * (0.35 + uNight * 0.6) * ${(spec.rimStr ?? 1).toFixed(2)} * vGrow * (1.0 - rotF);
+          #endif
+          #ifdef TRANSLUCENT
+            // Licht scheint durch Halme und Blätter
+            totalEmissiveRadiance += diffuseColor.rgb * vTip * vTip * 0.35 * (1.0 - uNight * 0.8) * vGrow;
+          #endif
           `,
         );
     if (spec.occlude) addOcclusion(shader, true);
   };
-  mat.customProgramCacheKey = () => 'veg' + spec.mode + (spec.moss ? 'm' : '') + (spec.double ? 'd' : '') + (spec.occlude ? 'o' : '');
+  mat.customProgramCacheKey = () =>
+    'veg' + spec.mode + (spec.moss ? 'm' : '') + (spec.double ? 'd' : '') + (spec.occlude ? 'o' : '') + (spec.rim ? 'r' + (spec.rimStr ?? 1) : '') + (spec.translucent ? 't' + (spec.tipH ?? 1) : '') + (spec.breathe ? 'b' : '');
   return mat;
 }
 
 function makeDepthMaterial(spec) {
   const mat = new THREE.MeshDepthMaterial({ depthPacking: THREE.RGBADepthPacking });
   mat.onBeforeCompile = (shader) => injectVertex(shader, spec, true);
-  mat.customProgramCacheKey = () => 'vegd' + spec.mode;
+  mat.customProgramCacheKey = () => 'vegd' + spec.mode + (spec.breathe ? 'b' : '') + (spec.tipH ?? 1);
   return mat;
 }
 

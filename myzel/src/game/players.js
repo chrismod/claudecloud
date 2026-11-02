@@ -29,6 +29,7 @@ export const COST = {
   weave: 0.11, // Sporen pro neuer Myzeleinheit
   thread: 0.05,
   pulse: 12,
+  cleanse: 0.05, // Sporen pro geläuterter Fäulniseinheit beim Weben
 };
 
 export class Player {
@@ -89,7 +90,7 @@ export class Player {
   }
 
   // Spuren in der Welt
-  act(inp, dt, { sim, boons }) {
+  act(inp, dt, { sim, boons, perks }) {
     const sample = sim.sample(this.x, this.z);
     this.max = boons.maxSpores;
     // passiv: wer sich bewegt, hinterlässt feine Hyphen
@@ -99,11 +100,16 @@ export class Player {
     this.weaving = inp.weave > 0.3 && this.spores > 0.5;
     let spent = 0;
     if (this.weaving) {
-      const added = sim.paint(this.x, this.z, 3.8 * boons.radius, 1, this.hue, 0.9);
-      spent += added * COST.weave;
+      // Weben läutert zuerst die Fäulnis, dann wächst Myzel
+      const removed = sim.cleanse(this.x, this.z, 3.8 * boons.radius, Math.min(1, dt * 5));
+      const added = sim.paint(this.x, this.z, 3.8 * boons.radius, 1, this.hue, 0.55);
+      spent += added * COST.weave + removed * COST.cleanse;
     }
+    // Fäulnis zehrt an den Sporen
+    this.inRot = sample.B > 0.35;
+    if (this.inRot && !this.weaving) spent += 3.5 * sample.B * perks.rotDrain * dt;
     // Der Wald gibt zurück: Regeneration auf lebendigem Boden
-    const regen = 2.6 * boons.regen * smoothstep(0.45, 0.9, sample.L) * (this.weaving ? 0.3 : 1);
+    const regen = 2.6 * boons.regen * perks.regen * smoothstep(0.45, 0.9, sample.L) * (this.weaving ? 0.3 : 1) * (1 - sample.B);
     this.spores = Math.min(this.max, Math.max(0, this.spores - spent + regen * dt));
     this.pulseCd = Math.max(0, this.pulseCd - dt);
     this.denyCd = Math.max(0, this.denyCd - dt);
@@ -112,12 +118,14 @@ export class Player {
     return sample;
   }
 
-  tryPulse(sim, boons) {
+  tryPulse(sim, boons, perks) {
     if (this.pulseCd > 0) return false;
     if (this.spores < COST.pulse) return false;
     this.spores -= COST.pulse;
     this.pulseCd = 0.8;
-    sim.paint(this.x, this.z, 7.5 * boons.radius, 0.92, this.hue, 1);
+    const r = 7.5 * boons.radius * perks.pulseRadius;
+    sim.cleanse(this.x, this.z, r + 1, perks.pulseCleanse);
+    sim.paint(this.x, this.z, r, 0.92, this.hue, 1);
     sim.excite(this.x, this.z, 2);
     this.activity = 1.6;
     return true;

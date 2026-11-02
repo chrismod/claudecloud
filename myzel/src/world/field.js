@@ -1,7 +1,7 @@
 // Die Welt als reine Funktion des Seeds: Höhe, Fruchtbarkeit, Biome, Ausgangszustand
 // und die Standorte der Mutterbäume. Kein three.js – läuft auch headless in Tests.
 import { simplex, fbm, hash32, rng, smoothstep, clamp } from '../noise.js';
-import { MOTHER_GRID, WATER } from '../config.js';
+import { MOTHER_GRID, WATER, NEST_GRID } from '../config.js';
 
 export function createField(seed) {
   const nH = simplex(hash32(seed, 1));
@@ -119,5 +119,36 @@ export function createField(seed) {
     return { life, myc: homeM };
   }
 
-  return { seed, height, rawHeight, slope, fertility, mushroomness, baseState, site, nearestSite, sitesNear };
+  // Moderherzen: Fäulnisnester, etwa eines pro 150-m-Zelle, nie am Heimatbaum
+  const nestCache = new Map();
+  function nest(gx, gz) {
+    const key = gx + ',' + gz;
+    if (nestCache.has(key)) return nestCache.get(key);
+    const r = rng(hash32(seed, gx, gz, 313));
+    let n = null;
+    if (r() < 0.82) {
+      const x = gx * NEST_GRID + (r() - 0.5) * NEST_GRID * 0.6;
+      const z = gz * NEST_GRID + (r() - 0.5) * NEST_GRID * 0.6;
+      const h = height(x, z);
+      const ms = nearestSite(x, z);
+      if (Math.hypot(x, z) > 105 && h > WATER + 0.8 && ms.dist > 22) n = { id: 'n' + key, x, z, y: h, seed: r() };
+    }
+    nestCache.set(key, n);
+    return n;
+  }
+  function nestsNear(x, z, radius) {
+    const out = [];
+    const g0x = Math.floor((x - radius) / NEST_GRID) - 1;
+    const g1x = Math.ceil((x + radius) / NEST_GRID) + 1;
+    const g0z = Math.floor((z - radius) / NEST_GRID) - 1;
+    const g1z = Math.ceil((z + radius) / NEST_GRID) + 1;
+    for (let gz = g0z; gz <= g1z; gz++)
+      for (let gx = g0x; gx <= g1x; gx++) {
+        const n = nest(gx, gz);
+        if (n && (n.x - x) ** 2 + (n.z - z) ** 2 <= radius * radius) out.push(n);
+      }
+    return out;
+  }
+
+  return { seed, height, rawHeight, slope, fertility, mushroomness, baseState, site, nearestSite, sitesNear, nest, nestsNear };
 }
