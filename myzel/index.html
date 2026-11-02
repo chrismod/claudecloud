@@ -1,0 +1,95 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Myzel</title>
+    <meta name="description" content="Myzel – ein endloser Koop-Wald für zwei Gamepads." />
+    <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cpath d='M8 34c0-14 11-24 24-24s24 10 24 24z' fill='%23d2401e'/%3E%3Crect x='26' y='33' width='12' height='22' rx='5' fill='%23f2e8d6'/%3E%3Ccircle cx='22' cy='24' r='4' fill='%23fff'/%3E%3Ccircle cx='38' cy='20' r='3' fill='%23fff'/%3E%3C/svg%3E" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Cormorant+Garamond:ital,wght@0,500;0,600;1,500&family=Outfit:wght@300;400;500;600&display=swap" rel="stylesheet" />
+    <link rel="stylesheet" href="./src/style.css" />
+  </head>
+  <body>
+    <div id="app">
+      <div id="stage"></div>
+
+      <div id="hud" class="hidden">
+        <div class="pcard p1" id="pc0">
+          <div class="pname"><i class="sigil"></i><b>Hyphe</b><small>Pilzgeist</small></div>
+          <div class="bar"><div class="fill"></div><div class="tick"></div></div>
+          <div class="pstate"></div>
+        </div>
+        <div class="pcard p2" id="pc1">
+          <div class="pname"><i class="sigil"></i><b>Keim</b><small>Samengeist</small></div>
+          <div class="bar"><div class="fill"></div><div class="tick"></div></div>
+          <div class="pstate"></div>
+          <div class="joinhint"><span class="btn a">A</span> drücken zum Mitspielen</div>
+        </div>
+        <div class="stats" id="stats"></div>
+        <div class="mapwrap"><canvas id="minimap" width="220" height="220"></canvas></div>
+        <div id="compass"><div class="arrow"></div><span class="dist"></span></div>
+        <div id="labels"></div>
+        <div id="toast"><div class="t1"></div><div class="t2"></div></div>
+      </div>
+
+      <section id="title" class="screen">
+        <div class="logo">
+          <div class="crest"></div>
+          <h1>Myzel</h1>
+          <p class="tag">Ein endloser Wald für zwei</p>
+        </div>
+        <div class="slots">
+          <div class="slot" id="slot0">
+            <div class="sname">Hyphe <small>Pilzgeist</small></div>
+            <div class="sstate"><span class="btn a">A</span> oder <kbd>Leertaste</kbd> zum Beitreten</div>
+          </div>
+          <div class="slot" id="slot1">
+            <div class="sname">Keim <small>Samengeist</small></div>
+            <div class="sstate"><span class="btn a">A</span> oder <kbd>Enter</kbd> zum Beitreten</div>
+          </div>
+        </div>
+        <div class="titlehints" id="titlehints"></div>
+        <div class="worldinfo" id="worldinfo"></div>
+      </section>
+
+      <section id="pause" class="screen hidden">
+        <div class="panel">
+          <h2>Pause</h2>
+          <ul class="menu" id="pausemenu"></ul>
+          <div class="menuhint"><span class="btn a">A</span> wählen · <span class="btn">Start</span> zurück</div>
+        </div>
+      </section>
+
+      <section id="help" class="screen hidden">
+        <div class="panel wide">
+          <h2>Steuerung</h2>
+          <table>
+            <thead><tr><th></th><th>Gamepad</th><th>Tastatur Hyphe</th><th>Tastatur Keim</th></tr></thead>
+            <tbody>
+              <tr><td>Gleiten</td><td>Linker Stick</td><td>W A S D</td><td>Pfeiltasten</td></tr>
+              <tr><td>Weben (halten)</td><td><span class="btn">RT</span></td><td><kbd>Shift links</kbd></td><td><kbd>Shift rechts</kbd></td></tr>
+              <tr><td>Sporenpuls</td><td><span class="btn a">A</span></td><td><kbd>Leertaste</kbd></td><td><kbd>Enter</kbd></td></tr>
+              <tr><td>Zersetzen (halten)</td><td><span class="btn x">X</span></td><td><kbd>E</kbd></td><td><kbd>Ü</kbd> / <kbd>#</kbd></td></tr>
+              <tr><td>Schneller gleiten</td><td><span class="btn">LT</span> / <span class="btn b">B</span></td><td><kbd>Q</kbd></td><td><kbd>.</kbd></td></tr>
+              <tr><td>Rufen (Richtung)</td><td><span class="btn y">Y</span></td><td><kbd>R</kbd></td><td><kbd>,</kbd></td></tr>
+              <tr><td>Kamera drehen</td><td>Rechter Stick</td><td><kbd>Y</kbd> / <kbd>C</kbd></td><td>Num 7 / 9</td></tr>
+              <tr><td>Pause</td><td><span class="btn">Start</span></td><td><kbd>Esc</kbd></td><td><kbd>Backspace</kbd></td></tr>
+            </tbody>
+          </table>
+          <div class="lore">
+            <p><b>Wo ihr gleitet, wächst Myzel.</b> Die feinen Fäden breiten sich in fruchtbarem Boden von selbst aus, und das Leben folgt ihnen: erst Gras, dann Farne, Blumen und Pilze, zuletzt Bäume. Nichts davon verschwindet wieder.</p>
+            <p><b>Weben</b> spinnt dichtes Myzel und kostet Sporen. Webt ihr <i>beide</i>, spinnt auch der Faden zwischen euch. <b>Sporen</b> gibt euch der Wald zurück: auf lebendigem Boden, aus Bovisten und aus Totholz, das ihr zersetzt.</p>
+            <p><b>Mutterbäume</b> schlafen überall im erschöpften Land. Belebt den Boden um einen von ihnen und weckt ihn gemeinsam mit <span class="btn a">A</span>. Jeder erwachte Baum schenkt euch eine Gabe.</p>
+          </div>
+          <div class="menuhint"><span class="btn b">B</span> / <span class="btn a">A</span> zurück</div>
+        </div>
+      </section>
+
+      <div id="loading"><div class="sporering"></div><p>Der Wald erwacht …</p></div>
+      <div id="fade"></div>
+    </div>
+    <script type="module" src="./src/main.js"></script>
+  </body>
+</html>

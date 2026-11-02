@@ -1,6 +1,7 @@
 # Filatura
 
 > Im selben Repo: [**Gloucester Glide**](gloucester-glide/) – Käserennen den Hang hinunter (three.js + Rapier, mit geprüfter Bestenliste).
+> Und [**Myzel**](myzel/) – ein endloser Koop-Wald für zwei Gamepads, der sich durch eure Spuren dauerhaft verwandelt.
 
 *Ein Physik-Puzzle mit Käsefäden – gebaut mit three.js.*
 

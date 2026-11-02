@@ -1,0 +1,11 @@
+// Zentrale Konstanten. 1 Zelle = 1 Meter.
+export const CHUNK = 32; // Zellen pro Chunk-Kante
+export const WIN = 256; // Kantenlänge des toroidalen Simulationsfensters (Zellen)
+export const SLOTS = WIN / CHUNK; // 8 Slots pro Achse
+export const NEAR_R = 3; // Chunk-Radius: Simulation, Vegetation, feines Terrain
+export const FAR_R = 7; // Chunk-Radius: grobes Terrain bis zum Horizont
+export const WATER = 0; // Wasserspiegel
+export const MOTHER_GRID = 220; // Rasterweite der Mutterbäume
+export const DAY_LENGTH = 720; // Sekunden pro Tag-Nacht-Zyklus
+export const TETHER = 38; // Maximale Fadenlänge zwischen den Geistern
+export const HOVER = 1.7;
