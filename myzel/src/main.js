@@ -192,6 +192,9 @@ function titleUpdate(dt) {
   }
 }
 
+// Browser geben Ton erst nach einer Klick- oder Tasteneingabe frei (Gamepad zählt nicht)
+for (const ev of ['pointerdown', 'keydown']) window.addEventListener(ev, () => audio.unlock());
+
 const pressedKeys = new Set();
 window.addEventListener('keydown', (e) => !e.repeat && pressedKeys.add(e.code));
 const keyPressed = (code) => pressedKeys.has(code);
@@ -518,7 +521,7 @@ function playUpdate(dt) {
     const k = Math.min(1, awakening.t / 4.5);
     const r = 46 * (1 - (1 - k) ** 2);
     const s = awakening.site;
-    sim.paint(s.x, s.z, r, 1, 0.5, 1);
+    sim.paint(s.x, s.z, r, 1, 0.5, 0.3);
     sim.bloom(s.x, s.z, r * 0.85, 0.88);
     if ((awakening.pulse -= dt) <= 0) {
       awakening.pulse = 0.5;
@@ -661,7 +664,7 @@ function hudUpdate(dt) {
   let li = 0;
   if (ritual.site) {
     const s = ritual.site;
-    const sc = toScreen(s.x, field.height(s.x, s.z) + 21, s.z);
+    const sc = toScreen(s.x, field.height(s.x, s.z) + 7, s.z);
     if (sc.on) {
       const el = label(li++);
       el.classList.add('big');

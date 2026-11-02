@@ -337,7 +337,7 @@ export function rock() {
   const g = blob(1, 1, 7, 0.22);
   g.scale(1.2, 0.7, 1);
   g.translate(0, 0.25, 0);
-  return merge([finish(g, (x, y, z, c) => c.copy(C('#6f6a63')).lerp(C('#9a948a'), Math.max(0, y)), [0, 0])]);
+  return merge([finish(g, (x, y, z, c) => c.copy(C('#45423d')).lerp(C('#6a665e'), Math.max(0, y)), [0, 0])]);
 }
 
 // --- Bäume: Stamm und Krone teilen sich denselben Ursprung ------------------------------

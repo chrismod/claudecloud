@@ -5,15 +5,15 @@ import { smoothstep, lerp } from '../noise.js';
 
 const KEYS = [
   // t (0 = Mitternacht), Zenit, Horizont, Nebel, Sonnenlicht, Intensität, Himmelslicht, Bodenlicht, Ambient-Stärke
-  { t: 0.0, zen: '#060a1c', hor: '#16223e', fog: '#121a30', sun: '#7f9bd8', si: 0.42, hs: '#2b3d6e', hg: '#0e1410', hi: 0.55 },
-  { t: 0.2, zen: '#0b1430', hor: '#2a3150', fog: '#20263e', sun: '#8aa0d8', si: 0.3, hs: '#36456e', hg: '#14160f', hi: 0.55 },
+  { t: 0.0, zen: '#050918', hor: '#131d36', fog: '#0e1528', sun: '#7f9bd8', si: 0.38, hs: '#2b3d6e', hg: '#0e1410', hi: 0.36 },
+  { t: 0.2, zen: '#0b1430', hor: '#2a3150', fog: '#20263e', sun: '#8aa0d8', si: 0.3, hs: '#36456e', hg: '#14160f', hi: 0.4 },
   { t: 0.255, zen: '#33477e', hor: '#f08a5a', fog: '#b0786a', sun: '#ff8a4a', si: 1.2, hs: '#8a86b0', hg: '#3a2c1c', hi: 0.6 },
   { t: 0.32, zen: '#5c8fd0', hor: '#f4d2a2', fog: '#d6c4a6', sun: '#ffd49a', si: 2.6, hs: '#b8cce8', hg: '#4a4026', hi: 0.75 },
   { t: 0.5, zen: '#4d86d6', hor: '#cfe2ec', fog: '#bccfcf', sun: '#fff4e2', si: 3.3, hs: '#cfe0f4', hg: '#4c4a30', hi: 0.85 },
   { t: 0.68, zen: '#5a86c8', hor: '#f2d6a8', fog: '#d8c6a4', sun: '#ffd8a0', si: 2.6, hs: '#c0c8e0', hg: '#4c4026', hi: 0.75 },
   { t: 0.745, zen: '#3a3f7a', hor: '#ff7a4a', fog: '#b26a5a', sun: '#ff7a3a', si: 1.3, hs: '#9a7ea8', hg: '#3a2818', hi: 0.6 },
-  { t: 0.8, zen: '#0f1838', hor: '#3a2f52', fog: '#26243e', sun: '#8aa0d8', si: 0.3, hs: '#3a4470', hg: '#14140f', hi: 0.55 },
-  { t: 1.0, zen: '#060a1c', hor: '#16223e', fog: '#121a30', sun: '#7f9bd8', si: 0.42, hs: '#2b3d6e', hg: '#0e1410', hi: 0.55 },
+  { t: 0.8, zen: '#0f1838', hor: '#3a2f52', fog: '#26243e', sun: '#8aa0d8', si: 0.3, hs: '#3a4470', hg: '#14140f', hi: 0.4 },
+  { t: 1.0, zen: '#050918', hor: '#131d36', fog: '#0e1528', sun: '#7f9bd8', si: 0.38, hs: '#2b3d6e', hg: '#0e1410', hi: 0.36 },
 ].map((k) => ({ ...k, zen: new THREE.Color(k.zen), hor: new THREE.Color(k.hor), fog: new THREE.Color(k.fog), sun: new THREE.Color(k.sun), hs: new THREE.Color(k.hs), hg: new THREE.Color(k.hg) }));
 
 function sampleKeys(t) {

@@ -167,12 +167,23 @@ export class Ambient {
           float a;
           float size;
           if (fly) {
-            // Glühwürmchen: nur nachts über lebendigem Boden, blinkend
-            float blink = smoothstep(0.55, 1.0, sin(t * (1.5 + aSeed.x * 2.0) + aSeed.y * 30.0));
-            vCol = vec3(0.75, 1.0, 0.35) * 2.5;
-            a = blink * life * uNight;
-            size = 0.32;
             p.y = uGround + 0.5 + aSeed.z * 4.0 + sin(t + aSeed.x * 10.0) * 0.5;
+            if (uNight > 0.5) {
+              // Glühwürmchen: nur nachts über lebendigem Boden, blinkend
+              float blink = smoothstep(0.55, 1.0, sin(t * (1.5 + aSeed.x * 2.0) + aSeed.y * 30.0));
+              vCol = vec3(0.75, 1.0, 0.35) * 2.5;
+              a = blink * life * uNight;
+              size = 0.32;
+            } else {
+              // Schmetterlinge am Tag: flatternde Farbtupfer über Blumen
+              vec3 c1 = vec3(1.0, 0.55, 0.12);
+              vec3 c2 = vec3(0.35, 0.6, 1.0);
+              vec3 c3 = vec3(1.0, 0.95, 0.75);
+              vCol = (aSeed.y < 0.33 ? c1 : aSeed.y < 0.66 ? c2 : c3) * 0.9;
+              a = smoothstep(0.55, 0.9, v.r) * mzInWin(p.xz) * (1.0 - uNight) * 0.9;
+              size = 0.38 * (0.35 + 0.65 * abs(sin(t * 14.0 + aSeed.x * 20.0)));
+              p.y = uGround + 0.4 + aSeed.z * 1.8 + abs(sin(t * 2.0 + aSeed.w * 30.0)) * 0.6;
+            }
           } else {
             vCol = mix(ash * 0.5, pollen * (0.7 + uNight * 0.8), life);
             a = mix(0.25, 0.6, life) * (1.0 - uNight * 0.4 * (1.0 - life));

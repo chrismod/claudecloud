@@ -136,8 +136,8 @@ function barkMaterial() {
           '#include <color_fragment>',
           `#include <color_fragment>
           float bn = mzNoise(vec2(atan(vP.z, vP.x) * 4.0, vP.y * 0.6)) * 0.6 + mzNoise(vP.xz * 2.0 + vP.y) * 0.4;
-          vec3 deadBark = mix(vec3(0.24, 0.23, 0.22), vec3(0.42, 0.41, 0.39), bn);
-          vec3 liveBark = mix(vec3(0.17, 0.11, 0.07), vec3(0.36, 0.25, 0.16), bn);
+          vec3 deadBark = mix(vec3(0.075, 0.07, 0.065), vec3(0.17, 0.16, 0.15), bn);
+          vec3 liveBark = mix(vec3(0.09, 0.055, 0.035), vec3(0.22, 0.14, 0.08), bn);
           diffuseColor.rgb = mix(deadBark, liveBark, uAwake);
           diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.1, 0.22, 0.05), uAwake * smoothstep(0.55, 0.8, bn) * smoothstep(6.0, 0.0, vP.y) * 0.8);`,
         )

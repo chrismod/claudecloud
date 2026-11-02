@@ -46,7 +46,7 @@ export function createWater(scene) {
         .replace(
           '#include <emissivemap_fragment>',
           `#include <emissivemap_fragment>
-          totalEmissiveRadiance += vec3(0.1, 0.6, 0.7) * vit.a * 0.6 * mzInWin(vW.xz);`,
+          totalEmissiveRadiance += vec3(0.1, 0.6, 0.7) * vit.a * vit.a * 0.25 * mzInWin(vW.xz);`,
         );
   };
   mat.customProgramCacheKey = () => 'water';

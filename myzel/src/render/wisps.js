@@ -118,6 +118,7 @@ export class WispView {
     this.light = new THREE.PointLight(color, 18, 18, 1.5);
     this.light.position.y = 0.2;
     this.group.add(this.light);
+    this.group.scale.setScalar(1.3);
     scene.add(this.group);
     this.heading = 0;
     this.t = Math.random() * 10;

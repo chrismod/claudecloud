@@ -73,7 +73,7 @@ function makeMaterial() {
           vec3 veinCol = mix(uP1, uP2, hue);
           col = mix(col, vec3(0.86, 0.83, 0.74), vein * mv * 0.42 * (1.0 - lf * 0.55));
           diffuseColor.rgb = col;
-          vec3 mzEmit = veinCol * vein * mv * (0.03 + uNight * 0.5 * (1.0 - lf * 0.45) + glow * 2.8);
+          vec3 mzEmit = veinCol * vein * mv * (0.03 + uNight * 0.5 * (1.0 - lf * 0.45) + glow * (1.1 + uNight * 1.6));
           mzEmit += veinCol * glow * mv * 0.18;
           `,
         )

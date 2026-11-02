@@ -351,12 +351,11 @@ export function createSim(field, store) {
 
   // RGBA-Textur: R = Leben, G = Myzel, B = Farbton, A = Leuchten
   function writeTexture(data) {
-    for (let i = 0, p = 0; i < size; i++, p += 4) {
-      data[p] = L[i] * 255;
-      data[p + 1] = M[i] * 255;
-      data[p + 2] = H[i] * 255;
+    // vier Bytes auf einmal (Little Endian: R im niedrigsten Byte)
+    const d32 = new Uint32Array(data.buffer, data.byteOffset, size);
+    for (let i = 0; i < size; i++) {
       const g = G[i] > F[i] ? G[i] : F[i];
-      data[p + 3] = g * 255;
+      d32[i] = ((L[i] * 255) | 0) | (((M[i] * 255) | 0) << 8) | (((H[i] * 255) | 0) << 16) | (((g * 255) | 0) << 24);
     }
   }
 
