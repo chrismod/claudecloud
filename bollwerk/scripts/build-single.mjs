@@ -1,5 +1,6 @@
 // Baut Bollwerk als eine einzige HTML-Datei (three.js eingebettet) – zum Hochladen auf jeden Webserver.
 //   npm run build:single   → dist-single/bollwerk.html
+//   npm run build:artifact → dist-single/bollwerk-artifact.html (Seiteninhalt ohne eigenes <html>/<head>, für claude.ai-Artifacts)
 import { build } from 'vite';
 import { readFileSync, writeFileSync, mkdirSync, readdirSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
@@ -23,7 +24,18 @@ const body = html
   .replace(/<script type="module"[^>]*><\/script>/, '')
   .trim();
 
-const out = `<!doctype html>
+const artifact = process.argv.includes('--artifact');
+const pick = (re) => head.match(re)?.[0] || '';
+const fragment = `${pick(/<title>[^<]*<\/title>/)}
+${pick(/<meta name="description"[^>]*>/)}
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+${pick(/<link href="https:\/\/fonts\.googleapis\.com[^>]*>/)}
+<style>${css}</style>
+${body}
+<script type="module">${js}</script>
+`;
+const out = artifact ? fragment : `<!doctype html>
 <html lang="de">
 <head>
 ${head}
@@ -36,5 +48,6 @@ ${body}
 </html>
 `;
 mkdirSync('dist-single', { recursive: true });
-writeFileSync('dist-single/bollwerk.html', out);
-console.log(`dist-single/bollwerk.html (${(out.length / 1024).toFixed(0)} KB, three.js eingebettet)`);
+const name = artifact ? 'bollwerk-artifact.html' : 'bollwerk.html';
+writeFileSync(`dist-single/${name}`, out);
+console.log(`dist-single/${name} (${(out.length / 1024).toFixed(0)} KB, three.js eingebettet)`);

@@ -16,6 +16,7 @@ npm run dev            # Entwicklungsserver auf http://localhost:5173
 npm test               # Regeln, Karten, Determinismus und Balance (headless, ~2 s)
 npm run balance        # Bot spielt alle Karten und berichtet, wie weit er kommt
 npm run build:single   # → dist-single/bollwerk.html (eine Datei, ~720 KB, three.js eingebettet)
+npm run build:artifact # → dist-single/bollwerk-artifact.html (Variante für claude.ai-Artifacts)
 ```
 
 `npm run build` erzeugt alternativ `dist/` mit relativen Pfaden (läuft auch in einem Unterordner).
