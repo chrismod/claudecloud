@@ -20,7 +20,7 @@ eure Farben im Netz.
 ```bash
 npm install
 npm run dev     # http://localhost:5173
-npm test        # Welt, Speicher, Zell-Simulation, Fäulnis, Fortschritt (headless, ~5 s)
+npm test        # Welt, Speicher, Zell-Simulation, Fäulnis, Fortschritt, Begegnungen (headless, ~6 s)
 npm run build   # statische Seite in dist/
 ```
 
@@ -75,6 +75,22 @@ die Fäulnis greift bis ~50 m weit und frisst, was ihr gesponnen habt. Seen halt
 - Ein **erwachter Mutterbaum** schützt seinen Hain (~46 m) für immer vor Fäulnis.
 - Frisst die Fäulnis gerade euer Myzel, zeigt ein violetter Pfeil, wo.
 
+## Was es sonst noch zu tun gibt
+
+- **Verirrte Lichter** – kleine Lichtgeister irren durchs tote Land (Markierung am Bildschirmrand). Manche
+  sind in Fäulnis gefangen: erst die Fäulnis ringsum läutern. Fliegt hin, dann folgt euch das Licht als
+  Lichterkette (bis zu 4 pro Geist). Bringt es zu einem erwachten Mutterbaum – der Weg ist markiert. In der
+  Fäulnis verblasst es, und ist sein Licht aufgezehrt, entgleitet es euch und bleibt dort zurück.
+- **Moderlinge** – nachts kriechen sie aus den Moderherzen (mit jeder überstandenen Nacht mehr), fressen
+  euer Myzel, säen Fäulnis und beißen euch Sporen ab. Der Sporenpuls tötet sie, Weben verbrennt sie
+  langsam, und der gespannte Faden zwischen zwei webenden Geistern schneidet sie schnell. Bei Tag graben sie
+  sich ein.
+- **Sternsporen** – etwa alle ein bis zwei Minuten stürzt ein Stern vom Himmel (Lichtsäule, Countdown).
+  Erreicht ihn rechtzeitig, dann schenkt er beiden eine Kraft: *Sternenweber* (Weben kostet nichts),
+  *Lichtsturm* (doppelt weiter Puls), *Windgeist* (viel schneller) oder *Großes Erblühen*.
+- Dazu passende Aufträge: „Bringt ein verirrtes Licht heim“, „Bis zum Morgen: vertreibt 4 Moderlinge“,
+  „Fangt eine Sternspore“.
+
 ## Fortschritt
 
 - **Erfahrung** für alles, was ihr bewirkt: Boden beleben, Fäulnis läutern, Boviste, Totholz, Tiere,
@@ -113,9 +129,16 @@ Alles ist prozedural – keine Texturen, keine Modelle, keine Sounddateien. thre
 - **Darstellung** – Terrain in zwei Detailstufen bis zum Horizont, Boden-Shader mit Voronoi-Myzeladern,
   Tag-Nacht-Himmel mit Sternen und Wolken, Umgebungslicht aus dem Himmel (PMREM), Schatten,
   Bloom, Farbgebung, Vignette, Filmkorn, dynamische Auflösung.
-- **Klang** (`src/audio.js`) – WebAudio: Wind über totem Land, ein Klangteppich, dessen Filter sich mit dem
-  Leben öffnet, generative Kalimba-Melodie in Pentatonik, Vögel am Tag, Grillen in der Nacht, Chor beim
-  Erwachen eines Mutterbaums.
+- **Klang** (`src/audio.js`) – alles live mit WebAudio erzeugt:
+  - *3D-Klang*: Herzschläge der Moderherzen, Rufe der Lichter, Moderlinge, Sterne, Vögel kommen aus ihrer
+    Richtung (HRTF), der Hörer folgt der Kamera.
+  - *Adaptive Musik*: taktgenauer Scheduler mit Schichten, die nach Spielzustand ein- und ausblenden –
+    Klangteppich, gezupfte Motive (Karplus-Strong-Saiten), Bass, FM-Glocken, Trommeln bei Gefahr,
+    dunkles Cello nachts. Tag in D-Dur-Pentatonik, Nacht in d-Moll. Große Momente ducken die Musik
+    (Erwachen mit Chor, Läutern, Waldhorn, Rang-Fanfare).
+  - *Ambience*: Wind mit Böen, Laubrascheln, Amsel, Meise, Kuckuck, Specht; nachts Waldkauz, Grillen,
+    Frösche am Wasser; Plätschern, Brodeln in der Fäulnis, Fluggeräusch, funkelnde Körner beim Weben.
+  - Mischpult mit Hall (erzeugte Impulsantwort), Ping-Pong-Echo, Kompressor und Limiter.
 
 ```
 src/
@@ -137,6 +160,7 @@ src/
     motherTrees.js    Mutterbäume
     nests.js          Moderherzen
     fauna.js          Hirsche, Hasen, Vogelschwärme
+    creatures.js      Darstellung der Lichter, Moderlinge, Sternsporen
     water.js          Wasser
     wisps.js          die Geister und ihr Faden
     particles.js      Effekte, Pollen, Glühwürmchen
@@ -144,6 +168,7 @@ src/
     input.js          Gamepads und Tastatur
     players.js        Bewegung, Sporen, Gaben
     progress.js       Erfahrung, Ränge, Fluss, Aufträge
+    encounters.js     verirrte Lichter, Moderlinge, Sternsporen (Logik)
     cameraRig.js      gemeinsame Kamera
 tests/                headless Tests der Welt und Simulation
 ```

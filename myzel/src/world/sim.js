@@ -260,6 +260,25 @@ export function createSim(field, store, opts = {}) {
     return removed;
   }
 
+  // Fäulnis säen und Myzel fressen (Moderlinge). Gibt das gefressene Myzel zurück.
+  function taint(x, z, radius, amount, eat) {
+    let eaten = 0;
+    const r2 = radius * radius;
+    for (let iz = Math.floor(z - radius); iz <= Math.ceil(z + radius); iz++)
+      for (let ix = Math.floor(x - radius); ix <= Math.ceil(x + radius); ix++) {
+        const d2 = (ix + 0.5 - x) ** 2 + (iz + 0.5 - z) ** 2;
+        if (d2 > r2 || !isLoaded(ix, iz)) continue;
+        const i = idx(ix, iz);
+        const w = smoothstep(1, 0.4, Math.sqrt(d2) / radius) * (1 - P[i]);
+        if (amount * w > B[i]) B[i] = amount * w;
+        const e = Math.min(M[i], eat * w);
+        M[i] -= e;
+        eaten += e;
+        markDirty(ix, iz);
+      }
+    return eaten;
+  }
+
   function paintLine(x1, z1, x2, z2, radius, target, hue, glow = 0.5) {
     const len = Math.hypot(x2 - x1, z2 - z1);
     const steps = Math.max(1, Math.ceil(len / (radius * 0.8)));
@@ -560,6 +579,7 @@ export function createSim(field, store, opts = {}) {
   return {
     L, M, H, G, F, K, W, B, P,
     counters,
+    taint,
     chunkCounts,
     setProtectors,
     cleanse,

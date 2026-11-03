@@ -38,5 +38,5 @@ test('Zeitgebundene Aufträge laufen bei Einbruch der Nacht ab', () => {
   assert.ok(ev.some(([t]) => t === 'failed'), 'nicht abgelaufen');
   // nachts entsteht der Nacht-Auftrag
   p.update(0.1, { dayTime: 0.9, night: 1, players: 1 });
-  assert.ok(p.state.objectives.some((o) => o.timed && o.kind === 'rot'));
+  assert.ok(p.state.objectives.some((o) => o.timed && (o.kind === 'rot' || o.kind === 'moderling')));
 });

@@ -103,7 +103,7 @@ export class Player {
       // Weben läutert zuerst die Fäulnis, dann wächst Myzel
       const removed = sim.cleanse(this.x, this.z, 3.8 * boons.radius, Math.min(1, dt * 5));
       const added = sim.paint(this.x, this.z, 3.8 * boons.radius, 1, this.hue, 0.55);
-      spent += added * COST.weave + removed * COST.cleanse;
+      spent += (added * COST.weave + removed * COST.cleanse) * (perks.weaveCost ?? 1);
     }
     // Fäulnis zehrt an den Sporen
     this.inRot = sample.B > 0.35;
@@ -123,7 +123,8 @@ export class Player {
     if (this.spores < COST.pulse) return false;
     this.spores -= COST.pulse;
     this.pulseCd = 0.8;
-    const r = 7.5 * boons.radius * perks.pulseRadius;
+    const r = 7.5 * boons.radius * perks.pulseRadius * (perks.storm ? 2 : 1);
+    this.lastPulseR = r;
     sim.cleanse(this.x, this.z, r + 1, perks.pulseCleanse);
     sim.paint(this.x, this.z, r, 0.92, this.hue, 1);
     sim.excite(this.x, this.z, 2);

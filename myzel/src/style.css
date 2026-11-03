@@ -577,3 +577,44 @@ td:first-child { color: var(--ink); font-weight: 500; }
   #quests { top: 100px; left: 12px; width: 52vw; }
   #rank { top: 64px; }
 }
+
+/* --- Markierungen und Kräfte ---------------------------------------------- */
+.marker {
+  position: absolute;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 3px;
+  transform: translate(-50%, -50%);
+  pointer-events: none;
+}
+.marker .arrow {
+  width: 0;
+  height: 0;
+  border-left: 8px solid transparent;
+  border-right: 8px solid transparent;
+  border-bottom: 18px solid var(--c);
+  filter: drop-shadow(0 0 8px var(--c));
+}
+.marker span {
+  font-size: 12px;
+  white-space: nowrap;
+  color: var(--c);
+  text-shadow: 0 1px 6px #000, 0 0 2px #000;
+}
+.marker.on { transform: translate(-50%, -100%); }
+.marker.urgent { animation: urgentPulse 0.6s ease-in-out infinite; }
+@keyframes urgentPulse { 50% { opacity: 0.45; } }
+
+#powers { margin-top: 4px; display: flex; gap: 8px; justify-content: center; flex-wrap: wrap; }
+#powers .power {
+  padding: 4px 10px;
+  border-radius: 999px;
+  font-size: 12px;
+  letter-spacing: 0.05em;
+  background: rgba(60, 48, 20, 0.6);
+  border: 1px solid #ffd98a;
+  color: #ffe9b8;
+  box-shadow: 0 0 14px rgba(255, 210, 120, 0.4);
+}
+#powers .power b { font-weight: 600; margin-left: 4px; }

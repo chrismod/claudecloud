@@ -53,6 +53,9 @@ const TEMPLATES = {
   tree: () => ({ goal: 1, text: () => 'Weckt einen Mutterbaum' }),
   thread: (lv) => ({ goal: 120 + lv * 40, text: (n) => `Webt gemeinsam ${fmt(n)} m² mit dem Faden` }),
   animal: (lv) => ({ goal: 2 + lv, text: (n) => `Lockt ${n} Tiere zurück` }),
+  wisp: (lv) => ({ goal: 1 + Math.floor(lv / 3), text: (n) => (n === 1 ? 'Bringt ein verirrtes Licht heim' : `Bringt ${n} verirrte Lichter heim`) }),
+  moderling: (lv) => ({ goal: 3 + lv, text: (n) => `Vertreibt ${n} Moderlinge` }),
+  star: () => ({ goal: 1, text: () => 'Fangt eine Sternspore' }),
 };
 const fmt = (n) => Math.round(n).toLocaleString('de-DE');
 
@@ -88,7 +91,7 @@ export function createProgress(state, on = () => {}) {
   function event(kind, n = 1, pos = null) {
     s.counters[kind] = (s.counters[kind] || 0) + n;
     bump(kind, n);
-    const xp = { puff: 12, log: 60, nest: 400, tree: 500, animal: 25, rot: 0.1, thread: 0.25 }[kind] ?? 0;
+    const xp = { puff: 12, log: 60, nest: 400, tree: 500, animal: 25, rot: 0.1, thread: 0.25, wisp: 160, moderling: 22, star: 70 }[kind] ?? 0;
     if (xp) addXP(xp * n * (kind === 'thread' ? multiplier() : 1), kind, pos);
     if (!s.firsts[kind]) {
       s.firsts[kind] = true;
@@ -138,7 +141,7 @@ export function createProgress(state, on = () => {}) {
     if (!open.some((o) => o.timed)) {
       const night = ctx.night > 0.5 && (ctx.dayTime > 0.7 || ctx.dayTime < 0.2);
       const spec = night
-        ? { kind: 'rot', prefix: 'Bis zum Morgen: ', until: 0.25, created: ctx.dayTime }
+        ? { kind: Math.random() < 0.5 ? 'rot' : 'moderling', prefix: 'Bis zum Morgen: ', until: 0.25, created: ctx.dayTime }
         : ctx.dayTime > 0.28 && ctx.dayTime < 0.62
           ? { kind: 'heal', prefix: 'Vor Einbruch der Nacht: ', until: 0.75, created: ctx.dayTime }
           : null;
@@ -151,7 +154,8 @@ export function createProgress(state, on = () => {}) {
     let normal = open.filter((o) => !o.timed).length;
     while (normal < 2) {
       normal++;
-      const pool = ['heal', 'puff', 'log', 'rot', 'animal'];
+      const pool = ['heal', 'puff', 'log', 'rot', 'animal', 'wisp', 'wisp', 'star'];
+      if (ctx.night > 0.5) pool.push('moderling', 'moderling');
       if (ctx.hasNest) pool.push('nest', 'nest');
       if (ctx.hasTree) pool.push('tree');
       if (ctx.players > 1) pool.push('thread', 'thread');

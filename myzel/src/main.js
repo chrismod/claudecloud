@@ -13,12 +13,14 @@ import { createVegetation } from './render/vegetation.js';
 import { createMotherTrees } from './render/motherTrees.js';
 import { createNests } from './render/nests.js';
 import { createFauna } from './render/fauna.js';
+import { createCreatureViews } from './render/creatures.js';
 import { WispView, Thread } from './render/wisps.js';
 import { Effects, Ambient } from './render/particles.js';
 import { createInput } from './game/input.js';
 import { createCameraRig } from './game/cameraRig.js';
 import { Player, boonsFor, BOONS, COST, NAMES } from './game/players.js';
 import { createProgress, RANKS } from './game/progress.js';
+import { createEncounters } from './game/encounters.js';
 import { audio } from './audio.js';
 import { smoothstep } from './noise.js';
 
@@ -65,6 +67,11 @@ const effects = new Effects(scene);
 const ambient = new Ambient(scene);
 const sim = createSim(field, store, { nestAlive: (id) => !purged.has(id) });
 const fauna = createFauna(scene, field, sim);
+const enc = createEncounters({ field, sim });
+const creatures = createCreatureViews(scene, field);
+const powers = {}; // id → Ende (Spielzeit)
+let awakeSites = [];
+let firstNightMod = false;
 const progress = createProgress(meta.progress, onProgress);
 meta.progress = progress.state;
 const input = createInput();
@@ -105,10 +112,11 @@ const boons = () => {
 };
 
 function updateProtectors() {
-  sim.setProtectors([...awake].map((id) => {
+  awakeSites = [...awake].map((id) => {
     const [gx, gz] = id.split(',').map(Number);
     return field.site(gx, gz);
-  }));
+  });
+  sim.setProtectors(awakeSites);
 }
 updateProtectors();
 
@@ -398,7 +406,8 @@ function panOf(x, z) {
 
 function playUpdate(dt) {
   const b = boons();
-  const perks = progress.perks;
+  const perks = { ...progress.perks, weaveCost: powers.weaver > time ? 0 : 1, storm: powers.storm > time };
+  if (powers.wind > time) b.speed *= 1.45;
   // Spieler können jederzeit dazukommen
   for (const req of input.joinRequests(players.map((p) => p?.binding))) {
     const i = players.findIndex((p) => !p);
@@ -479,6 +488,7 @@ function playUpdate(dt) {
         effects.emit({ x: p.x, y: p.y, z: p.z, count: 2, speed: 2, color: wispViews[p.i].color.clone().multiplyScalar(2.5), life: 2, size: 0.45, target: { x: ritual.site.x, y: field.height(ritual.site.x, ritual.site.z) + 9, z: ritual.site.z }, gravity: 0, drag: 2 });
     } else if (inp.pulseDown && !nearRitual) {
       if (p.tryPulse(sim, b, perks)) {
+        handleEncounters(enc.pulse(p.x, p.z, p.lastPulseR + 1, p.i));
         const col = wispViews[p.i].color.clone().multiplyScalar(2.2);
         effects.emit({ x: p.x, y: p.y - 0.8, z: p.z, count: 90, speed: 9, up: 0.15, color: col, life: 1.1, size: 0.4, gravity: -1, drag: 2.2 });
         audio.pulse(panOf(p.x, p.z), p.hue);
@@ -615,6 +625,18 @@ function playUpdate(dt) {
 
   // Tiere kehren zurück
   const returned = fauna.update(dt, { focus: rig.focus, players: list, time, night: U.uNight.value, day: U.uNight.value < 0.3 });
+  const liveNests = field.nestsNear(rig.focus.x, rig.focus.z, 170).filter((n) => !purged.has(n.id));
+  handleEncounters(
+    enc.update(dt, {
+      players: list,
+      focus: rig.focus,
+      night: U.uNight.value,
+      nights: meta.nights || 0,
+      nests: liveNests,
+      awakeSites,
+      thread: threadState.weaving ? { a: list[0], b: list[1] } : null,
+    }),
+  );
   if (returned) progress.event('animal', returned);
 
   // Erfahrung aus dem, was die Spieler bewirken
@@ -682,6 +704,112 @@ function awaken(site) {
   const y = field.height(site.x, site.z);
   effects.emit({ x: site.x, y: y + 6, z: site.z, count: 400, speed: 16, up: 0.6, color: new THREE.Color(1.8, 1.5, 0.8), life: 2.6, size: 0.7, gravity: -0.4, drag: 1.2 });
   saveNow();
+}
+
+// Begegnungen → Belohnung, Anzeige, Klang
+let eatSoundT = 0;
+function handleEncounters(events) {
+  for (const e of events) {
+    switch (e.type) {
+      case 'wispSpawn':
+        audio.wispCall(e.w.x, e.w.y, e.w.z);
+        break;
+      case 'wispFreed':
+        popup('Licht befreit', e.w, 'gold');
+        audio.wispFreed(e.w.x, e.w.y, e.w.z);
+        break;
+      case 'wispJoin':
+        popup(`Ein Licht folgt ${NAMES[e.p.i]}`, e.w, '');
+        audio.wispJoin(e.w.x, e.w.y, e.w.z, e.w.hue);
+        input.rumble(players[e.p.i]?.binding, 0.15, 0.3, 120);
+        if (!meta.seenWisp) {
+          meta.seenWisp = true;
+          showToast('Ein verirrtes Licht folgt euch', 'Bringt es zu einem erwachten Mutterbaum – meidet die Fäulnis', 5);
+        }
+        break;
+      case 'wispLost':
+        popup('Ein Licht ist der Fäulnis entglitten', e.w, 'bad');
+        audio.wispLost(e.w.x, e.w.y, e.w.z);
+        break;
+      case 'wispHome': {
+        progress.event('wisp', 1, e.w);
+        for (const p of active()) p.spores = Math.min(p.max, p.spores + 25);
+        const y = field.height(e.site.x, e.site.z);
+        effects.emit({ x: e.site.x, y: y + 12, z: e.site.z, count: 140, speed: 7, color: new THREE.Color().setHSL(e.w.hue, 0.8, 0.7).multiplyScalar(2.2), life: 2.2, size: 0.55, gravity: -0.2 });
+        sim.excite(e.site.x + 3, e.site.z + 3, 4);
+        popup('Ein Licht ist heimgekehrt', e.w, 'gold');
+        audio.wispHome(e.site.x, y + 10, e.site.z);
+        meta.wispsHome = (meta.wispsHome || 0) + 1;
+        break;
+      }
+      case 'moderSpawn':
+        audio.moderSpawn(e.m.x, field.height(e.m.x, e.m.z), e.m.z);
+        if (!firstNightMod) {
+          firstNightMod = true;
+          showToast('Moderlinge kriechen aus den Herzen', 'Sie fressen euer Myzel – vertreibt sie mit dem Sporenpuls oder dem gespannten Faden', 5);
+        }
+        break;
+      case 'moderEat':
+        if ((eatSoundT -= 0.016) <= 0) {
+          eatSoundT = 0.5;
+          audio.moderEat(e.m.x, field.height(e.m.x, e.m.z), e.m.z);
+        }
+        break;
+      case 'moderBite': {
+        const p = e.p;
+        p.spores = Math.max(0, p.spores - 6);
+        input.rumble(p.binding, 0.6, 0.4, 220);
+        effects.emit({ x: p.x, y: p.y, z: p.z, count: 30, speed: 4, color: new THREE.Color(0.9, 0.2, 1.3), life: 0.8, size: 0.35 });
+        popup('−6 Sporen', p, 'bad');
+        audio.moderBite(p.x, p.y, p.z);
+        break;
+      }
+      case 'moderKilled': {
+        const m = e.m;
+        const y = field.height(m.x, m.z) + 0.6;
+        progress.event('moderling', 1, { x: m.x, y, z: m.z });
+        const killer = players[e.by];
+        for (const p of killer ? [killer] : active()) p.spores = Math.min(p.max, p.spores + 6);
+        effects.emit({ x: m.x, y, z: m.z, count: 60, speed: 5, color: new THREE.Color(0.8, 0.25, 1.4), life: 1.1, size: 0.4, gravity: 0.5 });
+        effects.emit({ x: m.x, y, z: m.z, count: 30, speed: 3, up: 1.5, color: new THREE.Color(1.6, 1.4, 0.9), life: 1.6, size: 0.4, gravity: 0.3 });
+        sim.cleanse(m.x, m.z, 3, 1);
+        audio.moderDie(m.x, y, m.z);
+        break;
+      }
+      case 'starIncoming':
+        showToast('Eine Sternspore fällt!', 'Fangt sie, bevor sie verglüht', 3.5);
+        audio.starFall(e.s.x, e.s.gy, e.s.z);
+        break;
+      case 'starLanded':
+        effects.emit({ x: e.s.x, y: e.s.gy + 1, z: e.s.z, count: 160, speed: 9, up: 0.5, color: new THREE.Color(2, 1.7, 1), life: 1.4, size: 0.5, gravity: -0.6 });
+        audio.starLand(e.s.x, e.s.gy, e.s.z);
+        rig.shake = Math.max(rig.shake, 0.35);
+        break;
+      case 'starCaught': {
+        const pw = e.power;
+        const p = e.p;
+        progress.event('star', 1, p);
+        if (pw.id === 'bloom') {
+          const c0 = { ...sim.counters };
+          sim.cleanse(p.x, p.z, 24, 1);
+          sim.paint(p.x, p.z, 22, 1, p.hue, 0.6);
+          sim.bloom(p.x, p.z, 18, 0.9);
+          sim.excite(p.x, p.z, 3);
+          Object.assign(sim.counters, c0);
+        } else powers[pw.id] = time + pw.dur;
+        for (const q of active()) q.spores = Math.min(q.max, q.spores + 20);
+        showToast(`Sternspore: ${pw.name}`, pw.dur ? `${pw.text} – ${pw.dur} Sekunden lang` : pw.text, 4);
+        effects.emit({ x: p.x, y: p.y, z: p.z, count: 200, speed: 10, color: new THREE.Color(2.2, 1.9, 1.1), life: 1.8, size: 0.55, gravity: -0.4 });
+        audio.starCatch();
+        rumbleAll(0.5, 0.8, 400);
+        break;
+      }
+      case 'starLost':
+        popup('Die Sternspore ist verglüht', { x: e.s.x, y: e.s.gy, z: e.s.z }, 'bad');
+        audio.starLost(e.s.x, e.s.gy, e.s.z);
+        break;
+    }
+  }
 }
 
 function nearestNest(x, z, r) {
@@ -828,6 +956,47 @@ function toScreen(x, y, z) {
 }
 
 let lastStats = '';
+const POWER_NAMES = { weaver: 'Sternenweber', storm: 'Lichtsturm', wind: 'Windgeist' };
+const markerPool = [];
+function drawMarkers(list) {
+  const root = $('markers');
+  list.forEach((m, i) => {
+    let el = markerPool[i];
+    if (!el) {
+      el = document.createElement('div');
+      el.className = 'marker';
+      el.innerHTML = '<div class="arrow"></div><span></span>';
+      root.appendChild(el);
+      markerPool[i] = el;
+    }
+    el.style.display = '';
+    el.style.setProperty('--c', m.color);
+    el.classList.toggle('urgent', !!m.urgent);
+    const sc = toScreen(m.x, m.y, m.z);
+    let nx = sc.ndc.x;
+    let ny = sc.ndc.y;
+    if (sc.ndc.z > 1) (nx = -nx), (ny = -ny);
+    const inside = sc.on && Math.abs(nx) < 0.85 && Math.abs(ny) < 0.8;
+    const arrow = el.firstChild;
+    if (inside) {
+      el.style.left = sc.x + 'px';
+      el.style.top = sc.y + 'px';
+      arrow.style.transform = 'rotate(180deg)';
+      el.classList.add('on');
+    } else {
+      const a = Math.atan2(ny, nx);
+      let x = innerWidth / 2 + Math.cos(a) * (innerWidth / 2 - 90);
+      const y = innerHeight / 2 - Math.sin(a) * (innerHeight / 2 - 110);
+      if (y < 560 && x < 360) x = 360;
+      el.style.left = x + 'px';
+      el.style.top = y + 'px';
+      arrow.style.transform = `rotate(${90 - (a * 180) / Math.PI}deg)`;
+      el.classList.remove('on');
+    }
+    el.lastChild.textContent = `${m.text} · ${Math.round(m.d)} m`;
+  });
+  for (let i = list.length; i < markerPool.length; i++) markerPool[i].style.display = 'none';
+}
 let questT = 0;
 function popup(text, at, cls = '') {
   if (!at) return;
@@ -880,6 +1049,8 @@ function hudUpdate(dt) {
     else if (p.weaving) st = 'Webt Myzel';
     else if (p.spores < COST.pulse) st = 'Sporen erschöpft – sammelt auf lebendigem Boden';
     else if (p.boosting) st = 'Gleitet';
+    const f = enc.followers(p.i);
+    if (f && !p.purifying && !p.ritual) st = `${f} ${f === 1 ? 'Licht folgt' : 'Lichter folgen'} dir${st ? ' · ' + st : ''}`;
     const ps = card.querySelector('.pstate');
     ps.textContent = st;
     ps.classList.toggle('rot', !!(p.inRot || p.purifying));
@@ -979,6 +1150,40 @@ function hudUpdate(dt) {
     if (xpBatch >= 1) popup(`+${Math.round(xpBatch)}`, active()[0], 'small');
     xpBatch = 0;
   }
+
+  // aktive Kräfte der Sternsporen
+  const pw = Object.entries(powers)
+    .filter(([, t]) => t > time)
+    .map(([id, t]) => `<span class="power">${POWER_NAMES[id]} <b>${Math.ceil(t - time)} s</b></span>`)
+    .join('');
+  const pwEl = $('powers');
+  if (pwEl.innerHTML !== pw) pwEl.innerHTML = pw;
+
+  // Markierungen: verirrte Lichter, Sternspore, Heimweg mit Lichtern
+  const marks = [];
+  for (const w of enc.wisps) {
+    if (w.state !== 'lost' && w.state !== 'trapped') continue;
+    const d = Math.hypot(w.x - rig.focus.x, w.z - rig.focus.z);
+    if (d > 170) continue;
+    const col = new THREE.Color().setHSL(w.hue, 0.8, 0.72).getStyle();
+    marks.push({ x: w.x, y: w.y + 1.5, z: w.z, d, color: col, text: w.state === 'trapped' ? 'Gefangenes Licht – läutert die Fäulnis' : 'Verirrtes Licht' });
+  }
+  const s = enc.star;
+  if (s) {
+    const left = s.state === 'landed' ? Math.max(0, Math.ceil(s.life - s.t)) : null;
+    marks.push({ x: s.x, y: s.gy + 3, z: s.z, d: Math.hypot(s.x - rig.focus.x, s.z - rig.focus.z), color: '#ffe8a8', text: left != null ? `Sternspore · ${left} s` : 'Sternspore fällt …', urgent: left != null && left < 12 });
+  }
+  const carrying = active().some((p) => enc.followers(p.i) > 0);
+  if (carrying && awakeSites.length) {
+    let best = null;
+    let bd = Infinity;
+    for (const t of awakeSites) {
+      const d = Math.hypot(t.x - rig.focus.x, t.z - rig.focus.z);
+      if (d < bd) (bd = d), (best = t);
+    }
+    if (best && bd > 25) marks.push({ x: best.x, y: field.height(best.x, best.z) + 14, z: best.z, d: bd, color: '#ffd98a', text: 'Heimweg der Lichter' });
+  }
+  drawMarkers(marks);
 
   // Warnung: die Fäulnis frisst euer Myzel
   const th = $('threat');
@@ -1141,6 +1346,33 @@ function drawMap() {
     mctx.arc(mx, my, 4 + Math.sin(time * 6) * 1, 0, Math.PI * 2);
     mctx.fill();
   }
+  for (const w of enc.wisps) {
+    const [mx, my] = toMap(w.x, w.z);
+    mctx.fillStyle = mctx.shadowColor = `hsl(${w.hue * 360}, 80%, 72%)`;
+    mctx.shadowBlur = 8;
+    mctx.beginPath();
+    mctx.arc(mx, my, 3.5, 0, Math.PI * 2);
+    mctx.fill();
+  }
+  for (const m of enc.moderlings) {
+    if (m.state === 'dead') continue;
+    const [mx, my] = toMap(m.x, m.z);
+    mctx.fillStyle = '#e07cff';
+    mctx.shadowBlur = 0;
+    mctx.fillRect(mx - 2, my - 2, 4, 4);
+  }
+  if (enc.star) {
+    const [mx, my] = toMap(enc.star.x, enc.star.z);
+    mctx.fillStyle = mctx.shadowColor = '#fff0b0';
+    mctx.shadowBlur = 12;
+    mctx.beginPath();
+    for (let k = 0; k < 10; k++) {
+      const r = k % 2 ? 3 : 7;
+      const a = (k / 10) * Math.PI * 2 + time;
+      mctx.lineTo(mx + Math.cos(a) * r, my + Math.sin(a) * r);
+    }
+    mctx.fill();
+  }
   mctx.shadowBlur = 8;
   for (const p of active()) {
     const [mx, my] = toMap(p.x, p.z);
@@ -1156,10 +1388,13 @@ function drawMap() {
 let last = performance.now();
 let srcT = 0;
 const smoothFocus = new THREE.Vector3();
+let waterNear = 0;
+let waterT = 0;
 function nestProximity() {
-  if (mode !== 'play') return 0;
-  const n = nearestNest(rig.focus.x, rig.focus.z, 45);
-  return n ? 1 - Math.hypot(n.x - rig.focus.x, n.z - rig.focus.z) / 45 : 0;
+  if (mode !== 'play') return audio.nest(0);
+  const n = nearestNest(rig.focus.x, rig.focus.z, 60);
+  if (!n) return audio.nest(0);
+  audio.nest(1 - Math.hypot(n.x - rig.focus.x, n.z - rig.focus.z) / 60, n.x, n.y + 1, n.z);
 }
 function frame(now) {
   requestAnimationFrame(frame);
@@ -1220,7 +1455,8 @@ function tick(dt, draw) {
     updateSources(rig.focus);
   }
   nests.update(rig.focus, (id) => !purged.has(id), dt, time);
-  audio.nest(nestProximity());
+  creatures.sync(enc, dt, time);
+  nestProximity();
   sky.update(dayTime, rig.focus, dt);
   water.update(rig.focus);
   trees.update(rig.focus, (id) => awake.has(id), dt, time);
@@ -1247,7 +1483,24 @@ function tick(dt, draw) {
     act /= list.length;
   } else life = 0.7;
   const rotHere = mode === 'play' && list.length ? Math.max(...list.map((p) => p.sample?.B ?? 0)) : 0;
-  audio.update({ life, night: U.uNight.value, activity: Math.min(1, act), weave, rot: rotHere });
+  // Wassernähe für Plätschern und Frösche
+  waterT -= dt;
+  if (waterT <= 0) {
+    waterT = 0.5;
+    let w = 0;
+    for (let k = 0; k < 12; k++) {
+      const a = (k / 12) * Math.PI * 2;
+      if (field.height(rig.focus.x + Math.cos(a) * 18, rig.focus.z + Math.sin(a) * 18) < 0) w++;
+    }
+    waterNear = w / 12;
+  }
+  const danger =
+    mode === 'play'
+      ? Math.min(1, enc.moderlings.filter((m) => m.state === 'hunt' && Math.hypot(m.x - rig.focus.x, m.z - rig.focus.z) < 35).length / 3 + (purify.nest ? 0.4 : 0))
+      : 0;
+  const speed = list.length ? list.reduce((a, p) => a + Math.hypot(p.vx, p.vy ?? 0, p.vz), 0) / list.length : 0;
+  audio.setListener(camera);
+  audio.update({ life, night: U.uNight.value, activity: Math.min(1, act), weave, rot: rotHere, danger, water: waterNear, speed, play: mode === 'play' });
 
   if (mode === 'play' || mode === 'pause' || mode === 'help') {
     if (mode === 'play') hudUpdate(dt);
@@ -1267,7 +1520,7 @@ function tick(dt, draw) {
 // Testmodus (?manual): keine eigene Schleife, Bilder werden von außen angestoßen
 const manual = params.has('manual');
 window.__myzel = {
-  field, sim, store, players, rig, meta, veg, U, stage, startGame, addPlayer, trees, terrain, sky, water, nests, fauna, progress, purged,
+  field, sim, store, players, rig, meta, veg, U, stage, startGame, addPlayer, trees, terrain, sky, water, nests, fauna, progress, purged, enc, powers, audio,
   get mode() {
     return mode;
   },
