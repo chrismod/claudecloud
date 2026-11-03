@@ -1,6 +1,7 @@
 # Filatura
 
-> Im selben Repo: [**Gloucester Glide**](gloucester-glide/) – Käserennen den Hang hinunter (three.js + Rapier, mit geprüfter Bestenliste).
+> Im selben Repo: [**Gloucester Glide**](gloucester-glide/) – Käserennen den Hang hinunter (three.js + Rapier, mit geprüfter Bestenliste)
+> und [**Bollwerk**](bollwerk/) – Tower Defense auf schwebenden Inseln (three.js).
 
 *Ein Physik-Puzzle mit Käsefäden – gebaut mit three.js.*
 

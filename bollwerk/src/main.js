@@ -188,7 +188,18 @@ $('btn-settings-close').onclick = () => {
   openMenu();
 };
 $('btn-reset').onclick = () => {
-  if (!confirm('Fortschritt wirklich löschen?')) return;
+  const b = $('btn-reset');
+  if (!b.dataset.armed) {
+    b.dataset.armed = '1';
+    b.textContent = 'Wirklich löschen?';
+    setTimeout(() => {
+      delete b.dataset.armed;
+      b.textContent = 'Fortschritt löschen';
+    }, 3000);
+    return;
+  }
+  delete b.dataset.armed;
+  b.textContent = 'Fortschritt löschen';
   progress.maps = {};
   saveProgress();
   closeModal();
@@ -362,8 +373,10 @@ function click(x, y, shift) {
     updateHover();
     return;
   }
-  if (c.out) return select(null);
-  const existing = game.towerAtCell(c.cx, c.cy);
+  const pickedId = towerViews.pick(ray);
+  const picked = pickedId != null ? game.towers.find((t) => t.id === pickedId) : null;
+  if (c.out && !picked) return select(null);
+  const existing = picked || game.towerAtCell(c.cx, c.cy);
   if (ui.buildType) {
     if (existing) return select(existing);
     const res = game.canBuild(ui.buildType, c.cx, c.cy);

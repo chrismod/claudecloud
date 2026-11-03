@@ -282,8 +282,20 @@ export class TowerViews {
     const model = buildTowerModel(t.type, t.level, t.module);
     model.root.position.set(this.board.wx(t.x), tileTop(t.tile), this.board.wz(t.y));
     model.head.rotation.y = -t.aim;
+    model.root.userData.towerId = t.id;
     this.group.add(model.root);
     return model;
+  }
+
+  // Turm unter dem Strahl (trifft auch den Kopf, nicht nur das Feld)
+  pick(ray) {
+    const hits = ray.intersectObjects(this.group.children, true);
+    for (const h of hits) {
+      let o = h.object;
+      while (o && o.userData.towerId == null) o = o.parent;
+      if (o) return o.userData.towerId;
+    }
+    return null;
   }
 
   shot(id) {
