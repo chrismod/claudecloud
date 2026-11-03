@@ -11,11 +11,11 @@ export const DAMAGE_TYPES = {
 };
 
 export const TARGETING = [
-  { key: 'first', name: 'Vorderster' },
-  { key: 'last', name: 'Hinterster' },
-  { key: 'strong', name: 'Stärkster' },
-  { key: 'weak', name: 'Schwächster' },
-  { key: 'near', name: 'Nächster' },
+  { key: 'first', name: 'Vorderster', short: 'Vorne' },
+  { key: 'last', name: 'Hinterster', short: 'Hinten' },
+  { key: 'strong', name: 'Stärkster', short: 'Stark' },
+  { key: 'weak', name: 'Schwächster', short: 'Schwach' },
+  { key: 'near', name: 'Nächster', short: 'Nah' },
 ];
 
 export const MAX_LEVEL = 10;

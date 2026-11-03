@@ -1,0 +1,148 @@
+<!doctype html>
+<html lang="de">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover, user-scalable=no" />
+    <meta name="theme-color" content="#1c2236" />
+    <title>Bollwerk</title>
+    <meta name="description" content="Bollwerk – Tower Defense in Diorama-Optik." />
+    <link
+      rel="icon"
+      href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 64 64'%3E%3Cpath d='M32 4 56 16v18c0 14-10 23-24 26C18 57 8 48 8 34V16Z' fill='%233fb7a6'/%3E%3Cpath d='M32 14l6 14h-12z' fill='%23e8fffb'/%3E%3Ccircle cx='32' cy='38' r='8' fill='%23e8fffb'/%3E%3C/svg%3E"
+    />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@400;500;600;700;800&display=swap" rel="stylesheet" />
+  </head>
+  <body>
+    <div id="app">
+      <div id="stage"></div>
+      <canvas id="overlay"></canvas>
+
+      <!-- Spiel-HUD -->
+      <div id="hud" class="hidden">
+        <div class="hud-tl">
+          <div class="pill lives" title="Lebenspunkte des Kerns"><span class="ico heart"></span><b id="lives">20</b></div>
+          <div class="pill coins" title="Münzen"><span class="ico coin"></span><b id="coins">0</b></div>
+          <div class="pill wave" title="Welle / Ziel"><span class="label">Welle</span><b id="wave">0</b><span class="goal" id="goal">/20</span></div>
+        </div>
+
+        <div class="hud-tr">
+          <div class="seg" id="speed" role="group" aria-label="Spielgeschwindigkeit">
+            <button data-speed="1" class="on" title="Normal (F)">1×</button>
+            <button data-speed="2" title="Schnell (F)">2×</button>
+            <button data-speed="3" title="Sehr schnell (F)">3×</button>
+          </div>
+          <button class="icon-btn" id="btn-pause" title="Pause (P)" aria-label="Pause">❚❚</button>
+          <button class="icon-btn" id="btn-sound" title="Ton an/aus (M)" aria-label="Ton an/aus">♪</button>
+          <button class="icon-btn" id="btn-view" title="Ansicht zurücksetzen (C)" aria-label="Ansicht zurücksetzen">⌖</button>
+          <button class="icon-btn" id="btn-menu" title="Menü (Esc)" aria-label="Menü">☰</button>
+        </div>
+
+        <div class="wave-card" id="wave-card">
+          <div class="wave-head">
+            <span id="wave-title">Nächste Welle</span>
+            <span class="timer" id="wave-timer"></span>
+          </div>
+          <div class="wave-list" id="wave-list"></div>
+          <button class="primary small" id="btn-wave">Start <kbd>Leertaste</kbd></button>
+        </div>
+
+        <div class="abilities" id="abilities"></div>
+        <div class="build-bar" id="build-bar"></div>
+        <aside class="inspector hidden" id="inspector"></aside>
+        <div class="toasts" id="toasts"></div>
+        <div class="hint hidden" id="hint"></div>
+      </div>
+
+      <!-- Hauptmenü -->
+      <section class="screen" id="menu">
+        <div class="menu-wrap">
+          <header class="title">
+            <div class="crest" aria-hidden="true"></div>
+            <div>
+              <h1>Bollwerk</h1>
+              <p>Tower Defense auf schwebenden Inseln</p>
+            </div>
+          </header>
+          <div class="maps" id="map-list"></div>
+          <div class="menu-actions">
+            <button class="ghost" id="btn-codex">Almanach</button>
+            <button class="ghost" id="btn-help">Steuerung</button>
+            <button class="ghost" id="btn-settings">Einstellungen</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- Pause -->
+      <section class="screen dim hidden" id="pause">
+        <div class="card">
+          <h2>Pause</h2>
+          <div class="stack">
+            <button class="primary" id="btn-resume">Weiter</button>
+            <button class="ghost" id="btn-restart">Neu starten</button>
+            <button class="ghost" id="btn-codex2">Almanach</button>
+            <button class="ghost" id="btn-quit">Zur Kartenwahl</button>
+          </div>
+        </div>
+      </section>
+
+      <!-- Ende -->
+      <section class="screen dim hidden" id="end">
+        <div class="card">
+          <h2 id="end-title"></h2>
+          <p class="sub" id="end-text"></p>
+          <div class="end-stats" id="end-stats"></div>
+          <div class="row" id="end-actions"></div>
+        </div>
+      </section>
+
+      <!-- Almanach -->
+      <section class="screen dim hidden" id="codex">
+        <div class="card wide">
+          <div class="codex-head">
+            <h2>Almanach</h2>
+            <div class="seg" id="codex-tabs">
+              <button data-tab="towers" class="on">Türme</button>
+              <button data-tab="enemies">Gegner</button>
+              <button data-tab="rules">Regeln</button>
+            </div>
+            <button class="icon-btn" id="btn-codex-close" aria-label="Schließen">✕</button>
+          </div>
+          <div class="codex-body" id="codex-body"></div>
+        </div>
+      </section>
+
+      <!-- Einstellungen -->
+      <section class="screen dim hidden" id="settings">
+        <div class="card">
+          <h2>Einstellungen</h2>
+          <label class="opt"><span>Grafik</span>
+            <select id="opt-quality"><option value="high">Hoch (Schatten, Leuchten)</option><option value="low">Schnell</option></select>
+          </label>
+          <label class="opt"><span>Alle Karten und Türme freischalten</span><input type="checkbox" id="opt-unlock" /></label>
+          <label class="opt"><span>Zahlen bei Kopfgeld anzeigen</span><input type="checkbox" id="opt-numbers" checked /></label>
+          <div class="row"><button class="ghost" id="btn-reset">Fortschritt löschen</button><button class="primary" id="btn-settings-close">Fertig</button></div>
+        </div>
+      </section>
+
+      <!-- Hilfe -->
+      <section class="screen dim hidden" id="help">
+        <div class="card">
+          <h2>Steuerung</h2>
+          <table class="keys">
+            <tr><td>Turm bauen</td><td>Turm in der Leiste wählen (<kbd>1</kbd>–<kbd>0</kbd>), dann auf eine Plattform klicken. <kbd>Shift</kbd> hält die Auswahl.</td></tr>
+            <tr><td>Turm verwalten</td><td>Turm anklicken · <kbd>U</kbd> aufrüsten · <kbd>T</kbd> Zielwahl · <kbd>Entf</kbd> verkaufen</td></tr>
+            <tr><td>Kamera</td><td>Ziehen verschiebt · Rechte Maustaste dreht · Mausrad zoomt · <kbd>C</kbd> zurück</td></tr>
+            <tr><td>Touch</td><td>Ein Finger verschiebt · zwei Finger zoomen und drehen</td></tr>
+            <tr><td>Wellen</td><td><kbd>Leertaste</kbd> startet bzw. ruft die nächste Welle früher (gibt Bonus)</td></tr>
+            <tr><td>Fähigkeiten</td><td><kbd>Q</kbd> Orbitalschlag · <kbd>W</kbd> Kälteeinbruch · <kbd>E</kbd> Überlast</td></tr>
+            <tr><td>Tempo</td><td><kbd>F</kbd> Geschwindigkeit · <kbd>P</kbd> Pause · <kbd>Esc</kbd> abbrechen / Menü</td></tr>
+          </table>
+          <div class="row"><button class="primary" id="btn-help-close">Alles klar</button></div>
+        </div>
+      </section>
+    </div>
+    <script type="module" src="./src/main.js"></script>
+  </body>
+</html>
