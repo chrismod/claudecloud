@@ -300,7 +300,10 @@ export class TowerViews {
 
   shot(id) {
     const v = this.views.get(id);
-    if (v) v.recoil = 1;
+    if (v) {
+      v.recoil = 1;
+      v.active = this.time;
+    }
   }
 
   muzzle(id, i = 0, out = new THREE.Vector3()) {
@@ -317,10 +320,18 @@ export class TowerViews {
     for (const v of this.views.values()) {
       const m = v.model;
       const t = v.tower;
+      if (t.beam) v.active = this.time;
+      // ohne Ziel sucht der Kopf langsam die Umgebung ab
+      const idle = this.time - (v.active ?? -10) > 2.5 && !(t.disabledT > 0);
+      const want = idle ? -t.aim + Math.sin(this.time * 0.5 + t.id * 1.3) * 0.9 : -t.aim;
+      // lahmgelegt: Kopf sackt ab und zittert
+      const droop = t.disabledT > 0 ? -0.35 + Math.sin(this.time * 40) * 0.03 : 0;
+      v.droop = (v.droop || 0) + (droop - (v.droop || 0)) * Math.min(1, dt * 8);
+      m.head.rotation.z = v.droop;
       if (!m.fixed) {
-        let d = -t.aim - v.aim;
+        let d = want - v.aim;
         d = Math.atan2(Math.sin(d), Math.cos(d));
-        v.aim += d * Math.min(1, dt * 14);
+        v.aim += d * Math.min(1, dt * (idle ? 2 : 14));
         m.head.rotation.y = v.aim;
       }
       if (m.gun) {

@@ -174,6 +174,15 @@ export class Sound {
     else if (key === 'meteor') this.hiss(3000, 0.6, 0.8, 0.1, { slide: 0.1 });
   }
 
+  boss(ability) {
+    if (!this.ctx || this.muted) return;
+    if (ability === 'windup') this.tone(70, 0.9, { type: 'sawtooth', peak: 0.08, slide: 1.8, attack: 0.5 });
+    else if (ability === 'stomp') (this.explosion(true), this.tone(45, 0.7, { peak: 0.4, slide: 0.6 }));
+    else if (ability === 'blink') (this.tone(900, 0.25, { type: 'sine', peak: 0.1, slide: 0.3 }), this.hiss(5000, 2, 0.2, 0.06, { slide: 0.3 }));
+    else if (ability === 'aura') [440, 554, 659].forEach((f, i) => this.tone(f, 0.5, { type: 'sine', peak: 0.06, delay: i * 0.05 }));
+    else if (ability === 'burst') (this.hiss(500, 0.8, 0.6, 0.2, { type: 'lowpass', slide: 0.3 }), this.tone(160, 0.5, { type: 'square', peak: 0.08, slide: 0.5 }));
+  }
+
   victory() {
     [523, 659, 784, 1047].forEach((f, i) => this.tone(f, 0.4, { type: 'triangle', peak: 0.12, delay: i * 0.12 }));
   }

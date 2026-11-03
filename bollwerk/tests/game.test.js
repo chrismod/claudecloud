@@ -93,7 +93,7 @@ test('Resonator verstärkt Nachbarn', () => {
 for (const type of TOWER_ORDER) {
   const kind = TOWERS[type].kind;
   if (kind === 'support' || kind === 'economy' || type === 'frost') continue;
-  test(`Turm ${TOWERS[type].name} besiegt Gegner`, () => {
+  test(`Turm ${type} besiegt Gegner`, () => {
     const g = new Game(STRIP, { events: false });
     g.build(type, 4, 0);
     g.state = 'running';
@@ -187,7 +187,7 @@ test('Balance: der Bot erreicht auf jeder Karte das Ziel', () => {
   for (const m of MAPS) {
     const g = new Game(m, { seed: 7, events: false });
     const r = runBot(g, { maxWave: m.goal + 1 });
-    assert.ok(r.wave > m.goal || (!r.lost && g.wave >= m.goal), `${m.name}: nur Welle ${r.wave}`);
+    assert.ok(r.wave > m.goal || (!r.lost && g.wave >= m.goal), `${m.id}: nur Welle ${r.wave}`);
   }
 });
 
@@ -195,4 +195,89 @@ test('Balance: irgendwann fällt jede Festung', () => {
   const g = new Game(MAPS[0], { seed: 7, events: false });
   const r = runBot(g, { maxWave: 150 });
   assert.ok(r.lost && r.wave < 120, `Welle ${r.wave}`);
+});
+
+test('Forschung wirkt auf Start, Kosten, Schaden und Kern', async () => {
+  const { researchMods, canResearch, crystalsFor, RESEARCH } = await import('../src/game/research.js');
+  const plain = new Game(MAPS[0]);
+  const g = new Game(MAPS[0], { research: { startCoins: 5, lives: 2, buildCost: 3, kinetic: 2, veteran: 1 } });
+  assert.ok(g.coins > plain.coins);
+  assert.equal(g.maxLives, plain.maxLives + 4);
+  assert.ok(g.costOf('bolt') < TOWERS.bolt.cost);
+  const a = plain.build('bolt', 3, 3);
+  const b = g.build('bolt', 3, 3);
+  assert.ok(b.stats.dmg > a.stats.dmg * 1.15, 'Ballistik + Veteranenrang');
+  assert.equal(b.rank, 1);
+  // Kette: zweiter Knoten braucht den ersten
+  assert.equal(canResearch({}, 999, 'income').reason, 'locked');
+  assert.ok(canResearch({ startCoins: 1 }, 999, 'income').ok);
+  assert.equal(canResearch({}, 1, 'startCoins').reason, 'crystals');
+  assert.ok(crystalsFor(0, 20, true, true) > crystalsFor(0, 20, false, false));
+  assert.ok(crystalsFor(4, 20, false, false) > crystalsFor(0, 20, false, false));
+  for (const r of RESEARCH) assert.equal(r.cost.length, r.max, r.id);
+  assert.equal(researchMods({}).dmg.kinetic, 1);
+});
+
+test('Kernbarriere hält Gegner auf, Bosse nicht', () => {
+  const g = new Game(STRIP, { events: false, research: { barrier: 1 } });
+  g.callWave();
+  g.spawnQueue.length = 0;
+  const e = g.spawnEnemy('walker', 0, 1, g.map.paths[0].total - 0.05);
+  g.step(0.2);
+  assert.equal(g.lives, 20);
+  assert.ok(!e.alive);
+  g.spawnEnemy('walker', 0, 1, g.map.paths[0].total - 0.05);
+  g.step(0.2);
+  assert.equal(g.lives, 19, 'nur eine Barriere pro Welle');
+});
+
+test('Koloss stampft und legt Türme lahm', () => {
+  const g = new Game(STRIP, { events: true });
+  const t = g.build('bolt', 4, 0);
+  g.state = 'running';
+  const boss = g.spawnEnemy('colossus', 0, 10, 3.5);
+  boss.speed = 0;
+  boss.abilityT = 0;
+  g.step(1.2);
+  assert.ok(t.disabledT > 0, 'Turm lahmgelegt');
+  assert.ok(g.events.some((e) => e.type === 'boss' && e.ability === 'stomp'));
+  const shots = t.shots;
+  g.step(0.5);
+  assert.equal(t.shots, shots, 'lahmgelegter Turm schießt nicht');
+});
+
+test('Phantom springt und ist dabei unangreifbar', () => {
+  const g = new Game(STRIP, { events: false });
+  g.state = 'running';
+  const p = g.spawnEnemy('phantom', 0, 10, 1);
+  p.abilityT = 0;
+  const d0 = p.dist;
+  g.step(1 / 30);
+  assert.ok(p.dist > d0 + 1);
+  assert.ok(p.phaseT > 0);
+  const hp = p.hp;
+  assert.equal(g.damage(p, 100, 'kinetic'), 0);
+  assert.equal(p.hp, hp);
+  const t = g.build('sniper', 4, 0);
+  assert.equal(g.bestTarget(t), null);
+});
+
+test('Ägis schirmt Begleiter ab, Brutmutter platzt auf', () => {
+  const g = new Game(STRIP, { events: false });
+  g.state = 'running';
+  const a = g.spawnEnemy('aegis', 0, 10, 4);
+  const w = g.spawnEnemy('walker', 0, 10, 4.5);
+  a.abilityT = 0;
+  g.step(1 / 30);
+  assert.ok(w.shield > 0 && w.maxShield > 0);
+  const b = g.spawnEnemy('brood', 0, 10, 6);
+  const before = g.enemies.length;
+  g.damage(b, b.maxHp * 0.6, 'kinetic');
+  g.step(1 / 30);
+  assert.ok(g.enemies.length >= before + 8);
+});
+
+test('Bosse wechseln sich ab', () => {
+  const types = [10, 20, 30, 40, 50].map((n) => generateWave(n, 1).groups.find((x) => ENEMIES[x.type].boss).type);
+  assert.deepEqual(types, ['colossus', 'brood', 'phantom', 'aegis', 'colossus']);
 });

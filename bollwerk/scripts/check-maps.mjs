@@ -13,7 +13,7 @@ for (const m of MAPS) {
     if (on && !'=SB'.includes(c)) errs.push(`Weg bei ${x},${y} ist '${c}'`);
   }));
   const map = buildMap(m);
-  console.log(`${m.name}: ${map.W}×${map.H}, Weglängen ${map.paths.map((p) => p.total.toFixed(1)).join(', ')}, Bauplätze ${m.grid.join('').split('').filter((c) => '#DRXC'.includes(c)).length}`);
+  console.log(`${m.id}: ${map.W}×${map.H}, Weglängen ${map.paths.map((p) => p.total.toFixed(1)).join(', ')}, Bauplätze ${m.grid.join('').split('').filter((c) => '#DRXC'.includes(c)).length}`);
   if (errs.length) { bad++; console.log('  ' + errs.join('\n  ')); }
 }
 process.exit(bad ? 1 : 0);

@@ -5,7 +5,7 @@ import { Game } from '../src/game/game.js';
 import { runBot } from '../src/game/bot.js';
 
 const args = process.argv.slice(2);
-const only = args.find((a) => !a.startsWith('--'));
+const only = args.find((a, i) => !a.startsWith('--') && args[i - 1] !== '--seeds');
 const seeds = Number(args[args.indexOf('--seeds') + 1]) || 3;
 const t0 = Date.now();
 for (const m of MAPS) {
@@ -17,6 +17,6 @@ for (const m of MAPS) {
     res.push(r);
   }
   const waves = res.map((r) => r.wave);
-  console.log(`${m.name.padEnd(10)} Ziel ${String(m.goal).padStart(2)} · Bot erreicht Welle ${waves.join(', ')} · Türme ${res.map((r) => r.towers).join(', ')}`);
+  console.log(`${m.id.padEnd(10)} Ziel ${String(m.goal).padStart(2)} · Bot erreicht Welle ${waves.join(', ')} · Türme ${res.map((r) => r.towers).join(', ')}`);
 }
 console.log(`(${((Date.now() - t0) / 1000).toFixed(1)} s)`);

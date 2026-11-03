@@ -1,5 +1,5 @@
 // Prozedurale Wellen: Zusammensetzung pro Welle deterministisch aus Kartensaat + Wellennummer.
-import { ENEMIES, ENEMY_UNLOCK } from './data.js';
+import { ENEMIES, ENEMY_UNLOCK, BOSS_ROTATION } from './data.js';
 import { makeRng } from './rng.js';
 
 // Lebenspunkte wachsen erst linear, dann exponentiell – irgendwann fällt jede Festung.
@@ -47,7 +47,7 @@ export function generateWave(n, seed = 1) {
   };
 
   if (isBossWave(n)) {
-    const bossType = (n / 10) % 2 === 1 ? 'colossus' : 'brood';
+    const bossType = BOSS_ROTATION[(n / 10 - 1) % BOSS_ROTATION.length];
     const bosses = 1 + Math.floor(n / 40);
     add(rng() < 0.5 ? 'walker' : 'runner', 0.45, 0);
     groups.push({ type: bossType, count: bosses, interval: 6, delay: 3 });

@@ -10,6 +10,7 @@ export const THEMES = {
   meadow: {
     skyTop: '#5d9bd6',
     skyBottom: '#f3e6cf',
+    skyDeep: '#5f93c4',
     fog: '#cfdce6',
     sun: '#fff1d6',
     sunI: 2.6,
@@ -29,6 +30,7 @@ export const THEMES = {
   autumn: {
     skyTop: '#6d8fc4',
     skyBottom: '#f6d8b8',
+    skyDeep: '#b9785a',
     fog: '#e3d4c4',
     sun: '#ffe0b8',
     sunI: 2.5,
@@ -48,6 +50,7 @@ export const THEMES = {
   dusk: {
     skyTop: '#24305e',
     skyBottom: '#e49a7b',
+    skyDeep: '#3b2c5e',
     fog: '#8a7895',
     sun: '#ffc9a3',
     sunI: 2.2,
@@ -74,6 +77,7 @@ function skyMaterial(theme) {
     uniforms: {
       top: { value: new THREE.Color(theme.skyTop) },
       bottom: { value: new THREE.Color(theme.skyBottom) },
+      deep: { value: new THREE.Color(theme.skyDeep) },
     },
     vertexShader: /* glsl */ `
       varying vec3 vDir;
@@ -83,11 +87,12 @@ function skyMaterial(theme) {
         gl_Position = p.xyww;
       }`,
     fragmentShader: /* glsl */ `
-      uniform vec3 top, bottom;
+      uniform vec3 top, bottom, deep;
       varying vec3 vDir;
       void main() {
-        float h = clamp(vDir.y * 0.5 + 0.5, 0.0, 1.0);
-        vec3 col = mix(bottom, top, smoothstep(0.25, 0.95, h));
+        float y = normalize(vDir).y;
+        // über dem Horizont zum Zenit, darunter in die Tiefe unter den schwebenden Inseln
+        vec3 col = y > 0.0 ? mix(bottom, top, smoothstep(0.0, 0.7, y)) : mix(bottom, deep, smoothstep(0.0, 0.55, -y));
         gl_FragColor = vec4(col, 1.0);
         #include <colorspace_fragment>
       }`,
@@ -167,7 +172,9 @@ export class Stage {
     controls.touches = { ONE: THREE.TOUCH.PAN, TWO: THREE.TOUCH.DOLLY_ROTATE };
     controls.zoomToCursor = true;
 
-    this.composer = new EffectComposer(renderer);
+    // Mehrfach abgetasteter HDR-Puffer: glatte Kanten trotz Nachbearbeitung
+    const rt = new THREE.WebGLRenderTarget(256, 256, { type: THREE.HalfFloatType, samples: 4 });
+    this.composer = new EffectComposer(renderer, rt);
     this.composer.addPass(new RenderPass(this.scene, this.camera));
     this.bloom = new UnrealBloomPass(new THREE.Vector2(256, 256), 0.6, 0.45, 1.25);
     this.composer.addPass(this.bloom);
@@ -183,7 +190,8 @@ export class Stage {
     const t = (this.theme = THEMES[name] || THEMES.meadow);
     this.sky.material.uniforms.top.value.set(t.skyTop);
     this.sky.material.uniforms.bottom.value.set(t.skyBottom);
-    this.scene.fog = new THREE.Fog(t.fog, 70, 190);
+    this.sky.material.uniforms.deep.value.set(t.skyDeep);
+    this.scene.fog = new THREE.Fog(t.skyDeep, 70, 190);
     this.hemi.color.set(t.hemiSky);
     this.hemi.groundColor.set(t.hemiGround);
     this.hemi.intensity = t.hemiI;

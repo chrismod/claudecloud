@@ -1,21 +1,21 @@
-// Spieldaten: Schadensarten, Türme, Gegner, Fähigkeiten, Feldboni.
+// Spieldaten: Schadensarten, Türme, Gegner, Fähigkeiten, Feldboni. Texte stehen in src/lang/.
 // Alle Längen in Feldern, Zeiten in Sekunden, Raten pro Sekunde.
 
 export const DAMAGE_TYPES = {
-  kinetic: { name: 'Kinetisch', color: '#9fd8ff' },
-  explosive: { name: 'Explosiv', color: '#ffb35c' },
-  fire: { name: 'Feuer', color: '#ff7a3d' },
-  cold: { name: 'Frost', color: '#9ae6ff' },
-  energy: { name: 'Energie', color: '#c99bff' },
-  toxic: { name: 'Gift', color: '#a6e85a' },
+  kinetic: { color: '#9fd8ff' },
+  explosive: { color: '#ffb35c' },
+  fire: { color: '#ff7a3d' },
+  cold: { color: '#9ae6ff' },
+  energy: { color: '#c99bff' },
+  toxic: { color: '#a6e85a' },
 };
 
 export const TARGETING = [
-  { key: 'first', name: 'Vorderster', short: 'Vorne' },
-  { key: 'last', name: 'Hinterster', short: 'Hinten' },
-  { key: 'strong', name: 'Stärkster', short: 'Stark' },
-  { key: 'weak', name: 'Schwächster', short: 'Schwach' },
-  { key: 'near', name: 'Nächster', short: 'Nah' },
+  { key: 'first' },
+  { key: 'last' },
+  { key: 'strong' },
+  { key: 'weak' },
+  { key: 'near' },
 ];
 
 export const MAX_LEVEL = 10;
@@ -24,10 +24,10 @@ export const SELL_RATE = 0.7;
 
 // Feldboni auf Sonderplattformen
 export const TILE_BONUS = {
-  D: { name: 'Kraftfeld', desc: '+25 % Schaden', color: '#ff6b6b' },
-  R: { name: 'Hochplateau', desc: '+20 % Reichweite', color: '#6bb8ff' },
-  X: { name: 'Lehrstätte', desc: 'doppelte Erfahrung', color: '#b48cff' },
-  C: { name: 'Goldader', desc: '+30 % Kopfgeld', color: '#ffc94d' },
+  D: { color: '#ff6b6b' },
+  R: { color: '#6bb8ff' },
+  X: { color: '#b48cff' },
+  C: { color: '#ffc94d' },
 };
 
 // Erfahrungsränge: Schwelle (XP) je Rang, Bonus pro Rang
@@ -42,8 +42,6 @@ const S = (o) => o; // nur zur Lesbarkeit
 // grow: dmg und rate wachsen multiplikativ (×/Stufe), Felder in growMul ebenfalls, alle anderen additiv (+/Stufe)
 export const TOWERS = {
   bolt: {
-    name: 'Bolzer',
-    blurb: 'Günstiger Schnellschütze. Trifft Boden und Luft.',
     cost: 30,
     color: '#3fb7a6',
     accent: '#7ff5e4',
@@ -54,14 +52,12 @@ export const TOWERS = {
     base: S({ dmg: 7, range: 2.6, rate: 1.8, projSpeed: 14 }),
     grow: { dmg: 1.33, range: 0.06, rate: 1.03 },
     modules: [
-      { name: 'Zwillingslauf', desc: 'Feuert gleichzeitig auf zwei Ziele (je 85 % Schaden).', apply: (s) => ((s.multishot = 2), (s.dmg *= 0.85)) },
-      { name: 'Wolframkern', desc: 'Ignoriert 70 % der Panzerung, +25 % Schaden.', apply: (s) => ((s.armorPierce = 0.7), (s.dmg *= 1.25)) },
+      { apply: (s) => ((s.multishot = 2), (s.dmg *= 0.85)) },
+      { apply: (s) => ((s.armorPierce = 0.7), (s.dmg *= 1.25)) },
     ],
-    master: { name: 'Präzision', desc: '20 % Chance auf doppelten Schaden.', apply: (s) => ((s.crit = 0.2), (s.critMul = 2)) },
+    master: { apply: (s) => ((s.crit = 0.2), (s.critMul = 2)) },
   },
   mortar: {
-    name: 'Mörser',
-    blurb: 'Langsame Granaten mit Flächenschaden. Nur Bodenziele, Mindestreichweite.',
     cost: 60,
     color: '#d9824a',
     accent: '#ffb35c',
@@ -72,14 +68,12 @@ export const TOWERS = {
     base: S({ dmg: 26, range: 4.0, minRange: 1.0, rate: 0.5, splash: 0.95, flight: 0.9 }),
     grow: { dmg: 1.33, range: 0.05, rate: 1.03, splash: 0.03 },
     modules: [
-      { name: 'Streumunition', desc: 'Jede Granate zerfällt in 4 Submunitionen (je 35 % Schaden).', apply: (s) => (s.cluster = 4) },
-      { name: 'Brandsatz', desc: 'Hinterlässt 3 s lang brennenden Boden.', apply: (s) => ((s.fireField = 3), (s.fieldFrac = 0.35)) },
+      { apply: (s) => (s.cluster = 4) },
+      { apply: (s) => ((s.fireField = 3), (s.fieldFrac = 0.35)) },
     ],
-    master: { name: 'Schockwelle', desc: '+25 % Explosionsradius, 15 % Chance zu betäuben.', apply: (s) => ((s.splash *= 1.25), (s.stunChance = 0.15), (s.stunDur = 0.6)) },
+    master: { apply: (s) => ((s.splash *= 1.25), (s.stunChance = 0.15), (s.stunDur = 0.6)) },
   },
   frost: {
-    name: 'Frostkristall',
-    blurb: 'Kältewellen verlangsamen alle Gegner in Reichweite.',
     cost: 50,
     color: '#7cc8ef',
     accent: '#c8f3ff',
@@ -90,14 +84,12 @@ export const TOWERS = {
     base: S({ dmg: 3, range: 1.9, rate: 0.8, slow: 0.3, slowDur: 1.6 }),
     grow: { dmg: 1.3, range: 0.05, rate: 1.0, slow: 0.025 },
     modules: [
-      { name: 'Permafrost', desc: '12 % Chance, Gegner 1 s einzufrieren.', apply: (s) => ((s.freezeChance = 0.12), (s.freezeDur = 1)) },
-      { name: 'Sprödigkeit', desc: 'Unterkühlte Gegner erleiden +20 % Schaden aus allen Quellen.', apply: (s) => (s.brittle = 0.2) },
+      { apply: (s) => ((s.freezeChance = 0.12), (s.freezeDur = 1)) },
+      { apply: (s) => (s.brittle = 0.2) },
     ],
-    master: { name: 'Eiszeit', desc: '+10 % Verlangsamung, +0,3 Reichweite.', apply: (s) => ((s.slow += 0.1), (s.range += 0.3)) },
+    master: { apply: (s) => ((s.slow += 0.1), (s.range += 0.3)) },
   },
   tesla: {
-    name: 'Funkenturm',
-    blurb: 'Kettenblitze springen von Gegner zu Gegner. Doppelter Schaden an Schilden.',
     cost: 70,
     color: '#8a6cf0',
     accent: '#d6c4ff',
@@ -108,14 +100,12 @@ export const TOWERS = {
     base: S({ dmg: 13, range: 2.4, rate: 0.9, chains: 3, chainRange: 1.7, falloff: 0.8 }),
     grow: { dmg: 1.3, range: 0.05, rate: 1.03, chains: 0.25 },
     modules: [
-      { name: 'Kettenreaktion', desc: '+3 Sprünge, kein Schadensverlust pro Sprung.', apply: (s) => ((s.chains += 3), (s.falloff = 1)) },
-      { name: 'Kondensator', desc: 'Jeder 4. Blitz betäubt alle Getroffenen 0,7 s. +20 % Schaden.', apply: (s) => ((s.stunEvery = 4), (s.stunDur = 0.7), (s.dmg *= 1.2)) },
+      { apply: (s) => ((s.chains += 3), (s.falloff = 1)) },
+      { apply: (s) => ((s.stunEvery = 4), (s.stunDur = 0.7), (s.dmg *= 1.2)) },
     ],
-    master: { name: 'Hochspannung', desc: '+25 % Schaden, +0,6 Sprungweite.', apply: (s) => ((s.dmg *= 1.25), (s.chainRange += 0.6)) },
+    master: { apply: (s) => ((s.dmg *= 1.25), (s.chainRange += 0.6)) },
   },
   sniper: {
-    name: 'Falke',
-    blurb: 'Präzisionsgeschütz mit enormer Reichweite und kritischen Treffern.',
     cost: 90,
     color: '#5f7d9c',
     accent: '#e4f1ff',
@@ -127,14 +117,12 @@ export const TOWERS = {
     base: S({ dmg: 52, range: 5.5, rate: 0.38, crit: 0.1, critMul: 2.5 }),
     grow: { dmg: 1.34, range: 0.1, rate: 1.03 },
     modules: [
-      { name: 'Kopfschuss', desc: '30 % Chance auf vierfachen Schaden.', apply: (s) => ((s.crit = 0.3), (s.critMul = 4)) },
-      { name: 'Durchschlag', desc: 'Durchschlägt alle Gegner auf der Schusslinie.', apply: (s) => ((s.pierce = true), (s.dmg *= 0.9)) },
+      { apply: (s) => ((s.crit = 0.3), (s.critMul = 4)) },
+      { apply: (s) => ((s.pierce = true), (s.dmg *= 0.9)) },
     ],
-    master: { name: 'Markierung', desc: 'Getroffene Gegner erleiden 3 s lang +15 % Schaden.', apply: (s) => ((s.mark = 0.15), (s.markDur = 3)) },
+    master: { apply: (s) => ((s.mark = 0.15), (s.markDur = 3)) },
   },
   acid: {
-    name: 'Säurespeier',
-    blurb: 'Giftschleim zersetzt Panzerung und schadet über Zeit.',
     cost: 65,
     color: '#7fbf3f',
     accent: '#c8ff7a',
@@ -146,14 +134,12 @@ export const TOWERS = {
     grow: { dmg: 1.3, range: 0.05, rate: 1.02, poisonDps: 1.32, corrosion: 0.2 },
     growMul: { poisonDps: true },
     modules: [
-      { name: 'Seuche', desc: 'Vergiftete Gegner stecken beim Tod alle in der Nähe an.', apply: (s) => (s.plague = 1.5) },
-      { name: 'Zersetzung', desc: 'Dreifache Korrosion. Vergiftete erleiden +15 % Schaden.', apply: (s) => ((s.corrosion *= 3), (s.poisonVuln = 0.15)) },
+      { apply: (s) => (s.plague = 1.5) },
+      { apply: (s) => ((s.corrosion *= 3), (s.poisonVuln = 0.15)) },
     ],
-    master: { name: 'Nervengift', desc: 'Vergiftete Gegner sind 15 % langsamer.', apply: (s) => (s.poisonSlow = 0.15) },
+    master: { apply: (s) => (s.poisonSlow = 0.15) },
   },
   flame: {
-    name: 'Glutwerfer',
-    blurb: 'Flammenkegel kurzer Reichweite, setzt Gegner in Brand. Ignoriert Panzerung. Nur Boden.',
     cost: 80,
     color: '#e05a3a',
     accent: '#ffb14d',
@@ -165,14 +151,12 @@ export const TOWERS = {
     grow: { dmg: 1.3, range: 0.04, burnDps: 1.3 },
     growMul: { burnDps: true },
     modules: [
-      { name: 'Napalm', desc: 'Doppelter Brandschaden, brennt 5 s.', apply: (s) => ((s.burnDps *= 2), (s.burnDur = 5)) },
-      { name: 'Feuersturm', desc: 'Kegel 100° breit, +0,5 Reichweite.', apply: (s) => ((s.cone = 100), (s.range += 0.5)) },
+      { apply: (s) => ((s.burnDps *= 2), (s.burnDur = 5)) },
+      { apply: (s) => ((s.cone = 100), (s.range += 0.5)) },
     ],
-    master: { name: 'Weißglut', desc: '+35 % Schaden.', apply: (s) => (s.dmg *= 1.35) },
+    master: { apply: (s) => (s.dmg *= 1.35) },
   },
   laser: {
-    name: 'Prisma',
-    blurb: 'Dauerstrahl, der immer stärker wird, je länger er ein Ziel hält. Ignoriert Panzerung.',
     cost: 120,
     color: '#d0459b',
     accent: '#ff9be0',
@@ -183,14 +167,12 @@ export const TOWERS = {
     base: S({ dmg: 20, range: 3.0, ramp: 3, rampTime: 3 }),
     grow: { dmg: 1.3, range: 0.05 },
     modules: [
-      { name: 'Fokuslinse', desc: 'Steigert sich bis ×5 in 2,5 s.', apply: (s) => ((s.ramp = 5), (s.rampTime = 2.5)) },
-      { name: 'Brechung', desc: 'Strahl teilt sich auf 2 weitere Ziele (je 50 %).', apply: (s) => (s.split = 2) },
+      { apply: (s) => ((s.ramp = 5), (s.rampTime = 2.5)) },
+      { apply: (s) => (s.split = 2) },
     ],
-    master: { name: 'Überhitzung', desc: 'Setzt das Ziel in Brand.', apply: (s) => ((s.beamBurn = 0.2), (s.burnDur = 2)) },
+    master: { apply: (s) => ((s.beamBurn = 0.2), (s.burnDur = 2)) },
   },
   missile: {
-    name: 'Schwarm',
-    blurb: 'Lenkraketen mit Flächenschaden. Bevorzugt Flieger und trifft sie besonders hart.',
     cost: 110,
     color: '#d6b13a',
     accent: '#fff07a',
@@ -202,14 +184,12 @@ export const TOWERS = {
     base: S({ dmg: 18, range: 4.2, rate: 0.6, salvo: 2, splash: 0.6, airMul: 1.6, projSpeed: 5.5 }),
     grow: { dmg: 1.32, range: 0.06, rate: 1.03 },
     modules: [
-      { name: 'Raketenhagel', desc: '5 Raketen pro Salve (je 70 % Schaden).', apply: (s) => ((s.salvo = 5), (s.dmg *= 0.7)) },
-      { name: 'Gefechtskopf', desc: 'Eine schwere Rakete: ×2,6 Schaden, großer Radius.', apply: (s) => ((s.salvo = 1), (s.dmg *= 2.6), (s.splash = 1.2)) },
+      { apply: (s) => ((s.salvo = 5), (s.dmg *= 0.7)) },
+      { apply: (s) => ((s.salvo = 1), (s.dmg *= 2.6), (s.splash = 1.2)) },
     ],
-    master: { name: 'Zielsuche', desc: '+1 Reichweite, ×2 Schaden gegen Flieger.', apply: (s) => ((s.range += 1), (s.airMul = 2)) },
+    master: { apply: (s) => ((s.range += 1), (s.airMul = 2)) },
   },
   amp: {
-    name: 'Resonator',
-    blurb: 'Greift nicht an, verstärkt aber benachbarte Türme (Schaden und Feuerrate).',
     cost: 100,
     color: '#c9a24a',
     accent: '#ffe7a3',
@@ -220,14 +200,12 @@ export const TOWERS = {
     base: S({ range: 1.5, buffDmg: 0.15, buffRate: 0.08 }),
     grow: { buffDmg: 0.025, buffRate: 0.012 },
     modules: [
-      { name: 'Fernsicht', desc: 'Verstärkte Türme erhalten +15 % Reichweite.', apply: (s) => (s.buffRange = 0.15) },
-      { name: 'Beutezug', desc: 'Kills verstärkter Türme bringen +30 % Kopfgeld.', apply: (s) => (s.buffBounty = 0.3) },
+      { apply: (s) => (s.buffRange = 0.15) },
+      { apply: (s) => (s.buffBounty = 0.3) },
     ],
-    master: { name: 'Resonanzfeld', desc: 'Wirkungsradius 2,3 Felder.', apply: (s) => (s.range = 2.3) },
+    master: { apply: (s) => (s.range = 2.3) },
   },
   mint: {
-    name: 'Münzpresse',
-    blurb: 'Prägt zu Beginn jeder Welle Münzen. Je höher die Stufe, desto mehr.',
     cost: 80,
     color: '#b8913a',
     accent: '#ffd76a',
@@ -240,10 +218,10 @@ export const TOWERS = {
     grow: { income: 1.27 },
     growMul: { income: true },
     modules: [
-      { name: 'Zinseszins', desc: 'Zusätzlich 2 % deines Guthabens pro Welle (max. 40 + 10 je Stufe).', apply: (s) => (s.interest = 0.02) },
-      { name: 'Kopfgeldbüro', desc: 'Kills in 2,5 Feldern Umkreis bringen +2 Münzen.', apply: (s) => (s.killBonus = 2) },
+      { apply: (s) => (s.interest = 0.02) },
+      { apply: (s) => (s.killBonus = 2) },
     ],
-    master: { name: 'Staatsschatz', desc: '+25 % Prägung.', apply: (s) => (s.income *= 1.25) },
+    master: { apply: (s) => (s.income *= 1.25) },
   },
 };
 
@@ -252,11 +230,9 @@ export const TOWER_ORDER = ['bolt', 'mortar', 'frost', 'tesla', 'sniper', 'acid'
 // Gegner ------------------------------------------------------------------
 // hp/armor werden mit der Welle skaliert. resist: Schadensmultiplikator je Art.
 export const ENEMIES = {
-  walker: { name: 'Wanderer', blurb: 'Gewöhnlicher Gegner.', hp: 20, speed: 1.0, bounty: 3, leak: 1, color: '#ff7f6e', size: 0.2, cost: 1 },
-  runner: { name: 'Flitzer', blurb: 'Schnell, aber zerbrechlich.', hp: 10, speed: 1.75, bounty: 2, leak: 1, color: '#f2d14b', size: 0.16, cost: 0.6, interval: 0.45 },
+  walker: { hp: 20, speed: 1.0, bounty: 3, leak: 1, color: '#ff7f6e', size: 0.2, cost: 1 },
+  runner: { hp: 10, speed: 1.75, bounty: 2, leak: 1, color: '#f2d14b', size: 0.16, cost: 0.6, interval: 0.45 },
   brute: {
-    name: 'Panzer',
-    blurb: 'Langsam, viel Leben, schwere Panzerung. Schwach gegen Energie.',
     hp: 58,
     speed: 0.62,
     armor: 3,
@@ -269,8 +245,6 @@ export const ENEMIES = {
     resist: { kinetic: 0.85, energy: 1.25 },
   },
   glider: {
-    name: 'Gleiter',
-    blurb: 'Schwebt über dem Weg. Mörser und Glutwerfer erreichen ihn nicht.',
     hp: 16,
     speed: 1.15,
     bounty: 4,
@@ -282,8 +256,6 @@ export const ENEMIES = {
     interval: 0.9,
   },
   splitter: {
-    name: 'Spalter',
-    blurb: 'Zerfällt beim Tod in drei Splitter.',
     hp: 42,
     speed: 0.85,
     bounty: 4,
@@ -294,10 +266,8 @@ export const ENEMIES = {
     interval: 1.2,
     splits: { type: 'shard', count: 3 },
   },
-  shard: { name: 'Splitter', blurb: 'Bruchstück eines Spalters.', hp: 9, speed: 1.45, bounty: 1, leak: 1, color: '#c9a3ff', size: 0.12, cost: 0.4, child: true },
+  shard: { hp: 9, speed: 1.45, bounty: 1, leak: 1, color: '#c9a3ff', size: 0.12, cost: 0.4, child: true },
   mender: {
-    name: 'Heiler',
-    blurb: 'Heilt Gegner in der Nähe regelmäßig um 10 %.',
     hp: 32,
     speed: 0.9,
     bounty: 6,
@@ -310,8 +280,6 @@ export const ENEMIES = {
     resist: { toxic: 0.6 },
   },
   warden: {
-    name: 'Schildträger',
-    blurb: 'Regenerierender Schild. Energie wirkt doppelt auf Schilde.',
     hp: 26,
     shield: 32,
     speed: 0.88,
@@ -323,8 +291,6 @@ export const ENEMIES = {
     interval: 1.1,
   },
   icebreaker: {
-    name: 'Eisbrecher',
-    blurb: 'Immun gegen Verlangsamen und Einfrieren. Anfällig für Feuer.',
     hp: 46,
     speed: 0.95,
     armor: 1,
@@ -338,8 +304,6 @@ export const ENEMIES = {
     resist: { cold: 0.5, fire: 1.5 },
   },
   colossus: {
-    name: 'Koloss',
-    blurb: 'Boss. Gewaltig gepanzert, Verlangsamung wirkt nur halb.',
     hp: 650,
     speed: 0.42,
     armor: 6,
@@ -350,10 +314,10 @@ export const ENEMIES = {
     cost: 30,
     boss: true,
     resist: { energy: 1.2 },
+    // Stampfer: legt Türme in der Nähe lahm
+    stomp: { every: 7, radius: 2.1, stun: 2.2, windup: 0.9 },
   },
   brood: {
-    name: 'Brutmutter',
-    blurb: 'Boss. Setzt unterwegs ständig Brut frei.',
     hp: 480,
     speed: 0.5,
     armor: 2,
@@ -364,16 +328,48 @@ export const ENEMIES = {
     cost: 30,
     boss: true,
     spawns: { type: 'broodling', every: 2.6 },
+    // Häutung: bei halbem Leben platzt ein Schwarm Brut heraus
+    burst: { at: 0.5, count: 8 },
   },
-  broodling: { name: 'Brut', blurb: 'Nachwuchs der Brutmutter.', hp: 11, speed: 1.2, bounty: 1, leak: 1, color: '#ff8fd1', size: 0.13, cost: 0.4, child: true },
+  phantom: {
+    hp: 430,
+    speed: 0.55,
+    armor: 3,
+    bounty: 70,
+    leak: 8,
+    color: '#7b6cff',
+    size: 0.38,
+    cost: 30,
+    boss: true,
+    // Phasensprung: kurz unangreifbar, springt ein Stück nach vorn
+    blink: { every: 6.5, dist: 1.5, phase: 1.0 },
+  },
+  aegis: {
+    hp: 420,
+    shield: 380,
+    speed: 0.45,
+    armor: 4,
+    bounty: 70,
+    leak: 8,
+    color: '#e0b84a',
+    size: 0.42,
+    cost: 30,
+    boss: true,
+    // Schutzaura: gibt Gegnern in der Nähe regelmäßig einen Schild
+    aura: { every: 5, radius: 2.3, amount: 0.35 },
+  },
+  broodling: { hp: 11, speed: 1.2, bounty: 1, leak: 1, color: '#ff8fd1', size: 0.13, cost: 0.4, child: true },
 };
 
 // In dieser Welle tauchen Gegnerarten zum ersten Mal auf
 export const ENEMY_UNLOCK = { walker: 1, runner: 3, glider: 5, brute: 7, splitter: 9, mender: 12, warden: 14, icebreaker: 17 };
 
 // Fähigkeiten -------------------------------------------------------------
+// Bosse im Wechsel, jede 10. Welle
+export const BOSS_ROTATION = ['colossus', 'brood', 'phantom', 'aegis'];
+
 export const ABILITIES = {
-  meteor: { name: 'Orbitalschlag', desc: 'Gewaltige Explosion an einer gewählten Stelle.', key: 'Q', cooldown: 60, radius: 1.6, needsTarget: true, color: '#ff8a3d' },
-  blizzard: { name: 'Kälteeinbruch', desc: 'Friert alle Gegner kurz ein und verlangsamt sie danach.', key: 'W', cooldown: 50, color: '#8fe3ff' },
-  overdrive: { name: 'Überlast', desc: 'Alle Türme feuern 10 s lang 75 % schneller.', key: 'E', cooldown: 70, duration: 10, color: '#ffd84d' },
+  meteor: { key: 'Q', cooldown: 60, radius: 1.6, needsTarget: true, color: '#ff8a3d' },
+  blizzard: { key: 'W', cooldown: 50, color: '#8fe3ff' },
+  overdrive: { key: 'E', cooldown: 70, duration: 10, color: '#ffd84d' },
 };

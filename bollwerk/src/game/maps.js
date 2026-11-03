@@ -7,8 +7,6 @@
 export const MAPS = [
   {
     id: 'lichtung',
-    name: 'Lichtung',
-    desc: 'Ein gewundener Pfad über die Waldlichtung. Zum Kennenlernen.',
     goal: 20,
     coins: 130,
     lives: 20,
@@ -33,8 +31,6 @@ export const MAPS = [
   },
   {
     id: 'gabelung',
-    name: 'Gabelung',
-    desc: 'Zwei Portale, ein Kern. Die Wege vereinen sich und winden sich gemeinsam zum Ziel.',
     goal: 25,
     coins: 150,
     hpScale: 1.1,
@@ -62,8 +58,6 @@ export const MAPS = [
   },
   {
     id: 'spirale',
-    name: 'Spirale',
-    desc: 'Ein langer Weg, der sich zum Kern hinein windet. Platz für große Festungen.',
     goal: 30,
     coins: 150,
     hpScale: 1.25,
@@ -91,8 +85,6 @@ export const MAPS = [
   },
   {
     id: 'kreuzweg',
-    name: 'Kreuzweg',
-    desc: 'Der Weg kreuzt sich selbst – und ein zweites Portal mischt mit.',
     goal: 30,
     coins: 170,
     hpScale: 1.2,
@@ -120,8 +112,6 @@ export const MAPS = [
   },
   {
     id: 'dreiklang',
-    name: 'Dreiklang',
-    desc: 'Drei Portale, ein Kern in der Mitte. Zwei Wege vereinen sich kurz vor dem Ziel.',
     goal: 30,
     coins: 200,
     hpScale: 0.9,

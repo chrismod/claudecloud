@@ -12,19 +12,21 @@ import { Sound } from './audio.js';
 import { Game } from './game/game.js';
 import { MAPS } from './game/maps.js';
 import { TOWERS, TOWER_ORDER, ENEMIES, ENEMY_UNLOCK, ABILITIES, TARGETING } from './game/data.js';
+import { canResearch, crystalsFor, spentOn } from './game/research.js';
 import { Hud } from './ui/hud.js';
-import { renderMapList, renderCodex, showEnd } from './ui/screens.js';
+import { renderMapList, renderCodex, renderResearch, renderHelp, showEnd } from './ui/screens.js';
+import { t, tower, enemy, setLang, applyI18n } from './i18n.js';
 
 const $ = (id) => document.getElementById(id);
 
 // ---------- Fortschritt ----------
 const STORE = 'bollwerk.progress';
+const DEFAULTS = { maps: {}, unlockAll: false, numbers: true, quality: 'high', lang: 'en', crystals: 0, research: {} };
 function loadProgress() {
   try {
-    const p = JSON.parse(localStorage.getItem(STORE) || '{}');
-    return { maps: {}, unlockAll: false, numbers: true, quality: 'high', ...p };
+    return { ...DEFAULTS, ...JSON.parse(localStorage.getItem(STORE) || '{}') };
   } catch {
-    return { maps: {}, unlockAll: false, numbers: true, quality: 'high' };
+    return { ...DEFAULTS };
   }
 }
 const progress = loadProgress();
@@ -35,12 +37,15 @@ function saveProgress() {
     /* privates Fenster o. ä. */
   }
 }
-function recordBest(def, wave, won) {
-  const r = (progress.maps[def.id] ||= {});
+function recordBest(mapDef, wave, won) {
+  const r = (progress.maps[mapDef.id] ||= {});
   r.best = Math.max(r.best || 0, wave);
   if (won) r.won = true;
   saveProgress();
 }
+setLang(progress.lang);
+applyI18n();
+renderHelp();
 
 // ---------- Darstellung ----------
 const settings = { quality: progress.quality };
@@ -49,6 +54,7 @@ const board = new Board(stage);
 const towerViews = new TowerViews(board);
 const enemyViews = new EnemyViews(board);
 const fx = new Fx(board, towerViews, enemyViews);
+enemyViews.fx = fx;
 const overlay = new Overlay($('overlay'), stage, enemyViews);
 const sound = new Sound();
 fx.setScale(window.innerHeight);
@@ -57,12 +63,13 @@ window.addEventListener('resize', () => fx.setScale(window.innerHeight));
 const thumbs = renderSnapshots(TOWER_ORDER, Object.keys(ENEMIES));
 
 // ---------- Zustand ----------
-const ui = { mode: 'menu', speed: 1, paused: false, buildType: null, selected: null, ability: null, muted: sound.muted, keepBuild: false };
+const ui = { mode: 'menu', speed: 1, paused: false, buildType: null, selected: null, ability: null, muted: sound.muted };
 let game = null;
 let def = null;
 let ghost = null;
 let hover = null;
 let modal = null;
+let run = null; // laufende Partie: { won, firstWin, finished }
 const seenTypes = new Set();
 
 const hud = new Hud(
@@ -72,18 +79,18 @@ const hud = new Hud(
     toggleMute: () => (ui.muted = sound.toggleMute()),
     openPause,
     resetView: () => stage.resetView(),
-    setSpeed: (s) => ((ui.speed = s), sound.click()),
+    setSpeed: (sp) => ((ui.speed = sp), sound.click()),
     selectBuild,
     ability: armAbility,
     deselect: () => select(null),
-    upgrade: (t) => (game.upgrade(t) ? sound.upgrade() : sound.deny()),
-    sell: (t) => {
-      game.sell(t);
+    upgrade: (tw) => (game.upgrade(tw) ? sound.upgrade() : sound.deny()),
+    sell: (tw) => {
+      game.sell(tw);
       sound.sell();
       select(null);
     },
-    setTargeting: (t, m) => (game.setTargeting(t, m), sound.click()),
-    chooseModule: (t, i) => (game.chooseModule(t, i), sound.upgrade()),
+    setTargeting: (tw, m) => (game.setTargeting(tw, m), sound.click()),
+    chooseModule: (tw, i) => (game.chooseModule(tw, i), sound.upgrade()),
   },
   thumbs,
 );
@@ -92,16 +99,40 @@ function setPaused(p) {
   ui.paused = p;
 }
 
+// ---------- Partien und Kristalle ----------
+function wavesSurvived() {
+  if (!game) return 0;
+  if (game.state === 'lost') return Math.max(0, game.wave - 1);
+  // eine Welle zählt als überstanden, wenn keine ihrer Gegner mehr unterwegs ist
+  const open = game.enemies.some((e) => e.n === game.wave) || game.spawnQueue.some((q) => q.n === game.wave);
+  return Math.max(0, open ? game.wave - 1 : game.wave);
+}
+function pendingCrystals() {
+  if (!run || run.finished) return 0;
+  return crystalsFor(MAPS.indexOf(def), wavesSurvived(), run.won, run.firstWin);
+}
+// Partie abschließen: Rekord und Kristalle gutschreiben (genau einmal)
+function finishRun() {
+  if (!run || run.finished || !game) return 0;
+  const n = pendingCrystals();
+  run.finished = true;
+  recordBest(def, wavesSurvived(), run.won);
+  progress.crystals += n;
+  saveProgress();
+  return n;
+}
+
 // ---------- Karten laden ----------
 function loadMap(mapDef, play) {
   def = mapDef;
-  game = new Game(mapDef, { towers: progress.unlockAll ? TOWER_ORDER : mapDef.towers });
+  game = new Game(mapDef, { towers: progress.unlockAll ? TOWER_ORDER : mapDef.towers, research: play ? progress.research : {} });
   const theme = stage.applyTheme(mapDef.theme);
   board.build(game, theme);
   stage.frame(game.map.W, game.map.H);
   towerViews.clear();
   enemyViews.clear();
   fx.clear();
+  fx.setAmbient(mapDef.theme, game.map.W, game.map.H);
   overlay.clear();
   clearGhost();
   ui.buildType = null;
@@ -112,6 +143,7 @@ function loadMap(mapDef, play) {
   const c = stage.controls;
   if (play) {
     ui.mode = 'play';
+    run = { won: false, firstWin: false, finished: false };
     c.autoRotate = false;
     c.enabled = true;
     $('hud').classList.remove('hidden');
@@ -120,10 +152,11 @@ function loadMap(mapDef, play) {
     if (!progress.seenHelp) {
       progress.seenHelp = true;
       saveProgress();
-      hud.toast('Wähle unten einen Turm und klicke auf eine helle Plattform. <b>Leertaste</b> startet die erste Welle.');
+      hud.toast(t('ui.hud.firstHelp'));
     }
   } else {
     ui.mode = 'menu';
+    run = null;
     c.autoRotate = true;
     c.autoRotateSpeed = 0.35;
     c.minAzimuthAngle = -Infinity;
@@ -133,24 +166,36 @@ function loadMap(mapDef, play) {
   }
 }
 
+function renderMenu() {
+  renderMapList(progress, (m) => (sound.unlock(), sound.click(), loadMap(m, true)), (m) => m !== def && loadMap(m, false));
+  $('menu-crystals').textContent = progress.crystals;
+}
+
 function openMenu() {
   closeModal();
-  if (game && def && ui.mode === 'play') recordBest(def, game.stats.bestWave, game.state === 'won' || game.endless);
-  renderMapList(progress, (m) => (sound.unlock(), sound.click(), loadMap(m, true)), (m) => m !== def && loadMap(m, false));
+  finishRun();
+  renderMenu();
   $('menu').classList.remove('hidden');
   const first = MAPS.find((m, i) => !progress.maps[m.id]?.won && (i === 0 || progress.maps[MAPS[i - 1].id]?.won)) || MAPS[0];
   loadMap(def && ui.mode === 'menu' ? def : first, false);
 }
 
 // ---------- Modale Fenster ----------
-function openModal(id) {
+let modalReturn = null;
+function openModal(id, from = null) {
   closeModal();
   modal = id;
+  modalReturn = from;
   $(id).classList.remove('hidden');
 }
 function closeModal() {
   if (modal) $(modal).classList.add('hidden');
   modal = null;
+}
+function backFromModal() {
+  const back = modalReturn;
+  closeModal();
+  if (back) openModal(back);
 }
 function openPause() {
   if (ui.mode !== 'play') return;
@@ -158,25 +203,64 @@ function openPause() {
 }
 
 $('btn-resume').onclick = () => closeModal();
-$('btn-restart').onclick = () => (closeModal(), recordBest(def, game.stats.bestWave, false), loadMap(def, true));
+$('btn-restart').onclick = () => (closeModal(), finishRun(), loadMap(def, true));
 $('btn-quit').onclick = () => openMenu();
-let codexReturn = null;
 const openCodex = (from) => {
-  codexReturn = from;
-  openModal('codex');
+  openModal('codex', from);
   renderCodex('towers', thumbs);
 };
 $('btn-codex').onclick = () => openCodex(null);
 $('btn-codex2').onclick = () => openCodex('pause');
-$('btn-codex-close').onclick = () => (codexReturn ? openModal(codexReturn) : closeModal());
+$('btn-codex-close').onclick = backFromModal;
 for (const b of $('codex-tabs').querySelectorAll('button')) b.onclick = () => renderCodex(b.dataset.tab, thumbs);
 $('btn-help').onclick = () => openModal('help');
 $('btn-help-close').onclick = () => closeModal();
+
+// Forschung
+function openResearch() {
+  sound.unlock();
+  openModal('research');
+  drawResearch();
+}
+function drawResearch() {
+  renderResearch(progress, (id) => {
+    const chk = canResearch(progress.research, progress.crystals, id);
+    if (!chk.ok) return sound.deny();
+    progress.crystals -= chk.cost;
+    progress.research[id] = (progress.research[id] || 0) + 1;
+    saveProgress();
+    sound.upgrade();
+    drawResearch();
+  });
+  $('menu-crystals').textContent = progress.crystals;
+}
+$('btn-research').onclick = openResearch;
+$('btn-research-top').onclick = openResearch;
+$('btn-research-close').onclick = () => closeModal();
+armedButton($('btn-research-refund'), 'ui.research.refund', 'ui.research.refundConfirm', () => {
+  progress.crystals += spentOn(progress.research);
+  progress.research = {};
+  saveProgress();
+  sound.sell();
+  drawResearch();
+});
+
+// Einstellungen
 $('btn-settings').onclick = () => {
+  $('opt-lang').value = progress.lang;
   $('opt-quality').value = progress.quality;
   $('opt-unlock').checked = progress.unlockAll;
   $('opt-numbers').checked = progress.numbers;
   openModal('settings');
+};
+$('opt-lang').onchange = () => {
+  progress.lang = $('opt-lang').value;
+  saveProgress();
+  setLang(progress.lang);
+  applyI18n();
+  renderHelp();
+  hud.relabel();
+  renderMenu();
 };
 $('btn-settings-close').onclick = () => {
   progress.quality = $('opt-quality').value;
@@ -187,24 +271,34 @@ $('btn-settings-close').onclick = () => {
   closeModal();
   openMenu();
 };
-$('btn-reset').onclick = () => {
-  const b = $('btn-reset');
-  if (!b.dataset.armed) {
-    b.dataset.armed = '1';
-    b.textContent = 'Wirklich löschen?';
-    setTimeout(() => {
-      delete b.dataset.armed;
-      b.textContent = 'Fortschritt löschen';
-    }, 3000);
-    return;
-  }
-  delete b.dataset.armed;
-  b.textContent = 'Fortschritt löschen';
+// Knopf mit eingebauter Rückfrage (zweimal klicken)
+function armedButton(b, key, confirmKey, action) {
+  b.onclick = () => {
+    if (!b.dataset.armed) {
+      b.dataset.armed = '1';
+      b.textContent = t(confirmKey);
+      b.classList.add('danger');
+      setTimeout(() => {
+        delete b.dataset.armed;
+        b.textContent = t(key);
+        b.classList.remove('danger');
+      }, 3000);
+      return;
+    }
+    delete b.dataset.armed;
+    b.textContent = t(key);
+    b.classList.remove('danger');
+    action();
+  };
+}
+armedButton($('btn-reset'), 'ui.settings.reset', 'ui.settings.resetConfirm', () => {
   progress.maps = {};
+  progress.research = {};
+  progress.crystals = 0;
   saveProgress();
   closeModal();
   openMenu();
-};
+});
 
 // ---------- Aktionen ----------
 function callWave() {
@@ -230,7 +324,7 @@ function selectBuild(type) {
   ghost.root.visible = false;
   stage.scene.add(ghost.root);
   sound.click();
-  hud.hint(`<b>${TOWERS[type].name}</b> (${TOWERS[type].cost}) – Plattform wählen · <kbd>Shift</kbd> für mehrere · <kbd>Esc</kbd> abbrechen`);
+  hud.hint(t('ui.hud.buildHint', { name: tower(type).name, cost: game.costOf(type) }));
   updateHover();
 }
 
@@ -254,14 +348,14 @@ function armAbility(key) {
   sound.unlock();
   if (!game.abilityReady(key)) {
     sound.deny();
-    if (game.state === 'ready') hud.toast('Fähigkeiten gibt es ab der ersten Welle.');
+    if (game.state === 'ready') hud.toast(t('ui.hud.abilitiesLater'));
     return;
   }
   if (ABILITIES[key].needsTarget) {
     ui.ability = ui.ability === key ? null : key;
     ui.buildType = null;
     clearGhost();
-    hud.hint(ui.ability ? `<b>${ABILITIES[key].name}</b> – Ziel auf der Karte wählen · <kbd>Esc</kbd> abbrechen` : '');
+    hud.hint(ui.ability ? t('ui.hud.abilityHint', { name: t(`ability.${key}.name`) }) : '');
     updateHover();
     return;
   }
@@ -382,8 +476,8 @@ function click(x, y, shift) {
     const res = game.canBuild(ui.buildType, c.cx, c.cy);
     if (!res.ok) {
       sound.deny();
-      hud.hint(`<b>${res.reason}</b>`);
-      setTimeout(() => ui.buildType && hud.hint(`<b>${TOWERS[ui.buildType].name}</b> – Plattform wählen · <kbd>Shift</kbd> für mehrere · <kbd>Esc</kbd> abbrechen`), 1100);
+      hud.hint(`<b>${t(`reason.${res.reason}`)}</b>`);
+      setTimeout(() => ui.buildType && hud.hint(t('ui.hud.buildHint', { name: tower(ui.buildType).name, cost: game.costOf(ui.buildType) })), 1100);
       return;
     }
     game.build(ui.buildType, c.cx, c.cy);
@@ -417,8 +511,7 @@ window.addEventListener('keydown', (e) => {
   const k = e.key;
   if (k === 'Escape') {
     if (modal) {
-      if (modal === 'codex' && codexReturn) openModal(codexReturn);
-      else closeModal();
+      backFromModal();
       return;
     }
     if (ui.mode === 'play' && !cancel()) openPause();
@@ -468,12 +561,14 @@ function processEvents() {
     switch (e.type) {
       case 'shot':
         towerViews.shot(e.id);
+        fx.muzzle(e.id, e.tower);
         sound.shot(e.tower);
         break;
       case 'explosion':
         sound.explosion(e.big);
         break;
       case 'death':
+        enemyViews.die(e);
         sound.death(e.boss);
         if (progress.numbers) overlay.text(board.wx(e.x), e.flying ? 1.2 : 0.55, board.wz(e.y), `+${e.bounty}`, '#ffd25e', e.boss ? 20 : 12);
         break;
@@ -487,26 +582,27 @@ function processEvents() {
         sound.coin();
         break;
       case 'early':
-        hud.toast(`Früh gerufen: <b>+${e.amount}</b> Münzen`);
+        hud.toast(t('ui.hud.early', { n: e.amount }));
         sound.coin();
         break;
       case 'build':
         sound.build();
         break;
       case 'rank':
-        overlay.text(board.wx(e.x), 1.1, board.wz(e.y), `Rang ${e.rank}`, '#c9a4ff', 13);
+        overlay.text(board.wx(e.x), 1.1, board.wz(e.y), t('ui.hud.rank', { n: e.rank }), '#c9a4ff', 13);
         break;
       case 'wave': {
         sound.wave(e.boss);
         const w = game.waveDef(e.n);
         if (e.boss) {
           const b = w.groups.find((g) => ENEMIES[g.type].boss);
-          hud.toast(`Welle ${e.n}: <b>${ENEMIES[b.type].name}</b> naht! ${ENEMIES[b.type].blurb.replace('Boss. ', '')}`, 'boss');
+          const en = enemy(b.type);
+          hud.toast(t('ui.hud.boss', { n: e.n, name: en.name, blurb: en.blurb.replace(/^Boss\. /, '') }), 'boss');
         }
         for (const g of w.groups) {
           if (ENEMY_UNLOCK[g.type] === e.n && !seenTypes.has(g.type)) {
             seenTypes.add(g.type);
-            hud.toast(`Neu: <b>${ENEMIES[g.type].name}</b> – ${ENEMIES[g.type].blurb}`);
+            hud.toast(t('ui.hud.newEnemy', { name: enemy(g.type).name, blurb: enemy(g.type).blurb }));
           }
         }
         break;
@@ -518,14 +614,16 @@ function processEvents() {
         sound.victory();
         const idx = MAPS.indexOf(def);
         const wasWon = progress.maps[def.id]?.won;
+        run.won = true;
+        run.firstWin = !wasWon;
         recordBest(def, game.wave, true);
         const nextMap = MAPS[idx + 1];
-        const extra = nextMap && !wasWon && !progress.unlockAll ? `Neue Karte freigeschaltet: <b>${nextMap.name}</b>` : '';
+        const extra = nextMap && !wasWon && !progress.unlockAll ? t('ui.end.newMap', { name: t(`map.${nextMap.id}.name`) }) : '';
         setTimeout(() => {
           openModal('end');
-          showEnd('victory', game, def, extra, [
-            ['Zur Kartenwahl', 'ghost', () => openMenu()],
-            ['Endlos weiterspielen', 'primary', () => (game.continueEndless(), closeModal())],
+          showEnd('victory', game, def, extra, t('ui.end.crystalsLater', { n: pendingCrystals() }), [
+            [t('ui.end.toMenu'), 'ghost', () => openMenu()],
+            [t('ui.end.endless'), 'primary', () => (game.continueEndless(), closeModal())],
           ]);
         }, 900);
         break;
@@ -533,17 +631,34 @@ function processEvents() {
       case 'defeat': {
         sound.defeat();
         const before = progress.maps[def.id]?.best || 0;
-        recordBest(def, Math.max(0, game.wave - 1), false);
-        const extra = game.wave - 1 > before && before > 0 ? 'Neuer Rekord!' : before ? `Rekord: Welle ${before}` : '';
+        const n = finishRun();
+        const survived = Math.max(0, game.wave - 1);
+        const extra = survived > before && before > 0 ? t('ui.end.newRecord') : before ? t('ui.end.record', { n: before }) : '';
         setTimeout(() => {
           openModal('end');
-          showEnd('defeat', game, def, extra, [
-            ['Zur Kartenwahl', 'ghost', () => openMenu()],
-            ['Nochmal', 'primary', () => (closeModal(), loadMap(def, true))],
+          showEnd('defeat', game, def, extra, n ? `<span class="ico crystal"></span>${t('ui.end.crystals', { n })}` : '', [
+            [t('ui.end.toMenu'), 'ghost', () => openMenu()],
+            [t('ui.end.again'), 'primary', () => (closeModal(), loadMap(def, true))],
           ]);
         }, 1200);
         break;
       }
+      case 'interest':
+        hud.toast(t('ui.hud.interest', { n: e.amount }));
+        sound.coin();
+        break;
+      case 'barrier':
+        hud.toast(t('ui.hud.barrier', { n: e.left }));
+        overlay.text(board.wx(game.map.base.x + 0.5), 1.3, board.wz(game.map.base.y + 0.5), '◈', '#7ee8ff', 22);
+        break;
+      case 'medic':
+        hud.toast(t('ui.hud.medic', { n: e.amount }));
+        break;
+      case 'boss':
+        sound.boss(e.ability);
+        if (e.ability === 'stomp' && e.towers) hud.toast(t('ui.hud.stomp', { n: e.towers }), 'boss');
+        if (e.ability === 'burst') hud.toast(t('ui.hud.burst'), 'boss');
+        break;
       default:
     }
   }
@@ -570,7 +685,7 @@ function frame(now) {
     towerViews.sync(game);
     towerViews.update(ui.mode === 'menu' ? rdt : gdt);
     enemyViews.update(gdt, game);
-    fx.update(gdt, game);
+    fx.update(ui.mode === 'menu' ? rdt : gdt, game);
     if (ui.selected && !ui.selected.alive) select(null);
   }
   board.update(rdt, game);

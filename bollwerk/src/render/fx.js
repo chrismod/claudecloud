@@ -170,6 +170,53 @@ export class Fx {
     for (const p of [this.segs, this.rings, this.flashes, this.cones]) p.items.length = 0;
   }
 
+  // Staubwolke am Boden (Schritte, Stampfer)
+  dust(x, z, size, n) {
+    const r = Math.random;
+    const cnt = Math.max(1, Math.round(n * 3));
+    for (let i = 0; i < cnt; i++) {
+      const a = r() * Math.PI * 2;
+      this.smoke.emit(x + Math.cos(a) * 0.08, 0.05, z + Math.sin(a) * 0.08, Math.cos(a) * n * 0.8, 0.2 + r() * 0.3, Math.sin(a) * n * 0.8, col('#c9b79a'), size + r() * size, 0.5 + r() * 0.3, { grow: size * 3, fade: 2, drag: 3 });
+    }
+  }
+
+  sparkle(x, y, z, hex) {
+    const r = Math.random;
+    this.glow.emit(x + (r() - 0.5) * 0.2, y, z + (r() - 0.5) * 0.2, 0, 0.3, 0, col(hex, 1.8), 0.05, 0.5);
+  }
+
+  // Mündungsfeuer beim Schuss
+  muzzle(id, tower) {
+    const p = this.towers.muzzle(id, 0, new THREE.Vector3());
+    if (!p) return;
+    const hex = { bolt: '#bffff5', sniper: '#fff1c8', mortar: '#ffc27a', missile: '#fff07a', acid: '#c8ff7a' }[tower];
+    if (!hex) return;
+    this.flashes.add({ x: p.x, y: p.y, z: p.z, r0: 0.06, r1: tower === 'mortar' || tower === 'sniper' ? 0.2 : 0.12, life: 0.07, max: 0.07, c: col(hex, 2.5) });
+    if (tower === 'mortar' || tower === 'sniper') for (let i = 0; i < 3; i++) this.smoke.emit(p.x, p.y, p.z, (Math.random() - 0.5) * 0.4, 0.5, (Math.random() - 0.5) * 0.4, col('#d8d2cc'), 0.08, 0.6, { grow: 0.4, fade: 2 });
+  }
+
+  // Umgebungspartikel je Stimmung
+  setAmbient(theme, W, H) {
+    this.ambient = { theme, W, H };
+  }
+
+  ambientUpdate(dt) {
+    const a = this.ambient;
+    if (!a) return;
+    const r = Math.random;
+    const rate = a.W * a.H * 0.012;
+    if (r() > dt * rate) return;
+    const x = (r() - 0.5) * a.W;
+    const z = (r() - 0.5) * a.H;
+    if (a.theme === 'dusk') {
+      this.glow.emit(x, 0.3 + r() * 1.2, z, (r() - 0.5) * 0.3, (r() - 0.5) * 0.15, (r() - 0.5) * 0.3, col(r() < 0.7 ? '#fff3a0' : '#b8ffcf', 2.2), 0.05 + r() * 0.03, 4 + r() * 3, { drag: 0, fade: 0 });
+    } else if (a.theme === 'autumn') {
+      this.smoke.emit(x - 2, 2.5 + r(), z, 0.5 + r() * 0.3, -0.35 - r() * 0.2, (r() - 0.5) * 0.3, col(r() < 0.5 ? '#d8803a' : r() < 0.5 ? '#c45a2c' : '#e6b043'), 0.07, 7, { drag: 0, fade: 0 });
+    } else {
+      this.glow.emit(x, 0.2 + r() * 1.5, z, 0.15 + r() * 0.2, 0.05, (r() - 0.5) * 0.15, col('#fffbe0', 0.9), 0.035, 5 + r() * 3, { drag: 0, fade: 0 });
+    }
+  }
+
   wx(x) {
     return this.board.wx(x);
   }
@@ -231,6 +278,47 @@ export class Fx {
           const a = (i / 16) * Math.PI * 2;
           G.emit(x + Math.cos(a) * 0.2, y + 0.1, z + Math.sin(a) * 0.2, Math.cos(a) * e.r * 1.6, 0.2, Math.sin(a) * e.r * 1.6, col('#c8f3ff', 1.4), 0.07, 0.45, { drag: 2.5 });
         }
+        break;
+      }
+      case 'boss': {
+        const x = this.wx(e.x);
+        const z = this.wz(e.y);
+        if (e.ability === 'stomp') {
+          this.rings.add({ x, y: 0.06, z, r0: 0.3, r1: e.r, life: 0.6, max: 0.6, c: col('#ff7040', 2) });
+          this.rings.add({ x, y: 0.08, z, r0: 0.2, r1: e.r * 0.7, life: 0.45, max: 0.45, c: col('#ffd0a0', 1.6) });
+          this.dust(x, z, 0.2, 4);
+          this.board.stage.shake = 1.2;
+          for (const t of game.towers) if (t.disabledT > 0) this.flashes.add({ x: this.wx(t.x), y: 0.6, z: this.wz(t.y), r0: 0.1, r1: 0.4, life: 0.3, max: 0.3, c: col('#ffb060', 1.5) });
+        } else if (e.ability === 'windup') {
+          this.rings.add({ x, y: 0.06, z, r0: 2, r1: 0.4, life: 0.9, max: 0.9, c: col('#ff5030', 1.2) });
+        } else if (e.ability === 'blink') {
+          const x0 = this.wx(e.x0);
+          const z0 = this.wz(e.y0);
+          for (let i = 0; i <= 6; i++) {
+            const k = i / 6;
+            this.flashes.add({ x: x0 + (x - x0) * k, y: 0.75, z: z0 + (z - z0) * k, r0: 0.4, r1: 0.1, life: 0.25 + k * 0.3, max: 0.25 + k * 0.3, c: col('#9d8cff', 0.8) });
+          }
+          for (let i = 0; i < 24; i++) G.emit(x0, 0.7, z0, (r() - 0.5) * 2, r() * 1.5, (r() - 0.5) * 2, col('#b8a8ff', 2), 0.07, 0.5);
+        } else if (e.ability === 'aura') {
+          this.rings.add({ x, y: 0.07, z, r0: 0.3, r1: e.r, life: 0.8, max: 0.8, c: col('#ffd25e', 1.6) });
+          for (const en of game.enemies) {
+            if ((en.x - e.x) ** 2 + (en.y - e.y) ** 2 > e.r * e.r) continue;
+            this.flashes.add({ x: this.wx(en.x), y: 0.35, z: this.wz(en.y), r0: 0.1, r1: 0.4, life: 0.35, max: 0.35, c: col('#7fb6ff', 1.2) });
+          }
+        } else if (e.ability === 'burst') {
+          this.flashes.add({ x, y: 0.5, z, r0: 0.3, r1: 1.4, life: 0.35, max: 0.35, c: col('#ff8fd1', 2) });
+          for (let i = 0; i < 60; i++) {
+            const a = r() * Math.PI * 2;
+            G.emit(x, 0.5, z, Math.cos(a) * (1 + r() * 3), 1 + r() * 3, Math.sin(a) * (1 + r() * 3), col('#ff8fd1', 1.5), 0.08, 0.7, { grav: 6 });
+          }
+          this.board.stage.shake = 0.8;
+        }
+        break;
+      }
+      case 'barrier': {
+        const b = game.map.base;
+        this.flashes.add({ x: this.wx(b.x + 0.5), y: 0.8, z: this.wz(b.y + 0.5), r0: 0.4, r1: 0.9, life: 0.4, max: 0.4, c: col('#7ee8ff', 1.5) });
+        this.flashes.add({ x: this.wx(e.x), y: 0.3, z: this.wz(e.y), r0: 0.1, r1: 0.4, life: 0.25, max: 0.25, c: col('#7ee8ff', 2) });
         break;
       }
       case 'heal':
@@ -342,6 +430,13 @@ export class Fx {
     const G = this.glow;
     const r = Math.random;
     const { m4, v, s, q } = this;
+    this.ambientUpdate(dt);
+    for (const t of game.towers) {
+      if (t.disabledT > 0 && r() < dt * 12) {
+        const p = this.towers.muzzle(t.id, 0, v);
+        if (p) G.emit(p.x + (r() - 0.5) * 0.2, p.y, p.z + (r() - 0.5) * 0.2, (r() - 0.5) * 1.5, 1 + r(), (r() - 0.5) * 1.5, col(r() < 0.5 ? '#ffd27a' : '#9fd8ff', 2), 0.04, 0.35, { grav: 5 });
+      }
+    }
 
     // Dauerstrahlen und Flammen direkt aus dem Turmzustand
     for (const t of game.towers) {

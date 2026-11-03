@@ -69,6 +69,94 @@ function ribbon(points, width, y, extendStart = 0) {
   return g;
 }
 
+// Kopfsteinpflaster (Graustufen, wird mit der Wegfarbe eingefärbt). u: 1 Feld, v: Wegbreite
+function cobbleTexture() {
+  const t = canvasTexture(256, 256, (g, w, h) => {
+    g.fillStyle = '#9a9488';
+    g.fillRect(0, 0, w, h);
+    let seed = 7;
+    const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+    const rows = 6;
+    for (let r = 0; r < rows; r++) {
+      const y0 = (r / rows) * h;
+      const rh = h / rows;
+      let x = r % 2 ? -rh * 0.5 : 0;
+      while (x < w) {
+        const sw = rh * (0.8 + rnd() * 0.6);
+        const l = 205 + rnd() * 45;
+        g.fillStyle = `rgb(${l},${l - 4},${l - 10})`;
+        g.beginPath();
+        g.roundRect(x + 2.5, y0 + 2.5, sw - 5, rh - 5, 9);
+        g.fill();
+        g.fillStyle = 'rgba(255,255,255,0.16)';
+        g.beginPath();
+        g.roundRect(x + 5, y0 + 4, sw - 12, (rh - 8) * 0.45, 6);
+        g.fill();
+        // Kacheln über den Rand fortsetzen, damit die Textur nahtlos wiederholt
+        if (x + sw > w) {
+          g.fillStyle = `rgb(${l},${l - 4},${l - 10})`;
+          g.beginPath();
+          g.roundRect(x - w + 2.5, y0 + 2.5, sw - 5, rh - 5, 9);
+          g.fill();
+        }
+        x += sw;
+      }
+    }
+  });
+  t.wrapS = t.wrapT = THREE.RepeatWrapping;
+  t.colorSpace = THREE.SRGBColorSpace;
+  return t;
+}
+
+// Steinplatte mit eingelassenem Rand und feiner Körnung
+function slabTexture() {
+  return canvasTexture(256, 256, (g, w) => {
+    g.fillStyle = '#ffffff';
+    g.fillRect(0, 0, w, w);
+    let seed = 3;
+    const rnd = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+    for (let i = 0; i < 1800; i++) {
+      const l = 225 + rnd() * 30;
+      g.fillStyle = `rgba(${l},${l},${l - 6},0.5)`;
+      g.fillRect(rnd() * w, rnd() * w, 2, 2);
+    }
+    g.strokeStyle = 'rgba(120,110,100,0.35)';
+    g.lineWidth = 4;
+    g.beginPath();
+    g.roundRect(26, 26, w - 52, w - 52, 18);
+    g.stroke();
+    g.strokeStyle = 'rgba(255,255,255,0.7)';
+    g.lineWidth = 2;
+    g.beginPath();
+    g.roundRect(29, 29, w - 58, w - 58, 16);
+    g.stroke();
+  });
+}
+
+// Wind: wiegt Gras und Baumkronen, Stärke nach Höhe im Modell
+function swayMaterial(mat, wind, amount, from = 0) {
+  mat.onBeforeCompile = (sh) => {
+    sh.uniforms.uWind = wind;
+    sh.vertexShader = sh.vertexShader
+      .replace('#include <common>', '#include <common>\nuniform float uWind;')
+      .replace(
+        '#include <begin_vertex>',
+        `#include <begin_vertex>
+        {
+          vec3 ip = vec3(0.0);
+          #ifdef USE_INSTANCING
+            ip = instanceMatrix[3].xyz;
+          #endif
+          float h = max(0.0, position.y - ${from.toFixed(2)});
+          float sw = sin(uWind * 1.6 + ip.x * 0.7 + ip.z * 0.5) + 0.5 * sin(uWind * 2.9 + ip.x * 1.3);
+          transformed.x += sw * h * ${amount.toFixed(3)};
+          transformed.z += cos(uWind * 1.3 + ip.z * 0.9) * h * ${(amount * 0.5).toFixed(3)};
+        }`,
+      );
+  };
+  return mat;
+}
+
 function chevronTexture() {
   const t = canvasTexture(128, 64, (g, w, h) => {
     g.clearRect(0, 0, w, h);
@@ -149,6 +237,9 @@ export class Board {
     stage.scene.add(this.group);
     this.time = 0;
     this.flowTex = chevronTexture();
+    this.cobbleTex = cobbleTexture();
+    this.slabTex = slabTexture();
+    this.wind = { value: 0 };
     this.portals = [];
     this.coreFlash = 0;
   }
@@ -220,7 +311,7 @@ export class Board {
     G.add(grass);
 
     // Weg
-    const roadMat = new THREE.MeshStandardMaterial({ color: theme.road, roughness: 0.95 });
+    const roadMat = new THREE.MeshStandardMaterial({ color: theme.road, roughness: 0.9, map: this.cobbleTex });
     const edgeMat = new THREE.MeshStandardMaterial({ color: theme.roadEdge, roughness: 0.95 });
     const flowMat = new THREE.MeshBasicMaterial({ map: this.flowTex, transparent: true, opacity: 0.35, depthWrite: false, color: '#ffffff' });
     this.flowMat = flowMat;
@@ -255,7 +346,7 @@ export class Board {
       }
       platGeo.setAttribute('color', new THREE.Float32BufferAttribute(vc, 3));
     }
-    const platMat = new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: 0.75, vertexColors: true });
+    const platMat = new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: 0.75, vertexColors: true, map: this.slabTex });
     const plats = new THREE.InstancedMesh(platGeo, platMat, cells.length);
     const m4 = new THREE.Matrix4();
     const stone = new THREE.Color(theme.stone);
@@ -331,7 +422,7 @@ export class Board {
       const trunk = new THREE.InstancedMesh(trunkGeo, new THREE.MeshStandardMaterial({ color: '#7a5636', roughness: 1 }), trees.length);
       const pines = trees.filter((t) => t[3] < 0.55);
       const rounds = trees.filter((t) => t[3] >= 0.55);
-      const crownMat = new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: 0.85, flatShading: true });
+      const crownMat = swayMaterial(new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: 0.85, flatShading: true }), this.wind, 0.07, 0.25);
       const pine = new THREE.InstancedMesh(crownGeo, crownMat, Math.max(1, pines.length));
       const round = new THREE.InstancedMesh(roundGeo, crownMat, Math.max(1, rounds.length));
       pine.count = pines.length;
@@ -378,6 +469,51 @@ export class Board {
       mesh.castShadow = true;
       G.add(mesh);
     }
+    // Grasbüschel auf freien Wiesenfeldern
+    {
+      const tufts = [];
+      for (let y = -1; y <= map.H; y++) {
+        for (let x = -1; x <= map.W; x++) {
+          const inside = x >= 0 && y >= 0 && x < map.W && y < map.H;
+          if (inside && !free(x, y)) continue;
+          const n = inside ? 5 : 2;
+          for (let k = 0; k < n; k++) {
+            const px = this.wx(x + rng());
+            const pz = this.wz(y + rng());
+            if (Math.abs(px) > map.W / 2 + 0.45 || Math.abs(pz) > map.H / 2 + 0.45) continue;
+            tufts.push([px, pz, 0.6 + rng() * 0.7, rng()]);
+          }
+        }
+      }
+      // Halm aus Vorder- und Rückseite, beide mit Normale nach oben (wirkt wie weich beleuchtetes Gras)
+      const blade = (a) => {
+        const g = new THREE.BufferGeometry();
+        const c = Math.cos(a) * 0.035;
+        const s2 = Math.sin(a) * 0.035;
+        const A = [-c, 0, -s2];
+        const B = [c, 0, s2];
+        const C = [c * 0.2 + s2 * 0.6, 0.22, s2 * 0.2 - c * 0.6];
+        g.setAttribute('position', new THREE.Float32BufferAttribute([...A, ...B, ...C, ...B, ...A, ...C], 3));
+        const lo = [0.78, 0.82, 0.7];
+        const hi = [1.25, 1.25, 1.05];
+        g.setAttribute('color', new THREE.Float32BufferAttribute([...lo, ...lo, ...hi, ...lo, ...lo, ...hi], 3));
+        g.setAttribute('normal', new THREE.Float32BufferAttribute(Array(6).fill([0, 1, 0]).flat(), 3));
+        return g;
+      };
+      const tuftGeo = mergeGeometries([blade(0), blade(2.1), blade(4.2), blade(1).translate(0.04, 0, 0.03)]);
+      const tuftMat = swayMaterial(new THREE.MeshStandardMaterial({ color: '#ffffff', vertexColors: true, roughness: 1 }), this.wind, 0.35);
+      const mesh = new THREE.InstancedMesh(tuftGeo, tuftMat, Math.max(1, tufts.length));
+      mesh.count = tufts.length;
+      tufts.forEach(([x, z, sc, r], i) => {
+        q.setFromAxisAngle(v.set(0, 1, 0), r * 6.28);
+        m4.compose(v.set(x, 0, z), q, s.set(sc, sc * (0.8 + r * 0.5), sc));
+        mesh.setMatrixAt(i, m4);
+        mesh.setColorAt(i, col.set(theme.grass[Math.floor(r * 30) % 3]).offsetHSL(0, 0.06, 0.02 + r * 0.05));
+      });
+      mesh.receiveShadow = true;
+      G.add(mesh);
+    }
+
     if (flowers.length) {
       const palette = ['#ffffff', '#ffd84d', '#ff8fb1', '#b89cff', '#ff7b54'].map((c) => new THREE.Color(c));
       const mesh = new THREE.InstancedMesh(new THREE.SphereGeometry(0.035, 6, 4), new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: 0.6 }), flowers.length);
@@ -471,7 +607,25 @@ export class Board {
     this.coreRing = new THREE.Mesh(new THREE.TorusGeometry(0.42, 0.015, 6, 48), new THREE.MeshBasicMaterial({ color: new THREE.Color('#7ee8ff').multiplyScalar(2), toneMapped: false }));
     this.coreRing.rotation.x = Math.PI / 2;
     this.coreRing.position.y = 0.36;
-    g.add(p1, p2, p3, crystal, shards, this.coreRing);
+    // Lichtsäule über dem Kern
+    this.beamMat = new THREE.ShaderMaterial({
+      transparent: true,
+      depthWrite: false,
+      blending: THREE.AdditiveBlending,
+      side: THREE.DoubleSide,
+      uniforms: { color: { value: new THREE.Color('#38d6ff') }, time: { value: 0 } },
+      vertexShader: 'varying vec2 vUv; void main(){ vUv = uv; gl_Position = projectionMatrix * modelViewMatrix * vec4(position,1.0); }',
+      fragmentShader: `uniform vec3 color; uniform float time; varying vec2 vUv;
+        void main(){
+          float a = pow(1.0 - vUv.y, 2.2) * 0.32;
+          a *= 0.75 + 0.25 * sin(vUv.y * 30.0 - time * 4.0);
+          a *= 0.6 + 0.4 * pow(sin(vUv.x * 3.14159 * 2.0) * 0.5 + 0.5, 2.0);
+          gl_FragColor = vec4(color * 1.6, a);
+        }`,
+    });
+    const beam = new THREE.Mesh(new THREE.CylinderGeometry(0.16, 0.34, 6, 24, 1, true).translate(0, 3.6, 0), this.beamMat);
+    beam.renderOrder = 6;
+    g.add(p1, p2, p3, crystal, shards, this.coreRing, beam);
     G.add(g);
     this.core = { group: g, crystal, shards };
   }
@@ -547,6 +701,7 @@ export class Board {
 
   update(dt, game) {
     this.time += dt;
+    this.wind.value = this.time;
     this.flowTex.offset.x += dt * 0.6;
     for (const p of this.portals) {
       p.disc.material.uniforms.time.value = this.time;
@@ -566,6 +721,8 @@ export class Board {
       this.coreMat.emissive.copy(base).lerp(new THREE.Color('#ffffff'), this.coreFlash * 0.6);
       this.coreMat.emissiveIntensity = 0.6 + life * 1.2 + this.coreFlash * 2;
       this.coreRing.material.color.copy(base).multiplyScalar(1.5 + this.coreFlash * 2);
+      this.beamMat.uniforms.color.value.copy(base).lerp(new THREE.Color('#ffffff'), this.coreFlash * 0.5);
+      this.beamMat.uniforms.time.value = this.time;
       this.coreRing.scale.setScalar(1 + this.coreFlash * 0.4 + Math.sin(this.time * 3) * 0.02);
     }
     for (const g of this.glyphs) g.material.opacity = 0.75 + Math.sin(this.time * 2 + g.position.x) * 0.2;

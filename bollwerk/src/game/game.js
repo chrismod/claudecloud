@@ -2,6 +2,7 @@
 // Reines JavaScript ohne three.js – läuft im Browser und headless in Node (Tests, Balancing).
 import { TOWERS, ENEMIES, ABILITIES, MAX_LEVEL, MODULE_LEVEL, SELL_RATE, RANKS, RANK_DMG, RANK_RANGE } from './data.js';
 import { buildMap, posAt } from './maps.js';
+import { researchMods } from './research.js';
 import { generateWave, waveSchedule, hpMul, armorMul, bountyMul, speedMul, waveIncome, summarizeWave } from './waves.js';
 import { makeRng, hashString } from './rng.js';
 
@@ -16,8 +17,10 @@ export class Game {
     this.seed = opts.seed ?? hashString(mapDef.id);
     this.rng = makeRng(this.seed ^ 0x9e3779b9);
     this.allowed = new Set(opts.towers ?? mapDef.towers);
-    this.coins = opts.coins ?? mapDef.coins;
-    this.lives = this.maxLives = mapDef.lives;
+    this.mods = researchMods(opts.research);
+    this.coins = opts.coins ?? Math.round(mapDef.coins * this.mods.startCoins);
+    this.lives = this.maxLives = mapDef.lives + this.mods.lives;
+    this.barrier = 0;
     this.goal = mapDef.goal;
     this.hpScale = mapDef.hpScale ?? 1;
     this.state = 'ready'; // ready | running | won | lost
@@ -63,7 +66,7 @@ export class Game {
 
   earlyBonus() {
     if (this.state !== 'running' || this.nextWaveT == null) return 0;
-    return Math.round(this.nextWaveT * (0.35 + 0.03 * this.wave));
+    return Math.round(this.nextWaveT * (0.35 + 0.03 * this.wave) * this.mods.early);
   }
 
   canCallWave() {
@@ -96,7 +99,15 @@ export class Game {
     this.nextWaveT = Math.min(45, Math.max(22, dur + 12));
     if (!this.endless && n >= this.goal) this.nextWaveT = null;
 
-    this.addCoins(waveIncome(n));
+    this.addCoins(Math.round(waveIncome(n) * this.mods.income));
+    this.barrier = this.mods.barrier;
+    if (this.mods.interest) {
+      const i = Math.round(Math.min(30 * this.mods.interest, this.coins * 0.01 * this.mods.interest));
+      if (i > 0) {
+        this.addCoins(i);
+        this.emit({ type: 'interest', amount: i });
+      }
+    }
     for (const t of this.towers) {
       t.fresh = false;
       if (t.def.kind !== 'economy') continue;
@@ -165,6 +176,10 @@ export class Game {
       shieldWait: 0,
       healT: def.heal ? def.heal.every * (0.5 + this.rng() * 0.5) : 0,
       spawnT: def.spawns ? def.spawns.every : 0,
+      abilityT: def.stomp?.every ?? def.blink?.every ?? def.aura?.every ?? 0,
+      windup: 0,
+      phaseT: 0,
+      burstDone: false,
       hitT: 0,
       alive: true,
     };
@@ -231,6 +246,9 @@ export class Game {
       this.spawnEnemy(def.spawns.type, e.pathIdx, e.n, e.dist - 0.3);
     }
 
+    if (e.boss) this.bossAbility(e, dt);
+    if (e.phaseT > 0) e.phaseT -= dt;
+
     e.dist += this.speedOf(e) * dt;
     if (e.dist >= e.path.total) {
       this.leak(e);
@@ -239,7 +257,72 @@ export class Game {
     this.placeEnemy(e);
   }
 
+  // Bossfähigkeiten
+  bossAbility(e, dt) {
+    const def = e.def;
+    if (def.burst && !e.burstDone && e.hp < e.maxHp * def.burst.at) {
+      e.burstDone = true;
+      for (let i = 0; i < def.burst.count; i++) this.spawnEnemy('broodling', e.pathIdx, e.n, e.dist - 0.2 - i * 0.12);
+      this.emit({ type: 'boss', ability: 'burst', id: e.id, x: e.x, y: e.y, r: 1.2 });
+    }
+    if (def.stomp) {
+      if (e.windup > 0) {
+        e.windup -= dt;
+        if (e.windup <= 0) {
+          const r2 = def.stomp.radius ** 2;
+          let n = 0;
+          for (const t of this.towers) {
+            if ((t.x - e.x) ** 2 + (t.y - e.y) ** 2 > r2) continue;
+            t.disabledT = Math.max(t.disabledT || 0, def.stomp.stun);
+            t.beam = null;
+            n++;
+          }
+          this.emit({ type: 'boss', ability: 'stomp', id: e.id, x: e.x, y: e.y, r: def.stomp.radius, towers: n });
+        }
+      } else if ((e.abilityT -= dt) <= 0) {
+        // nur stampfen, wenn ein Turm in Reichweite ist
+        const r2 = def.stomp.radius ** 2;
+        if (this.towers.some((t) => (t.x - e.x) ** 2 + (t.y - e.y) ** 2 <= r2)) {
+          e.abilityT = def.stomp.every;
+          e.windup = def.stomp.windup;
+          this.emit({ type: 'boss', ability: 'windup', id: e.id, x: e.x, y: e.y });
+        } else e.abilityT = 0.5;
+      }
+    }
+    if (def.blink && (e.abilityT -= dt) <= 0) {
+      e.abilityT = def.blink.every;
+      const x0 = e.x;
+      const y0 = e.y;
+      e.dist = Math.min(e.path.total - 0.3, e.dist + def.blink.dist);
+      e.phaseT = def.blink.phase;
+      this.placeEnemy(e);
+      this.emit({ type: 'boss', ability: 'blink', id: e.id, x: e.x, y: e.y, x0, y0 });
+    }
+    if (def.aura && (e.abilityT -= dt) <= 0) {
+      e.abilityT = def.aura.every;
+      const r2 = def.aura.radius ** 2;
+      for (const o of this.enemies) {
+        if (!o.alive || o === e || (o.x - e.x) ** 2 + (o.y - e.y) ** 2 > r2) continue;
+        const add = o.maxHp * def.aura.amount;
+        o.maxShield = Math.max(o.maxShield, add);
+        o.shield = Math.min(o.maxShield, o.shield + add);
+      }
+      if (e.maxShield) e.shield = Math.min(e.maxShield, e.shield + e.maxShield * 0.25);
+      this.emit({ type: 'boss', ability: 'aura', id: e.id, x: e.x, y: e.y, r: def.aura.radius });
+    }
+  }
+
+  targetable(e) {
+    return e.alive && !(e.phaseT > 0);
+  }
+
   leak(e) {
+    if (this.barrier > 0 && !e.boss) {
+      this.barrier--;
+      e.alive = false;
+      this.emit({ type: 'barrier', id: e.id, x: e.x, y: e.y, left: this.barrier });
+      return;
+    }
     e.alive = false;
     this.lives = Math.max(0, this.lives - e.def.leak);
     this.stats.leaked++;
@@ -253,8 +336,9 @@ export class Game {
 
   // Schaden & Effekte -----------------------------------------------------
   damage(e, amount, type, o = {}) {
-    if (!e.alive || !(amount > 0)) return 0;
+    if (!e.alive || !(amount > 0) || e.phaseT > 0) return 0;
     let m = e.def.resist?.[type] ?? 1;
+    if (e.boss) m *= this.mods.bossDmg;
     if (e.brittleT > 0) m *= 1 + e.brittle;
     if (e.markT > 0) m *= 1 + e.mark;
     if (e.poisonT > 0 && e.poisonVuln) m *= 1 + e.poisonVuln;
@@ -291,7 +375,12 @@ export class Game {
     e.alive = false;
     e.hp = 0;
     const def = e.def;
-    let mult = 1 + (src?.stats?.bountyBonus || 0);
+    let mult = (1 + (src?.stats?.bountyBonus || 0)) * this.mods.bounty;
+    if (e.boss && this.mods.medic) {
+      const before = this.lives;
+      this.lives = Math.min(this.maxLives, this.lives + this.mods.medic);
+      if (this.lives > before) this.emit({ type: 'medic', amount: this.lives - before });
+    }
     let bounty = Math.max(1, Math.round(def.bounty * bountyMul(e.n) * mult));
     for (const t of this.towers) {
       if (t.stats.killBonus && (t.x - e.x) ** 2 + (t.y - e.y) ** 2 <= t.stats.range ** 2) bounty += t.stats.killBonus;
@@ -352,18 +441,24 @@ export class Game {
   // Türme -----------------------------------------------------------------
   canBuild(type, cx, cy) {
     const def = TOWERS[type];
-    if (!def) return { ok: false, reason: 'Unbekannt' };
-    if (this.state === 'lost') return { ok: false, reason: 'Spiel vorbei' };
-    if (!this.allowed.has(type)) return { ok: false, reason: 'Noch nicht freigeschaltet' };
-    if (!this.map.isBuildable(cx, cy)) return { ok: false, reason: 'Kein Bauplatz' };
-    if (this.towerAt.has(cy * this.map.W + cx)) return { ok: false, reason: 'Belegt' };
-    if (this.coins < def.cost) return { ok: false, reason: 'Zu wenig Münzen' };
+    if (!def) return { ok: false, reason: 'unknown' };
+    if (this.state === 'lost') return { ok: false, reason: 'over' };
+    if (!this.allowed.has(type)) return { ok: false, reason: 'locked' };
+    if (!this.map.isBuildable(cx, cy)) return { ok: false, reason: 'noSpot' };
+    if (this.towerAt.has(cy * this.map.W + cx)) return { ok: false, reason: 'occupied' };
+    if (this.coins < this.costOf(type)) return { ok: false, reason: 'coins' };
     return { ok: true };
+  }
+
+  costOf(type) {
+    return Math.round(TOWERS[type].cost * this.mods.buildCost);
   }
 
   build(type, cx, cy) {
     if (!this.canBuild(type, cx, cy).ok) return null;
     const def = TOWERS[type];
+    const cost = this.costOf(type);
+    const rank = Math.min(this.mods.veteran, RANKS.length - 1);
     const t = {
       id: this.ids++,
       type,
@@ -375,11 +470,12 @@ export class Game {
       tile: this.map.tileAt(cx, cy),
       level: 1,
       module: null,
-      xp: 0,
-      rank: 0,
+      xp: RANKS[rank],
+      rank,
       kills: 0,
       dealt: 0,
-      spent: def.cost,
+      spent: cost,
+      disabledT: 0,
       fresh: true,
       targeting: def.targeting || 'first',
       cd: 0,
@@ -392,7 +488,7 @@ export class Game {
       stats: null,
       alive: true,
     };
-    this.coins -= def.cost;
+    this.coins -= cost;
     this.towers.push(t);
     this.towerAt.set(cy * this.map.W + cx, t);
     this.stats.built++;
@@ -407,7 +503,7 @@ export class Game {
 
   upgradeCost(t) {
     if (t.level >= MAX_LEVEL) return null;
-    return Math.round(t.def.cost * (t.def.upMul ?? 0.6) * Math.pow(1.33, t.level - 1));
+    return Math.round(t.def.cost * (t.def.upMul ?? 0.6) * Math.pow(1.33, t.level - 1) * this.mods.upgradeCost);
   }
 
   needsModule(t) {
@@ -439,7 +535,7 @@ export class Game {
   }
 
   sellValue(t) {
-    return t.fresh ? t.spent : Math.floor(t.spent * SELL_RATE);
+    return t.fresh ? t.spent : Math.floor(t.spent * (SELL_RATE + this.mods.sellRate));
   }
 
   sell(t) {
@@ -477,8 +573,9 @@ export class Game {
     const s = this.levelStats(t.type, t.level, t.module);
     const attacker = t.def.kind !== 'support' && t.def.kind !== 'economy';
     if (attacker) {
-      s.dmg *= 1 + RANK_DMG * t.rank;
-      s.range *= 1 + RANK_RANGE * t.rank;
+      s.dmg *= (1 + RANK_DMG * t.rank) * (this.mods.dmg[t.def.dmgType] || 1);
+      s.range *= (1 + RANK_RANGE * t.rank) * this.mods.range;
+      if (s.rate) s.rate *= this.mods.rate;
     }
     if (t.tile === 'D' && s.dmg) s.dmg *= 1.25;
     if (t.tile === 'R') s.range *= 1.2;
@@ -518,7 +615,7 @@ export class Game {
   }
 
   gainXp(t, amount) {
-    t.xp += amount * (t.stats.xpMul || 1);
+    t.xp += amount * (t.stats.xpMul || 1) * this.mods.xp;
     let up = false;
     while (t.rank < RANKS.length - 1 && t.xp >= RANKS[t.rank + 1]) {
       t.rank++;
@@ -568,7 +665,7 @@ export class Game {
     let best = null;
     let bestScore = -Infinity;
     for (const e of this.enemies) {
-      if (!e.alive || !this.canHit(t, e)) continue;
+      if (!this.targetable(e) || !this.canHit(t, e)) continue;
       const d2 = this.inRange(t, e, range);
       if (d2 < 0) continue;
       const sc = this.score(t, e, d2);
@@ -583,7 +680,7 @@ export class Game {
   topTargets(t, k, range = t.stats.range) {
     const list = [];
     for (const e of this.enemies) {
-      if (!e.alive || !this.canHit(t, e)) continue;
+      if (!this.targetable(e) || !this.canHit(t, e)) continue;
       const d2 = this.inRange(t, e, range);
       if (d2 < 0) continue;
       list.push([this.score(t, e, d2), e]);
@@ -601,6 +698,11 @@ export class Game {
   }
 
   updateTower(t, dt) {
+    if (t.disabledT > 0) {
+      t.disabledT -= dt;
+      t.beam = null;
+      return;
+    }
     const s = t.stats;
     const od = this.overdriveT > 0 ? 1.75 : 1;
     switch (t.def.kind) {
@@ -758,7 +860,7 @@ export class Game {
       let next = null;
       let nd = Infinity;
       for (const o of this.enemies) {
-        if (!o.alive || hits.includes(o)) continue;
+        if (!this.targetable(o) || hits.includes(o)) continue;
         const d2 = (o.x - last.x) ** 2 + (o.y - last.y) ** 2;
         if (d2 < r2 && d2 < nd) ((nd = d2), (next = o));
       }
@@ -775,7 +877,7 @@ export class Game {
 
   firePulse(t, s) {
     const r2 = s.range * s.range;
-    const hit = this.enemies.filter((e) => e.alive && (e.x - t.x) ** 2 + (e.y - t.y) ** 2 <= r2);
+    const hit = this.enemies.filter((e) => this.targetable(e) && (e.x - t.x) ** 2 + (e.y - t.y) ** 2 <= r2);
     if (!hit.length) return false;
     for (const e of hit) {
       this.damage(e, s.dmg, 'cold', { src: t });
@@ -819,7 +921,7 @@ export class Game {
 
   updateBeam(t, s, dt, od) {
     let e = t.beamTarget;
-    if (!e || !e.alive || this.inRange(t, e, s.range) < 0) {
+    if (!e || !this.targetable(e) || this.inRange(t, e, s.range) < 0) {
       e = this.bestTarget(t);
       t.beamTarget = e;
       t.beamTime = 0;
@@ -875,6 +977,7 @@ export class Game {
     if (p.kind === 'bolt') {
       const e = p.target;
       if (!e.alive) return (p.alive = false);
+      if (e.phaseT > 0) return (p.alive = false);
       const dx = e.x - p.x;
       const dy = e.y - p.y;
       const d = Math.hypot(dx, dy);
@@ -918,7 +1021,7 @@ export class Game {
       }
       p.life -= dt;
       let e = p.target;
-      if (!e || !e.alive) {
+      if (!e || !this.targetable(e)) {
         e = p.target = this.nearestEnemy(p.tx, p.ty, 2.5, p.src);
       }
       if (e) ((p.tx = e.x), (p.ty = e.y));
@@ -948,7 +1051,7 @@ export class Game {
     let best = null;
     let bd = r * r;
     for (const e of this.enemies) {
-      if (!e.alive || (src && !this.canHit(src, e))) continue;
+      if (!this.targetable(e) || (src && !this.canHit(src, e))) continue;
       const d2 = (e.x - x) ** 2 + (e.y - y) ** 2;
       if (d2 < bd) ((bd = d2), (best = e));
     }
@@ -963,17 +1066,18 @@ export class Game {
   useAbility(key, x = 0, y = 0) {
     if (!this.abilityReady(key)) return false;
     const def = ABILITIES[key];
-    this.abilities[key] = def.cooldown;
+    this.abilities[key] = def.cooldown * this.mods.cooldown;
     if (key === 'meteor') {
       this.meteors.push({ x, y, t: 0.8 });
     } else if (key === 'blizzard') {
+      const extra = this.mods.blizzard;
       for (const e of this.enemies) {
         if (!e.alive) continue;
-        this.freeze(e, 1.5);
-        this.slowEnemy(e, 0.5, 6.5);
+        this.freeze(e, 1.5 + extra * 0.5);
+        this.slowEnemy(e, 0.5, 6.5 + extra * 1.5);
       }
     } else if (key === 'overdrive') {
-      this.overdriveT = def.duration;
+      this.overdriveT = def.duration + this.mods.overdrive;
     }
     this.emit({ type: 'ability', key, x, y });
     return true;
@@ -1021,7 +1125,7 @@ export class Game {
     }
     for (const m of this.meteors) {
       m.t -= dt;
-      if (m.t <= 0) this.explode(m.x, m.y, ABILITIES.meteor.radius, 140 * hpMul(Math.max(1, this.wave)), 'explosive', null, { noArmor: true, air: true, ground: true, big: true, burn: 10 * hpMul(this.wave) });
+      if (m.t <= 0) this.explode(m.x, m.y, ABILITIES.meteor.radius, 140 * hpMul(Math.max(1, this.wave)) * this.mods.meteor, 'explosive', null, { noArmor: true, air: true, ground: true, big: true, burn: 10 * hpMul(this.wave) });
     }
 
     if (this.enemies.some((e) => !e.alive)) this.enemies = this.enemies.filter((e) => e.alive);
