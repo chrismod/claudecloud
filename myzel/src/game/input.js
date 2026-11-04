@@ -6,21 +6,23 @@
 //  RT (halten)   Weben         Shift links            Shift rechts / Num1
 //  Ⓧ (halten)    Zersetzen     E                      Ü / # / Num2  (bzw. ' oder /)
 //  LT / Ⓑ        Gleiten       Q                      . / Num3
-//  Ⓨ             Rufen         R                      , / Num4
+//  Ⓨ antippen    Rufen         R                      , / Num4
+//  Ⓨ halten      Hüterpilz pflanzen (gleiche Tasten)
+//  R3 / L3       Bauart wechseln  F                    Ö / Num5
 //  Rechter Stick Kamera drehen –                      –
 //  Start         Pause         Esc                    Backspace
 
 const KB = {
   kb1: {
     up: ['KeyW'], down: ['KeyS'], left: ['KeyA'], right: ['KeyD'],
-    pulse: ['Space'], weave: ['ShiftLeft'], decompose: ['KeyE'], boost: ['KeyQ'], ping: ['KeyR'], start: ['Escape'],
+    pulse: ['Space'], weave: ['ShiftLeft'], decompose: ['KeyE'], boost: ['KeyQ'], ping: ['KeyR'], start: ['Escape'], cycle: ['KeyF'],
     camL: ['KeyZ', 'KeyY'], camR: ['KeyC'],
   },
   kb2: {
     up: ['ArrowUp'], down: ['ArrowDown'], left: ['ArrowLeft'], right: ['ArrowRight'],
     pulse: ['Enter', 'NumpadEnter', 'Numpad0'], weave: ['ShiftRight', 'Numpad1'],
     decompose: ['BracketLeft', 'Backslash', 'Quote', 'Slash', 'Numpad2'], boost: ['Period', 'Numpad3'], ping: ['Comma', 'Numpad4'],
-    start: ['Backspace'], camL: ['Numpad7'], camR: ['Numpad9'],
+    start: ['Backspace'], camL: ['Numpad7'], camR: ['Numpad9'], cycle: ['Semicolon', 'Numpad5'],
   },
 };
 
@@ -71,6 +73,8 @@ export function createInput() {
       decompose: b(2),
       boost: Math.max(v(6), b(1) ? 1 : 0, b(4) ? 1 : 0),
       pingDown: edge(3),
+      ping: b(3),
+      cycleDown: edge(11) || edge(10),
       startDown: edge(9),
       backDown: edge(8),
       confirmDown: edge(0),
@@ -95,6 +99,8 @@ export function createInput() {
       decompose: any(s.decompose),
       boost: any(s.boost) ? 1 : 0,
       pingDown: anyPressed(s.ping),
+      ping: any(s.ping),
+      cycleDown: anyPressed(s.cycle),
       startDown: anyPressed(s.start),
       backDown: anyPressed(['Tab']) && id === 'kb1',
       confirmDown: anyPressed(s.pulse),
@@ -112,7 +118,7 @@ export function createInput() {
     return kbState(binding.id);
   }
 
-  const idle = () => ({ mx: 0, my: 0, rx: 0, pulse: false, pulseDown: false, weave: 0, decompose: false, boost: 0, pingDown: false, startDown: false, backDown: false, confirmDown: false, cancelDown: false, navX: 0, navY: 0, pad: null });
+  const idle = () => ({ mx: 0, my: 0, rx: 0, pulse: false, pulseDown: false, weave: 0, decompose: false, boost: 0, pingDown: false, ping: false, cycleDown: false, startDown: false, backDown: false, confirmDown: false, cancelDown: false, navX: 0, navY: 0, pad: null });
 
   // Wer möchte beitreten? Gibt neue Bindungen zurück, die gerade Ⓐ / Leertaste / Enter drücken.
   function joinRequests(taken) {

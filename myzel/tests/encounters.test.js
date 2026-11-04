@@ -101,3 +101,41 @@ test('Sternspore: fällt, landet, lässt sich fangen', () => {
   assert.ok(c && c.power && c.power.name);
   assert.equal(enc.star, null);
 });
+
+test('Hüterpilze: pflanzen kostet Kerne, Turm trifft Moderlinge, Moderlinge zerstören, Weben repariert', async () => {
+  const { createGuardians } = await import('../src/game/guardians.js');
+  const { field, sim, enc } = world(21);
+  const G = createGuardians(null, { field });
+  const nest = field.nestsNear(300, 300, 400).sort((a, b) => Math.hypot(a.x, a.z) - Math.hypot(b.x, b.z))[0];
+  sim.ensureWindow(Math.floor(nest.x / 32), Math.floor(nest.z / 32), true);
+  let spot = null;
+  for (let r = 14; r < 40 && !spot; r += 2) for (let a = 0; a < 6.28 && !spot; a += 0.3) {
+    const x = nest.x + Math.cos(a) * r, z = nest.z + Math.sin(a) * r;
+    if (!G.canPlace('tower', x, z, { cores: 9, nests: [nest] })) spot = { x, z };
+  }
+  assert.ok(spot, 'kein Bauplatz');
+  assert.equal(G.place('tower', spot.x, spot.z, { cores: 1, nests: [nest] }).ok, false);
+  const r = G.place('tower', spot.x, spot.z, { cores: 5, nests: [nest] });
+  assert.ok(r.ok && r.cost === 3);
+  // ein Moderling direkt am Turm
+  const m = { id: 99, x: spot.x + 1, z: spot.z, heading: 0, hp: 1, maxHp: 1, state: 'hunt', target: null, think: 9, biteCd: 9, t: 0, hit: 0, eaten: 0 };
+  enc.moderlings.push(m);
+  let killed = false;
+  for (let k = 0; k < 80 && !killed; k++) {
+    for (const e of G.update(0.1, { sim, enc, players: [] })) if (e.type === 'towerPulse') killed = e.hits.some((h) => h.type === 'moderKilled');
+  }
+  assert.ok(killed, 'Turm hat nicht getroffen');
+  // Schaden und Reparatur
+  const g = G.list()[0];
+  g.hp = 10;
+  for (let i = 0; i < 4; i++) enc.moderlings.push({ ...m, id: 100 + i, state: 'hunt', hp: 9 });
+  let lost = false;
+  for (let k = 0; k < 40 && !lost; k++) lost = G.update(0.1, { sim, enc, players: [] }).some((e) => e.type === 'guardianLost');
+  assert.ok(lost, 'Turm hielt ewig');
+  const r2 = G.place('lamp', spot.x, spot.z, { cores: 5, nests: [nest] });
+  r2.g.hp = 20;
+  enc.moderlings.length = 0;
+  G.update(1, { sim, enc, players: [{ x: spot.x + 1, z: spot.z, weaving: true }] });
+  assert.ok(r2.g.hp > 30);
+  assert.equal(G.protectors().length, 1);
+});

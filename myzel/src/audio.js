@@ -44,7 +44,9 @@ let volume = 0.8;
 const KS = new Map();
 
 // Zustand für Musik und Ambience
-const st = { life: 0.5, night: 0, activity: 0, weave: 0, rot: 0, danger: 0, water: 0, speed: 0, play: false };
+const st = { life: 0.5, night: 0, activity: 0, weave: 0, rot: 0, danger: 0, water: 0, speed: 0, play: false, rain: 0, storm: 0, snowfall: 0 };
+let rainLoop = null;
+let nextDrip = 0;
 const lay = { pad: 0, melody: 0, bass: 0, drums: 0, cello: 0, bells: 0 };
 let beatT = 0;
 let beat = 0;
@@ -625,6 +627,7 @@ export const audio = {
     shimmer = noiseLoop('highpass', 7000, 0.6, sfxBus);
     water = noiseLoop('lowpass', 500, 0.8, ambBus);
     whoosh = noiseLoop('bandpass', 600, 1.2, sfxBus);
+    rainLoop = { body: noiseLoop('lowpass', 1400, 0.5, ambBus), hiss: noiseLoop('highpass', 6000, 0.4, ambBus) };
     rotDrone = { g: ctx.createGain(), f: ctx.createBiquadFilter() };
     rotDrone.f.type = 'lowpass';
     rotDrone.f.frequency.value = 200;
@@ -698,7 +701,15 @@ export const audio = {
     }
     gust += (gustTarget - gust) * dt * 0.6;
     const deadWind = 1 - st.life;
-    wind.low.g.gain.setTargetAtTime((0.05 + deadWind * 0.1) * (0.5 + gust), t, 0.4);
+    const stormy = 1 + st.storm * 1.8;
+    wind.low.g.gain.setTargetAtTime((0.05 + deadWind * 0.1) * (0.5 + gust) * stormy * (1 - st.snowfall * 0.4), t, 0.4);
+    rainLoop.body.g.gain.setTargetAtTime(st.rain * 0.09, t, 0.6);
+    rainLoop.hiss.g.gain.setTargetAtTime(st.rain * 0.035, t, 0.6);
+    // einzelne Tropfen auf Blättern
+    if (st.rain > 0.2 && t > nextDrip) {
+      nextDrip = t + 0.02 + Math.random() * 0.12 / st.rain;
+      tone(1800 + Math.random() * 2600, { attack: 0.001, decay: 0.03, gain: 0.012 * st.rain, slide: 0.6, pan: (Math.random() - 0.5) * 1.8, rev: 0.1, bus: ambBus });
+    }
     wind.low.f.frequency.setTargetAtTime(220 + gust * 160, t, 0.5);
     wind.high.g.gain.setTargetAtTime(deadWind * gust * gust * 0.025, t, 0.5);
     wind.high.f.frequency.setTargetAtTime(900 + gust * 900, t, 0.5);
@@ -961,6 +972,56 @@ export const audio = {
     const t = ctx.currentTime;
     for (let k = 0; k < 10; k++) bell(hz(12 + k * 3), { t: t + k * 0.04, gain: 0.05, decay: 1.2, index: 1 });
     choir(hz(24), { t, dur: 1.6, gain: 0.04 });
+  },
+  // Donner: je weiter der Blitz, desto später und dumpfer
+  thunder(delay = 1, dist = 80) {
+    if (!ctx) return;
+    const t = ctx.currentTime + delay;
+    const near = Math.max(0, 1 - dist / 160);
+    if (near > 0.4) noise({ t, type: 'highpass', freq: 1500, decay: 0.25, gain: 0.25 * near, rev: 0.5, bus: ambBus });
+    noise({ t: t + 0.05, type: 'lowpass', freq: 180 + near * 200, q: 0.6, attack: 0.15, decay: 3.5 + Math.random() * 2, gain: 0.35 + near * 0.3, sweep: 0.5, rev: 0.6, bus: ambBus });
+    tone(38, { t, attack: 0.1, decay: 3, gain: 0.25 * (0.5 + near), slide: 0.8, rev: 0.4, bus: ambBus });
+    if (near > 0.3) this.duck(0.35, 2);
+  },
+  season(i) {
+    if (!ctx) return;
+    const t = ctx.currentTime;
+    const sets = [[0, 4, 7, 11, 14], [0, 4, 7, 9, 12], [0, 3, 7, 10, 14], [0, 5, 7, 12, 15]];
+    sets[i].forEach((sem, k) => bell(hz(sem + 12), { t: t + k * 0.22, gain: 0.06, decay: 3.5, index: 1.2, pan: (k / 4 - 0.5) * 1.2, bus: musicBus }));
+    choir(hz(sets[i][2]), { t, dur: 3.5, gain: 0.035, vowel: 'o' });
+  },
+  weatherShift(kind) {
+    if (!ctx) return;
+    if (kind === 'storm') tone(41, { attack: 0.8, decay: 3, gain: 0.25, rev: 0.6, bus: ambBus });
+    else bell(hz(kind === 'snow' ? 31 : 24), { gain: 0.05, decay: 2.5, index: 0.8 });
+  },
+  plant(x, y, z) {
+    if (!ctx) return;
+    const pos = P(x, y, z);
+    tone(60, { decay: 0.8, gain: 0.3, slide: 0.7, pos });
+    noise({ type: 'lowpass', freq: 600, decay: 0.6, gain: 0.2, sweep: 3, pos });
+    [0, 7, 12, 19].forEach((s2, i) => pluck(hz(s2 + 12), { t: ctx.currentTime + 0.1 + i * 0.09, gain: 0.08, pos }));
+  },
+  towerPulse(x, y, z) {
+    if (!ctx) return;
+    const pos = P(x, y, z);
+    bell(hz(19), { gain: 0.06, decay: 1.6, index: 2.5, ratio: 1.41, pos });
+    noise({ type: 'bandpass', freq: 400, q: 1, attack: 0.02, decay: 0.6, gain: 0.08, sweep: 4, pos });
+  },
+  guardianLost(x, y, z) {
+    if (!ctx) return;
+    const pos = P(x, y, z);
+    noise({ type: 'lowpass', freq: 900, decay: 1.2, gain: 0.35, sweep: 0.2, pos });
+    [24, 22, 19, 15].forEach((s2, i) => bell(hz(s2), { t: ctx.currentTime + i * 0.12, gain: 0.05, decay: 1, index: 3, ratio: 1.41, pos }));
+  },
+  discover() {
+    if (!ctx) return;
+    const t = ctx.currentTime;
+    [19, 24, 31].forEach((s2, i) => bell(hz(s2 + 12), { t: t + i * 0.11, gain: 0.05, decay: 2, index: 0.7 }));
+  },
+  core() {
+    if (!ctx) return;
+    bell(hz(36), { gain: 0.035, decay: 0.8, index: 1.5, ratio: 2.76 });
   },
   // Messhilfe für automatische Tests: RMS-Pegel am Master
   _level() {

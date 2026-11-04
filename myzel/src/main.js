@@ -21,6 +21,11 @@ import { createCameraRig } from './game/cameraRig.js';
 import { Player, boonsFor, BOONS, COST, NAMES } from './game/players.js';
 import { createProgress, RANKS } from './game/progress.js';
 import { createEncounters } from './game/encounters.js';
+import { createClimate, SEASONS } from './game/climate.js';
+import { createGuardians, GUARDIAN_TYPES, GUARDIAN_ORDER } from './game/guardians.js';
+import { createHerbarium, ENTRIES } from './game/herbarium.js';
+import { createWeather } from './render/weather.js';
+import { createGuardianViews } from './render/guardians.js';
 import { audio } from './audio.js';
 import { smoothstep } from './noise.js';
 
@@ -69,6 +74,17 @@ const sim = createSim(field, store, { nestAlive: (id) => !purged.has(id) });
 const fauna = createFauna(scene, field, sim);
 const enc = createEncounters({ field, sim });
 const creatures = createCreatureViews(scene, field);
+const climate = createClimate(meta.climate ?? { day: meta.nights || 0 });
+meta.climate = climate.state;
+const weatherFx = createWeather(scene);
+const guardians = createGuardians(meta.guardians, { field });
+meta.guardians = guardians.state;
+const guardianViews = createGuardianViews(scene, field);
+const herb = createHerbarium(meta.herbarium, onDiscover);
+meta.cores ??= 2;
+let clim = climate.factors(meta.dayTime ?? 0.3);
+let lastSeason = clim.season.index;
+let wetSmooth = 0;
 const powers = {}; // id → Ende (Spielzeit)
 let awakeSites = [];
 let firstNightMod = false;
@@ -116,7 +132,7 @@ function updateProtectors() {
     const [gx, gz] = id.split(',').map(Number);
     return field.site(gx, gz);
   });
-  sim.setProtectors(awakeSites);
+  sim.setProtectors([...awakeSites, ...guardians.protectors()]);
 }
 updateProtectors();
 
@@ -170,7 +186,7 @@ function boot() {
   vit.tex.needsUpdate = true;
   sim.writeTexture2(rotTex.data);
   rotTex.tex.needsUpdate = true;
-  sky.update(dayTime, rig.focus, 10);
+  sky.update(dayTime, rig.focus, 10, clim);
   renderTitle();
   mode = 'title';
   requestAnimationFrame(() => $('loading').classList.add('out'));
@@ -287,7 +303,7 @@ let menuSel = 0;
 let helpReturn = 'pause';
 let confirmNew = false;
 function pauseItems() {
-  const items = [{ id: 'resume', label: 'Weiterspielen' }, { id: 'help', label: 'Steuerung & Spielidee' }];
+  const items = [{ id: 'resume', label: 'Weiterspielen' }, { id: 'herb', label: 'Herbarium', value: `${herb.count} / ${herb.total}`, noArrows: true }, { id: 'help', label: 'Steuerung & Spielidee' }];
   items.push({ id: 'volume', label: 'Lautstärke', value: Math.round(audio.volume * 100) + ' %' });
   items.push({ id: 'quality', label: 'Bildqualität', value: qualityLabel() });
   if (players[1] && players[0]) items.push({ id: 'leave', label: 'Keim verlässt das Spiel' });
@@ -308,7 +324,7 @@ function renderPause() {
   const items = pauseItems();
   menuSel = Math.max(0, Math.min(items.length - 1, menuSel));
   $('pausemenu').innerHTML = items
-    .map((it, i) => `<li class="${i === menuSel ? 'sel' : ''}">${it.label}${it.value ? `<small>◂ ${it.value} ▸</small>` : ''}</li>`)
+    .map((it, i) => `<li class="${i === menuSel ? 'sel' : ''}">${it.label}${it.value ? `<small>${it.noArrows ? it.value : `◂ ${it.value} ▸`}</small>` : ''}</li>`)
     .join('');
 }
 
@@ -357,6 +373,7 @@ function pauseUpdate() {
   audio.ui();
   if (it.id === 'resume') closePause();
   else if (it.id === 'help') openHelp('pause');
+  else if (it.id === 'herb') openHerb();
   else if (it.id === 'leave') {
     wispViews[1].group.visible = false;
     players[1] = null;
@@ -364,6 +381,36 @@ function pauseUpdate() {
   } else if (it.id === 'new') {
     if (confirmNew) newWorld();
     confirmNew = true;
+    renderPause();
+  }
+}
+
+function openHerb() {
+  mode = 'herb';
+  $('pause').classList.add('hidden');
+  const groups = {};
+  for (const e of ENTRIES) (groups[e.group] ??= []).push(e);
+  let html = `<h2>Herbarium <small>${herb.count} von ${herb.total} entdeckt</small></h2><div class="herbgrid">`;
+  for (const [g, list] of Object.entries(groups)) {
+    html += `<div class="hgroup"><h3>${g}</h3>`;
+    for (const e of list) {
+      const known = herb.has(e.id);
+      html += `<div class="hcard${known ? '' : ' unknown'}"><b>${known ? e.name : '???'}</b><p>${known ? e.text : 'Noch nicht entdeckt.'}</p></div>`;
+    }
+    html += '</div>';
+  }
+  html += '</div><div class="menuhint"><span class="btn b">B</span> / <span class="btn a">A</span> zurück</div>';
+  $('herbpanel').innerHTML = html;
+  $('herb').classList.remove('hidden');
+}
+
+function herbUpdate() {
+  const m = input.menu();
+  if (m.navY) $('herbpanel').scrollBy({ top: m.navY * 160, behavior: 'smooth' });
+  if (m.confirm || m.cancel || m.start) {
+    $('herb').classList.add('hidden');
+    mode = 'pause';
+    $('pause').classList.remove('hidden');
     renderPause();
   }
 }
@@ -527,6 +574,7 @@ function playUpdate(dt) {
           input.rumble(p.binding, 0.7, 0.5, 300);
           p.decompose = null;
           progress.event('log', 1, e);
+          addCores(1, e);
         }
       } else p.decompose = null;
     } else if (p.decompose) {
@@ -547,17 +595,7 @@ function playUpdate(dt) {
       input.rumble(p.binding, 0.15, 0.35, 90);
       progress.event('puff', 1, e);
     }
-    if (inp.pingDown) {
-      compassFlash = 2;
-      audio.ping(panOf(p.x, p.z));
-      if (dormant) {
-        const dx = dormant.site.x - p.x;
-        const dz = dormant.site.z - p.z;
-        const d = Math.hypot(dx, dz);
-        const tgt = { x: p.x + (dx / d) * 30, y: p.y + 3, z: p.z + (dz / d) * 30 };
-        effects.emit({ x: p.x, y: p.y, z: p.z, count: 40, speed: 2, color: new THREE.Color(2, 1.7, 1), life: 2.5, size: 0.5, target: tgt, gravity: 0, drag: 1 });
-      }
-    }
+    plantOrPing(p, inp, dt, dormant);
   }
 
   // Ritual
@@ -624,20 +662,43 @@ function playUpdate(dt) {
   }
 
   // Tiere kehren zurück
-  const returned = fauna.update(dt, { focus: rig.focus, players: list, time, night: U.uNight.value, day: U.uNight.value < 0.3 });
+  const returned = fauna.update(dt, { focus: rig.focus, players: list, time, night: U.uNight.value, day: U.uNight.value < 0.3 && clim.season.weights[3] < 0.5 && clim.rain < 0.5 });
+  // Hüterpilze
+  for (const e of guardians.update(dt, { sim, enc, players: list })) {
+    if (e.type === 'towerPulse') {
+      guardianViews.pulse(e.g.id);
+      handleEncounters(e.hits);
+      audio.towerPulse(e.g.x, field.height(e.g.x, e.g.z) + 5, e.g.z);
+    } else if (e.type === 'guardianLost') {
+      const T = GUARDIAN_TYPES[e.g.type];
+      const y = field.height(e.g.x, e.g.z);
+      popup(`${T.name} zerstört`, { x: e.g.x, y: y + 4, z: e.g.z }, 'bad');
+      effects.emit({ x: e.g.x, y: y + 2, z: e.g.z, count: 120, speed: 6, color: new THREE.Color(0.8, 0.2, 1.2), life: 1.5, size: 0.5, gravity: 0.6 });
+      audio.guardianLost(e.g.x, y, e.g.z);
+      updateProtectors();
+      rumbleAll(0.5, 0.3, 300);
+    }
+  }
   const liveNests = field.nestsNear(rig.focus.x, rig.focus.z, 170).filter((n) => !purged.has(n.id));
   handleEncounters(
     enc.update(dt, {
       players: list,
       focus: rig.focus,
-      night: U.uNight.value,
-      nights: meta.nights || 0,
+      night: Math.max(U.uNight.value, clim.moderDay ? 0.6 : 0),
+      nights: (meta.nights || 0) + clim.moderBonus,
+      guardians: guardians.list(),
       nests: liveNests,
       awakeSites,
       thread: threadState.weaving ? { a: list[0], b: list[1] } : null,
     }),
   );
   if (returned) progress.event('animal', returned);
+
+  discoverT -= dt;
+  if (discoverT <= 0) {
+    discoverT = 0.5;
+    checkDiscoveries();
+  }
 
   // Erfahrung aus dem, was die Spieler bewirken
   const healedNow = sim.counters.healed;
@@ -697,6 +758,7 @@ function awaken(site) {
   showToast('Ein Mutterbaum erwacht', `Gabe: ${boon.name} – ${boon.text} · Sein Hain ist vor Fäulnis geschützt`, 6);
   updateProtectors();
   progress.event('tree', 1, site);
+  addCores(5, { x: site.x, y: field.height(site.x, site.z) + 8, z: site.z });
   audio.awaken();
   rig.shake = 1.1;
   stage.grade.uniforms.uFlash.value = 0.75;
@@ -704,6 +766,134 @@ function awaken(site) {
   const y = field.height(site.x, site.z);
   effects.emit({ x: site.x, y: y + 6, z: site.z, count: 400, speed: 16, up: 0.6, color: new THREE.Color(1.8, 1.5, 0.8), life: 2.6, size: 0.7, gravity: -0.4, drag: 1.2 });
   saveNow();
+}
+
+function addCores(n, at) {
+  meta.cores = (meta.cores || 0) + n;
+  if (at) popup(`+${n} ◆`, at, 'core');
+  audio.core?.();
+}
+
+function onDiscover(entry) {
+  progress.addXP(40, 'discover');
+  discoverQueue.push(entry);
+  audio.discover();
+}
+const discoverQueue = [];
+let discoverT = 0;
+let discoverShow = 0;
+
+// Was ist in der Nähe zu entdecken?
+const FLORA = ['grass', 'fern', 'flower', 'reed', 'bush', 'oakCrown', 'birchCrown', 'firCrown', 'mushRed', 'mushBrown', 'parasol', 'mushGlow', 'puff', 'gmCap'];
+function checkDiscoveries() {
+  for (const p of active()) {
+    for (const kind of FLORA) {
+      if (herb.has(kind)) continue;
+      const near = veg.nearby(kind, p.x, p.z, 10);
+      if (near.some(({ e }) => sim.sample(e.x, e.z).L > e.th + 0.2)) herb.find(kind);
+    }
+    if (!herb.has('log') && veg.nearby('log', p.x, p.z, 7).some(({ e }) => e.w >= 1e8)) herb.find('log');
+    for (const a of fauna.animals) if (a.fade > 0.5 && Math.hypot(a.x - p.x, a.z - p.z) < 20) herb.find(a.kind);
+    if (fauna.flocks.some((f) => f.fade > 0.5)) herb.find('bird');
+    if (enc.wisps.some((w) => Math.hypot(w.x - p.x, w.z - p.z) < 12)) herb.find('wisp');
+    if (enc.moderlings.some((m) => m.state === 'hunt' && Math.hypot(m.x - p.x, m.z - p.z) < 16)) herb.find('moderling');
+    if (nearestNest(p.x, p.z, 26)) herb.find('nest');
+    if (awakeSites.some((t) => Math.hypot(t.x - p.x, t.z - p.z) < 35)) herb.find('mother');
+  }
+}
+
+// Hüterpilz pflanzen (Ⓨ halten) / rufen (Ⓨ antippen)
+function plantOrPing(p, inp, dt, dormant) {
+  if (inp.cycleDown) {
+    p.build = ((p.build ?? 0) + 1) % GUARDIAN_ORDER.length;
+    audio.ui();
+  }
+  if (inp.ping) {
+    p.pingHold = (p.pingHold ?? 0) + dt;
+    if (p.pingHold > 0.65 && !p.planted) {
+      p.planted = true;
+      const type = GUARDIAN_ORDER[p.build ?? 0];
+      const r = guardians.place(type, p.x, p.z, { cores: meta.cores, sites: awakeSites, nests: field.nestsNear(p.x, p.z, 20).filter((n) => !purged.has(n.id)) });
+      if (r.ok) {
+        meta.cores -= r.cost;
+        const T = GUARDIAN_TYPES[type];
+        showToast(`${T.name} gepflanzt`, T.text, 3.5);
+        effects.emit({ x: p.x, y: field.height(p.x, p.z) + 0.5, z: p.z, count: 140, speed: 6, up: 1.4, color: new THREE.Color(1.6, 1.5, 0.9), life: 1.6, size: 0.5, gravity: 0.3 });
+        audio.plant(p.x, p.y, p.z);
+        input.rumble(p.binding, 0.5, 0.6, 250);
+        if (type === 'lamp') updateProtectors();
+        saveNow();
+      } else {
+        popup(r.reason, p, 'bad');
+        audio.denied();
+      }
+    }
+    return;
+  }
+  if (p.pingHold && p.pingHold < 0.35) {
+    compassFlash = 2;
+    audio.ping(panOf(p.x, p.z));
+    if (dormant) {
+      const dx = dormant.site.x - p.x;
+      const dz = dormant.site.z - p.z;
+      const d = Math.hypot(dx, dz);
+      const tgt = { x: p.x + (dx / d) * 30, y: p.y + 3, z: p.z + (dz / d) * 30 };
+      effects.emit({ x: p.x, y: p.y, z: p.z, count: 40, speed: 2, color: new THREE.Color(2, 1.7, 1), life: 2.5, size: 0.5, target: tgt, gravity: 0, drag: 1 });
+    }
+  }
+  p.pingHold = 0;
+  p.planted = false;
+}
+
+// Jahreszeit und Wetter: Werte für Shader und Simulation, Ereignisse
+const WEATHER_TEXT = {
+  clear: ['Der Himmel klart auf', 'Die Sonne kehrt zurück'],
+  rain: ['Es beginnt zu regnen', 'Der Regen lässt alles schneller wachsen und wäscht die Fäulnis zurück'],
+  fog: ['Nebel zieht auf', 'Im Nebel wagen sich Moderlinge auch bei Tag heraus'],
+  storm: ['Ein Gewitter zieht auf', 'Die Fäulnis tobt – und mehr Moderlinge kriechen hervor'],
+  snow: ['Es schneit', 'Das Wachstum ruht, die Seen frieren zu – die Fäulnis kann übers Eis'],
+};
+const SEASON_TEXT = [
+  'Alles wächst schneller, die Bäume blühen',
+  'Lange Tage, schwere Gewitter',
+  'Mehr Pilze, buntes Laub – und gierigere Fäulnis',
+  'Das Wachstum ruht, Seen frieren zu, Laubbäume stehen kahl',
+];
+function climateTick(dt) {
+  const ev = climate.update(dt * (mode === 'play' ? 1 : 0.3), { dayTime, night: U.uNight.value });
+  clim = climate.factors(dayTime);
+  U.uSeason.value.fromArray(clim.season.weights);
+  wetSmooth += (clim.wet - wetSmooth) * Math.min(1, dt * (clim.wet > wetSmooth ? 0.15 : 0.04));
+  U.uWet.value = wetSmooth;
+  U.uSnow.value = clim.snow;
+  U.uFreeze.value = clim.freeze;
+  U.uRain.value = clim.rain;
+  U.uSnowfall.value = clim.snowfall;
+  sim.climate.grow = clim.grow;
+  sim.climate.rot = clim.rot;
+  sim.climate.freeze = clim.freeze;
+  if (mode !== 'play') return;
+  for (const e of ev) {
+    if (e.type === 'weather') {
+      const [a, b] = WEATHER_TEXT[e.to];
+      showToast(a, b, 4);
+      audio.weatherShift(e.to);
+    } else if (e.type === 'lightning') {
+      const a = Math.random() * Math.PI * 2;
+      const d = 50 + Math.random() * 90;
+      const x = rig.focus.x + Math.cos(a) * d;
+      const z = rig.focus.z + Math.sin(a) * d;
+      weatherFx.strike(x, field.height(x, z), z);
+      stage.grade.uniforms.uFlash.value = Math.max(stage.grade.uniforms.uFlash.value, 0.25);
+      audio.thunder(d / 70, d);
+      rumbleAll(0.2, 0.1, 200);
+    }
+  }
+  if (clim.season.index !== lastSeason) {
+    lastSeason = clim.season.index;
+    showToast(`Der ${clim.season.name} beginnt`, SEASON_TEXT[clim.season.index], 6);
+    audio.season(clim.season.index);
+  }
 }
 
 // Begegnungen → Belohnung, Anzeige, Klang
@@ -733,6 +923,7 @@ function handleEncounters(events) {
         break;
       case 'wispHome': {
         progress.event('wisp', 1, e.w);
+        addCores(2, e.w);
         for (const p of active()) p.spores = Math.min(p.max, p.spores + 25);
         const y = field.height(e.site.x, e.site.z);
         effects.emit({ x: e.site.x, y: y + 12, z: e.site.z, count: 140, speed: 7, color: new THREE.Color().setHSL(e.w.hue, 0.8, 0.7).multiplyScalar(2.2), life: 2.2, size: 0.55, gravity: -0.2 });
@@ -768,6 +959,7 @@ function handleEncounters(events) {
         const m = e.m;
         const y = field.height(m.x, m.z) + 0.6;
         progress.event('moderling', 1, { x: m.x, y, z: m.z });
+        if (Math.random() < 0.5) addCores(1, { x: m.x, y, z: m.z });
         const killer = players[e.by];
         for (const p of killer ? [killer] : active()) p.spores = Math.min(p.max, p.spores + 6);
         effects.emit({ x: m.x, y, z: m.z, count: 60, speed: 5, color: new THREE.Color(0.8, 0.25, 1.4), life: 1.1, size: 0.4, gravity: 0.5 });
@@ -789,6 +981,8 @@ function handleEncounters(events) {
         const pw = e.power;
         const p = e.p;
         progress.event('star', 1, p);
+        addCores(2, p);
+        herb.find('star');
         if (pw.id === 'bloom') {
           const c0 = { ...sim.counters };
           sim.cleanse(p.x, p.z, 24, 1);
@@ -845,6 +1039,7 @@ function purgeNest(n) {
   audio.purified();
   showToast('Ein Moderherz ist geläutert', 'Die Fäulnis weicht – hier kann wieder Leben wachsen', 5);
   progress.event('nest', 1, n);
+  addCores(4, n);
   saveNow();
 }
 
@@ -865,6 +1060,8 @@ function dayPhase() {
     rumbleAll(0.4, 0.2, 400);
   } else if (ph === 'day' && prev === 'night') {
     meta.nights = (meta.nights || 0) + 1;
+    climate.newDay();
+    addCores(2, active()[0]);
     for (const [k, c] of sim.chunkCounts()) meta.healed[k] = c;
     const diff = totalHealed() - duskHealed;
     const msg = diff >= 0 ? `Euer Wald ist sogar um ${fmtArea(diff)} gewachsen` : `Die Fäulnis hat ${fmtArea(-diff)} gefressen`;
@@ -883,6 +1080,7 @@ function onProgress(type, d) {
       xpBatch += d.amount;
     } else popup(`+${Math.round(d.amount)}`, d.pos ?? active()[0], d.reason === 'objective' ? 'gold' : '');
   } else if (type === 'rank') {
+    addCores(3, active()[0]);
     showToast(`Neuer Rang: ${d.name}`, d.perk ? `Vorteil: ${d.perk}` : 'Der Wald erkennt euch an', 5.5);
     audio.rank();
     for (const p of active()) {
@@ -891,6 +1089,7 @@ function onProgress(type, d) {
     }
     rumbleAll(0.6, 0.8, 500);
   } else if (type === 'objective') {
+    addCores(d.o.timed ? 3 : 2, active()[0]);
     audio.objective();
     for (const p of active()) p.spores = Math.min(p.max, p.spores + d.spores);
     popup(`Auftrag erfüllt · +${d.reward}`, active()[0], 'gold');
@@ -923,6 +1122,7 @@ function saveNow() {
   meta.yaw = rig.yaw;
   meta.players = players.map((p, i) => (p ? { x: p.x, z: p.z, spores: p.spores } : meta.players?.[i] ?? null));
   meta.progress = progress.state;
+  meta.herbarium = herb.list();
   store.saveMeta(meta);
 }
 window.addEventListener('pagehide', saveNow);
@@ -1049,6 +1249,13 @@ function hudUpdate(dt) {
     else if (p.weaving) st = 'Webt Myzel';
     else if (p.spores < COST.pulse) st = 'Sporen erschöpft – sammelt auf lebendigem Boden';
     else if (p.boosting) st = 'Gleitet';
+    const T = GUARDIAN_TYPES[GUARDIAN_ORDER[p.build ?? 0]];
+    const key = p.binding.type === 'pad' ? 'Ⓨ halten' : p.i === 0 ? 'R halten' : ', halten';
+    const swap = p.binding.type === 'pad' ? 'R3' : p.i === 0 ? 'F' : 'Ö';
+    const bh = card.querySelector('.pbuild');
+    const bt = `${key}: ${T.name} pflanzen (${T.cost} ◆) · ${swap} wechseln`;
+    if (bh.textContent !== bt) bh.textContent = bt;
+    bh.classList.toggle('poor', (meta.cores || 0) < T.cost);
     const f = enc.followers(p.i);
     if (f && !p.purifying && !p.ritual) st = `${f} ${f === 1 ? 'Licht folgt' : 'Lichter folgen'} dir${st ? ' · ' + st : ''}`;
     const ps = card.querySelector('.pstate');
@@ -1067,7 +1274,8 @@ function hudUpdate(dt) {
     const s =
       `<div><b>${fmtArea(totalHealed())}</b><span>belebt</span></div>` +
       `<div><b>${n}</b><span>${n === 1 ? 'Mutterbaum' : 'Mutterbäume'}</span></div>` +
-      `<div><b>${purged.size}</b><span>${purged.size === 1 ? 'Moderherz' : 'Moderherzen'} geläutert</span></div>` +
+      `<div><b>${meta.cores || 0}</b><span>◆ Sporenkerne</span></div>` +
+      `<div><b>${clim.season.name}</b><span>Tag ${clim.season.dayInSeason + 1} · ${clim.weatherName}</span></div>` +
       `<div class="${night ? 'warn' : ''}"><b>${mm}</b><span>${night ? 'bis zum Morgen' : 'bis zur Nacht'}</span></div>`;
     if (s !== lastStats) $('stats').innerHTML = lastStats = s;
   }
@@ -1237,6 +1445,28 @@ function hudUpdate(dt) {
 
   toastT -= dt;
   if (toastT <= 0) $('toast').classList.remove('show');
+  // Entdeckungs-Banner
+  discoverShow -= dt;
+  const db = $('discover');
+  if (discoverShow <= 0 && discoverQueue.length) {
+    const e = discoverQueue.shift();
+    db.innerHTML = `<small>Neu im Herbarium · ${herb.count}/${herb.total}</small><b>${e.name}</b><p>${e.text}</p>`;
+    db.classList.add('show');
+    discoverShow = 4.5;
+  } else if (discoverShow <= 0) db.classList.remove('show');
+  // beschädigte Hüterpilze zeigen ihre Kraft
+  for (const g of guardians.list()) {
+    const T = GUARDIAN_TYPES[g.type];
+    if (g.hp >= T.hp - 0.5 || (g.hurt ?? 0) <= 0 && !g.repairing && g.hp > T.hp * 0.5) continue;
+    const sc = toScreen(g.x, field.height(g.x, g.z) + 6.5, g.z);
+    if (!sc.on) continue;
+    const el = label(li++);
+    el.classList.remove('big', 'nest');
+    el.innerHTML = `${T.name}${g.repairing ? ' · wird repariert' : ' · webt daneben, um ihn zu reparieren'}<div class="meter"><i style="width:${(g.hp / T.hp) * 100}%"></i></div>`;
+    el.style.left = sc.x + 'px';
+    el.style.top = sc.y + 'px';
+  }
+  for (let i = li; i < labelPool.length; i++) labelPool[i].style.display = 'none';
   mapT -= dt;
   if (mapT <= 0) {
     mapT = 0.2;
@@ -1421,8 +1651,9 @@ function tick(dt, draw) {
   } else if (mode === 'play') playUpdate(dt);
   else if (mode === 'pause') pauseUpdate();
   else if (mode === 'help') helpUpdate();
+  else if (mode === 'herb') herbUpdate();
 
-  if (mode !== 'pause' && mode !== 'help') {
+  if (mode !== 'pause' && mode !== 'help' && mode !== 'herb') {
     simAcc += dt;
     let n = 0;
     while (simAcc >= 0.2 && n++ < 2) {
@@ -1456,8 +1687,11 @@ function tick(dt, draw) {
   }
   nests.update(rig.focus, (id) => !purged.has(id), dt, time);
   creatures.sync(enc, dt, time);
+  guardianViews.sync(guardians.list(), dt, time);
+  climateTick(dt);
+  weatherFx.update(dt, rig.focus, field.height(rig.focus.x, rig.focus.z), renderer.domElement.height * 1.12);
   nestProximity();
-  sky.update(dayTime, rig.focus, dt);
+  sky.update(dayTime, rig.focus, dt, clim);
   water.update(rig.focus);
   trees.update(rig.focus, (id) => awake.has(id), dt, time);
   ambient.update(rig.focus, field.height(rig.focus.x, rig.focus.z));
@@ -1500,9 +1734,9 @@ function tick(dt, draw) {
       : 0;
   const speed = list.length ? list.reduce((a, p) => a + Math.hypot(p.vx, p.vy ?? 0, p.vz), 0) / list.length : 0;
   audio.setListener(camera);
-  audio.update({ life, night: U.uNight.value, activity: Math.min(1, act), weave, rot: rotHere, danger, water: waterNear, speed, play: mode === 'play' });
+  audio.update({ life, night: U.uNight.value, activity: Math.min(1, act), weave, rot: rotHere, danger, water: waterNear, speed, play: mode === 'play', rain: clim.rain, storm: clim.storm, snowfall: clim.snowfall });
 
-  if (mode === 'play' || mode === 'pause' || mode === 'help') {
+  if (mode === 'play' || mode === 'pause' || mode === 'help' || mode === 'herb') {
     if (mode === 'play') hudUpdate(dt);
     saveT += dt;
     if (saveT > 12) {
@@ -1520,7 +1754,7 @@ function tick(dt, draw) {
 // Testmodus (?manual): keine eigene Schleife, Bilder werden von außen angestoßen
 const manual = params.has('manual');
 window.__myzel = {
-  field, sim, store, players, rig, meta, veg, U, stage, startGame, addPlayer, trees, terrain, sky, water, nests, fauna, progress, purged, enc, powers, audio,
+  field, sim, store, players, rig, meta, veg, U, stage, startGame, addPlayer, trees, terrain, sky, water, nests, fauna, progress, purged, enc, powers, audio, climate, guardians, herb, get clim() { return clim; },
   get mode() {
     return mode;
   },

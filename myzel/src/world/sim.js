@@ -27,6 +27,8 @@ export function createSim(field, store, opts = {}) {
   let protectors = []; // [{x, z}]
   let sources = []; // lebende Moderherzen im Fenster
   let night = 0;
+  // Jahreszeit und Wetter: Wachstum, Fäulnis, gefrorene Seen
+  const climate = { grow: 1, rot: 1, freeze: 0 };
   const counters = { healed: 0, cleansed: 0 }; // von außen ablesen und zurücksetzen
   const L = new Float32Array(size);
   const M = new Float32Array(size);
@@ -78,7 +80,7 @@ export function createSim(field, store, opts = {}) {
     const x0 = cx * CHUNK;
     const z0 = cz * CHUNK;
     const nests = field.nestsNear(x0 + CHUNK / 2, z0 + CHUNK / 2, CHUNK + 30).filter((n) => nestAlive(n.id));
-    const prot = protectors.filter((p) => Math.abs(p.x - x0 - 16) < PROTECT_R + 24 && Math.abs(p.z - z0 - 16) < PROTECT_R + 24);
+    const prot = protectors.filter((p) => Math.abs(p.x - x0 - 16) < (p.r ?? PROTECT_R) + 24 && Math.abs(p.z - z0 - 16) < (p.r ?? PROTECT_R) + 24);
     for (let lz = 0; lz < CHUNK; lz++)
       for (let lx = 0; lx < CHUNK; lx++) {
         const x = cx * CHUNK + lx + 0.5;
@@ -177,19 +179,20 @@ export function createSim(field, store, opts = {}) {
     let p = 0;
     for (const q of list) {
       const d = Math.hypot(q.x - x, q.z - z);
-      if (d < PROTECT_R) p = Math.max(p, smoothstep(PROTECT_R, PROTECT_R - 10, d));
+      const r = q.r ?? PROTECT_R;
+      if (d < r) p = Math.max(p, smoothstep(r, r - Math.min(10, r * 0.4), d));
     }
     return p;
   }
 
   // Erwachte Mutterbäume schützen ihre Umgebung
   function setProtectors(list) {
-    protectors = list.map((p) => ({ x: p.x, z: p.z }));
+    protectors = list.map((p) => ({ x: p.x, z: p.z, r: p.r ?? PROTECT_R }));
     for (let s = 0; s < SLOTS * SLOTS; s++) {
       if (!slotActive[s]) continue;
       const cx = slotCx[s];
       const cz = slotCz[s];
-      const near = protectors.filter((p) => Math.abs(p.x - cx * CHUNK - 16) < PROTECT_R + 24 && Math.abs(p.z - cz * CHUNK - 16) < PROTECT_R + 24);
+      const near = protectors.filter((p) => Math.abs(p.x - cx * CHUNK - 16) < p.r + 24 && Math.abs(p.z - cz * CHUNK - 16) < p.r + 24);
       for (let lz = 0; lz < CHUNK; lz++)
         for (let lx = 0; lx < CHUNK; lx++) P[idx(cx * CHUNK + lx, cz * CHUNK + lz)] = near.length ? protectionAt(cx * CHUNK + lx + 0.5, cz * CHUNK + lz + 0.5, near) : 0;
     }
@@ -321,8 +324,10 @@ export function createSim(field, store, opts = {}) {
 
   // Langsame Regeln: Myzel wächst in fruchtbaren Boden, Leben folgt dem Myzel
   function step(dt) {
-    const spread = 0.09 * dt;
-    const grow = 0.05 * dt;
+    const spread = 0.09 * dt * climate.grow;
+    const grow = 0.05 * dt * climate.grow;
+    const lifeRate = Math.min(1, 0.4 * dt * Math.sqrt(climate.grow));
+    const waterBlock = 0.6 + 0.37 * climate.freeze;
     // Moderherzen speisen die Fäulnis
     for (const n of sources) {
       const r = 3.5;
@@ -334,7 +339,7 @@ export function createSim(field, store, opts = {}) {
     }
     // nachts reicht sie weiter und frisst schneller
     const reach = 0.958 + 0.03 * night;
-    const brate = (0.35 + 1.2 * night) * dt;
+    const brate = (0.35 + 1.2 * night) * dt * climate.rot;
     const brecede = (0.05 * (1 - night)) * dt;
     const eat = (0.05 + 0.06 * night) * dt;
     for (let s = 0; s < SLOTS * SLOTS; s++) {
@@ -382,7 +387,7 @@ export function createSim(field, store, opts = {}) {
           // Fäulnis: schwächer mit jedem Meter vom Herz, gebremst durch kräftiges Myzel und Wasser
           const p = P[i];
           let nb = b;
-          const btarget = bb * reach * (1 - p) * (W[i] ? 0.6 : 1);
+          const btarget = bb * reach * (1 - p) * (W[i] ? waterBlock : 1);
           if (bb > 0.22 && btarget > b + 0.005) nb += (btarget - b) * Math.min(1, brate * (1 - 0.6 * m));
           else if (btarget < b) nb -= Math.min(b - btarget, brecede + (b - btarget) * 0.02 * dt);
           if (p > 0) nb *= 1 - Math.min(1, p * dt * 3);
@@ -412,7 +417,7 @@ export function createSim(field, store, opts = {}) {
           const target = Math.max(L0[i] * (1 - rot), Math.min(1, nm * (0.55 + 0.55 * k)));
           const l = L[i];
           if (target > l + 0.001 && rot < 0.3) {
-            L[i] = l + (target - l) * Math.min(1, 0.4 * dt);
+            L[i] = l + (target - l) * lifeRate;
             changed = true;
           } else if (rot > 0.3 && l > target) {
             L[i] = Math.max(target, l - eat * 1.3 * rot);
@@ -579,6 +584,7 @@ export function createSim(field, store, opts = {}) {
   return {
     L, M, H, G, F, K, W, B, P,
     counters,
+    climate,
     taint,
     chunkCounts,
     setProtectors,

@@ -16,6 +16,9 @@ function makeMaterial() {
       uNight: U.uNight,
       uP1: U.uP1,
       uP2: U.uP2,
+      uSeason: U.uSeason,
+      uSnow: U.uSnow,
+      uWet: U.uWet,
     });
     shader.vertexShader =
       `attribute vec4 aMeta; varying vec4 vMeta; varying vec3 vW; varying vec3 vWN;\n` +
@@ -25,7 +28,7 @@ function makeMaterial() {
         vMeta = aMeta; vW = (modelMatrix * vec4(transformed, 1.0)).xyz; vWN = objectNormal;`,
       );
     shader.fragmentShader =
-      `uniform float uTime; uniform float uNight; uniform vec3 uP1; uniform vec3 uP2;
+      `uniform float uTime; uniform float uNight; uniform vec3 uP1; uniform vec3 uP2; uniform vec4 uSeason; uniform float uSnow; uniform float uWet;
       varying vec4 vMeta; varying vec3 vW; varying vec3 vWN;
       ${GLSL_NOISE}
       ${GLSL_VIT}
@@ -93,6 +96,20 @@ function makeMaterial() {
           mzEmit *= 1.0 - rotA;
           mzEmit += sick * rvein * rotA * (0.06 + 0.24 * uNight) * throb;
           mzEmit += vec3(0.3, 0.03, 0.45) * rfront * (0.02 + 0.08 * uNight);
+          // Jahreszeiten: frisches Grün im Frühling, Laubteppich im Herbst, matter Winterboden
+          float litter = smoothstep(0.42, 0.7, mzNoise(xz * 0.45 + 3.0) * 0.6 + mzNoise(xz * 1.9) * 0.4);
+          vec3 leaves = mix(vec3(0.42, 0.1, 0.02), vec3(0.55, 0.32, 0.04), mzNoise(xz * 2.3));
+          col = mix(col, col * vec3(0.95, 1.15, 0.85), uSeason.x * lf * 0.35);
+          col = mix(col, leaves, uSeason.z * lf * litter * (1.0 - rotA) * 0.85);
+          col = mix(col, mix(col, vec3(0.16, 0.17, 0.12), 0.55), uSeason.w * lf * 0.6);
+          // Schneedecke: auf flachem Boden, an den Rändern ausgefranst
+          float snowCover = uSnow * smoothstep(0.55, 0.85, vWN.y) * smoothstep(0.15, 0.55, mzNoise(xz * 0.25) * 0.5 + mzNoise(xz * 1.3) * 0.2 + uSnow * 0.6) * (1.0 - shore * 0.8);
+          col = mix(col, vec3(0.46, 0.5, 0.56) * (0.88 + 0.12 * n2), snowCover);
+          mzEmit *= 1.0 - snowCover * 0.6;
+          // Regen: nasser, dunklerer Boden und Pfützen in Senken
+          float puddle = uWet * smoothstep(0.6, 0.7, mzFbm(xz * 0.08 + 7.0)) * smoothstep(0.88, 0.97, vWN.y) * (1.0 - snowCover);
+          col *= 1.0 - uWet * 0.28 * (1.0 - snowCover);
+          col = mix(col, col * 0.3 + vec3(0.01, 0.015, 0.02), puddle);
           diffuseColor.rgb = col;
           `,
         )
@@ -100,7 +117,10 @@ function makeMaterial() {
           '#include <roughnessmap_fragment>',
           `#include <roughnessmap_fragment>
           roughnessFactor = mix(roughnessFactor, 0.45, shore);
-          roughnessFactor = mix(roughnessFactor, 0.28, rotA);`,
+          roughnessFactor = mix(roughnessFactor, 0.28, rotA);
+          roughnessFactor = mix(roughnessFactor, 0.5, uWet * 0.7 * (1.0 - snowCover));
+          roughnessFactor = mix(roughnessFactor, 0.04, puddle);
+          roughnessFactor = mix(roughnessFactor, 0.75, snowCover);`,
         )
         .replace('#include <emissivemap_fragment>', '#include <emissivemap_fragment>\n totalEmissiveRadiance += mzEmit;');
   };

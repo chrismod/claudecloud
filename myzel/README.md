@@ -20,7 +20,7 @@ eure Farben im Netz.
 ```bash
 npm install
 npm run dev     # http://localhost:5173
-npm test        # Welt, Speicher, Zell-Simulation, Fäulnis, Fortschritt, Begegnungen (headless, ~6 s)
+npm test        # Welt, Speicher, Simulation, Fäulnis, Fortschritt, Begegnungen, Klima, Hüter (headless)
 npm run build   # statische Seite in dist/
 ```
 
@@ -36,7 +36,9 @@ Läuft in jedem aktuellen Browser mit WebGL 2. Gamepads werden nach dem ersten T
 | Sporenpuls | Ⓐ | Leertaste | Enter |
 | Totholz zersetzen / Moderherz läutern (halten) | Ⓧ | E | Ü / # |
 | Schneller gleiten | LT / Ⓑ | Q | . |
-| Rufen (zeigt den Weg) | Ⓨ | R | , |
+| Rufen (zeigt den Weg) | Ⓨ antippen | R antippen | , antippen |
+| Hüterpilz pflanzen | Ⓨ halten | R halten | , halten |
+| Bauart wechseln | R3 | F | Ö / Num 5 |
 | Kamera drehen | Rechter Stick | Y / C | Num 7 / 9 |
 | Pause | Start | Esc | Backspace |
 
@@ -90,6 +92,39 @@ die Fäulnis greift bis ~50 m weit und frisst, was ihr gesponnen habt. Seen halt
   *Lichtsturm* (doppelt weiter Puls), *Windgeist* (viel schneller) oder *Großes Erblühen*.
 - Dazu passende Aufträge: „Bringt ein verirrtes Licht heim“, „Bis zum Morgen: vertreibt 4 Moderlinge“,
   „Fangt eine Sternspore“.
+
+## Jahreszeiten und Wetter
+
+Alle drei Spieltage wechselt die Jahreszeit (weich überblendet), und das Wetter wechselt alle ein bis
+zweieinhalb Minuten – je nach Jahreszeit mit anderen Wahrscheinlichkeiten.
+
+| | Wirkung | Aussehen |
+| --- | --- | --- |
+| Frühling | Wachstum ×1,35 | frisches Grün, blühende Bäume, mehr Blumen, Blütenblätter in der Luft |
+| Sommer | – | volles Laub, Gewitter häufiger |
+| Herbst | mehr Pilze, Fäulnis gieriger | rot-goldene Kronen, Laubteppich, fallende Blätter |
+| Winter | Wachstum ×0,45, Fäulnis langsamer, Seen frieren zu – **die Fäulnis kann übers Eis** | kahle Laubbäume, Schneedecke, Eis, weniger Tiere |
+| Regen | Wachstum ×1,8, wäscht Fäulnis zurück | Regenschnüre, nasser Boden, Pfützen, Ringe auf dem Wasser, danach ein Regenbogen |
+| Nebel | Moderlinge kommen auch bei Tag | dichter Dunst |
+| Gewitter | Fäulnis ×1,6, mehr Moderlinge | Blitze mit Donner (verzögert nach Entfernung), Sturmböen |
+| Schnee | Wachstum ruht | Flocken, die Schneedecke wächst und taut im Frühling |
+
+## Hüterpilze und Sporenkerne
+
+**Sporenkerne** (◆) gibt es für Moderlinge (manchmal), Totholz, heimgebrachte Lichter, Sternsporen,
+erfüllte Aufträge, Rangaufstiege, geläuterte Moderherzen, erwachte Mutterbäume und jeden Morgen. Damit
+pflanzt ihr Hüterpilze (Ⓨ halten, Bauart mit R3 wechseln):
+
+- **Sporenturm** (3 ◆) – pulst alle 5 Sekunden: spinnt Myzel, läutert Fäulnis, trifft Moderlinge im Umkreis von 11 m.
+- **Leuchtschirm** (2 ◆) – hält die Fäulnis 18 m fern, wie ein kleiner Mutterbaum.
+- **Quellpilz** (2 ◆) – füllt eure Sporen in 12 m Umkreis auf und lässt den Boden erblühen.
+
+Moderlinge greifen Hüterpilze gezielt an. Webt daneben, um sie zu reparieren – sonst gehen sie verloren.
+
+## Herbarium
+
+23 Arten und Wesen: Pflanzen, Pilze, Tiere und die Wesen des Waldes. Was ihr aus der Nähe seht, wird
+entdeckt (mit kleinem Text und Erfahrung). Das Herbarium steht im Pause-Menü.
 
 ## Fortschritt
 
@@ -161,6 +196,8 @@ src/
     nests.js          Moderherzen
     fauna.js          Hirsche, Hasen, Vogelschwärme
     creatures.js      Darstellung der Lichter, Moderlinge, Sternsporen
+    weather.js        Regen, Schnee, Laub, Blüten, Blitze
+    guardians.js      Modelle der Hüterpilze
     water.js          Wasser
     wisps.js          die Geister und ihr Faden
     particles.js      Effekte, Pollen, Glühwürmchen
@@ -169,6 +206,9 @@ src/
     players.js        Bewegung, Sporen, Gaben
     progress.js       Erfahrung, Ränge, Fluss, Aufträge
     encounters.js     verirrte Lichter, Moderlinge, Sternsporen (Logik)
+    climate.js        Jahreszeiten und Wetter
+    guardians.js      Hüterpilze (Logik)
+    herbarium.js      Arten und Texte
     cameraRig.js      gemeinsame Kamera
 tests/                headless Tests der Welt und Simulation
 ```

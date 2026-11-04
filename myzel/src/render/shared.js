@@ -12,6 +12,13 @@ export const U = {
   uSunDir: { value: new THREE.Vector3(0, 1, 0) },
   uSunColor: { value: new THREE.Color(1, 1, 1) },
   uWind: { value: 1 },
+  // Jahreszeiten (Frühling, Sommer, Herbst, Winter) und Wetter
+  uSeason: { value: new THREE.Vector4(1, 0, 0, 0) },
+  uWet: { value: 0 },
+  uSnow: { value: 0 },
+  uFreeze: { value: 0 },
+  uRain: { value: 0 },
+  uSnowfall: { value: 0 },
   uP1: { value: new THREE.Color('#ffb347') }, // Hyphe: Bernstein
   uP2: { value: new THREE.Color('#3ff5c8') }, // Keim: Jade
   uPlayers: { value: [new THREE.Vector3(1e5, 0, 1e5), new THREE.Vector3(1e5, 0, 1e5)] },

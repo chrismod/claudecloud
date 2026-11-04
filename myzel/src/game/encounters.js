@@ -177,7 +177,14 @@ export function createEncounters({ field, sim, rand = Math.random }) {
       }
       if (m.think <= 0) {
         m.think = 1;
+        let guard = null;
+        let gd = 24;
+        for (const g of ctx.guardians ?? []) {
+          const d = Math.hypot(g.x - m.x, g.z - m.z);
+          if (d < gd) (gd = d), (guard = g);
+        }
         if (nearP && nd < 16) m.target = { p: nearP };
+        else if (guard && rand() < 0.65) m.target = { x: guard.x + (rand() - 0.5) * 2, z: guard.z + (rand() - 0.5) * 2 };
         else {
           let best = null;
           let bm = 0.55;

@@ -618,3 +618,40 @@ td:first-child { color: var(--ink); font-weight: 500; }
   box-shadow: 0 0 14px rgba(255, 210, 120, 0.4);
 }
 #powers .power b { font-weight: 600; margin-left: 4px; }
+
+/* --- Bauen, Entdecken, Herbarium -------------------------------------------- */
+.pbuild { margin-top: 4px; font-size: 11px; letter-spacing: 0.04em; color: #ffe2a8; opacity: 0.85; }
+.pbuild.poor { color: var(--dim); opacity: 0.6; }
+.pcard.empty .pbuild { display: none; }
+#popups .pop.core { color: #d6f4ff; font-size: 19px; text-shadow: 0 0 12px rgba(120, 220, 255, 0.9), 0 2px 6px rgba(0, 0, 0, 0.6); }
+
+#discover {
+  position: absolute;
+  right: 24px;
+  top: 150px;
+  width: 300px;
+  padding: 12px 16px 14px;
+  border-radius: 14px;
+  background: linear-gradient(180deg, rgba(40, 52, 30, 0.75), rgba(20, 26, 16, 0.6));
+  border: 1px solid rgba(190, 230, 140, 0.45);
+  backdrop-filter: blur(6px);
+  opacity: 0;
+  transform: translateX(20px);
+  transition: opacity 0.6s, transform 0.6s;
+}
+#discover.show { opacity: 1; transform: none; }
+#discover small { display: block; font-size: 10px; letter-spacing: 0.18em; text-transform: uppercase; color: #c8e8a0; }
+#discover b { display: block; font-family: var(--serif); font-size: 24px; font-weight: 500; margin: 2px 0 4px; }
+#discover p { margin: 0; font-size: 12.5px; line-height: 1.45; color: var(--dim); }
+
+#herb { background: rgba(0, 0, 0, 0.4); }
+#herb .panel { max-height: 90vh; overflow: auto; }
+#herb h2 small { font-family: var(--sans); font-size: 14px; color: var(--dim); margin-left: 12px; letter-spacing: 0.05em; }
+.herbgrid { display: grid; grid-template-columns: repeat(auto-fill, minmax(380px, 1fr)); gap: 18px; }
+.hgroup h3 { margin: 0 0 8px; font-size: 12px; letter-spacing: 0.18em; text-transform: uppercase; color: var(--dim); font-weight: 500; }
+.hcard { padding: 9px 12px; margin-bottom: 7px; border-radius: 10px; background: rgba(255, 255, 255, 0.05); border: 1px solid var(--line); }
+.hcard b { font-family: var(--serif); font-size: 18px; font-weight: 500; }
+.hcard p { margin: 3px 0 0; font-size: 12.5px; line-height: 1.4; color: var(--dim); }
+.hcard.unknown { opacity: 0.45; }
+.hcard.unknown b { letter-spacing: 0.2em; }
+@media (max-width: 760px) { #discover { display: none; } .herbgrid { grid-template-columns: 1fr; } }

@@ -39,6 +39,9 @@ function skyMaterial() {
       uSunCol: { value: new THREE.Color() },
       uNight: U.uNight,
       uTime: U.uTime,
+      uOvercast: { value: 0 },
+      uRainbow: { value: 0 },
+      uFlash: { value: 0 },
     },
     vertexShader: /* glsl */ `
       varying vec3 vDir;
@@ -48,7 +51,7 @@ function skyMaterial() {
         gl_Position = p.xyww;
       }`,
     fragmentShader: /* glsl */ `
-      uniform vec3 uZen, uHor, uSun, uMoon, uSunCol; uniform float uNight, uTime;
+      uniform vec3 uZen, uHor, uSun, uMoon, uSunCol; uniform float uNight, uTime, uOvercast, uRainbow, uFlash;
       varying vec3 vDir;
       ${GLSL_NOISE}
       void main(){
@@ -70,10 +73,21 @@ function skyMaterial() {
         col += vec3(0.9, 0.95, 1.0) * star * tw * uNight * smoothstep(0.02, 0.25, d.y) * 2.0;
         // Wolkenschleier
         vec2 cp = d.xz / (d.y + 0.12) * 1.6 + vec2(uTime * 0.004, 0.0);
-        float cl = smoothstep(0.45, 0.85, mzFbm(cp)) * smoothstep(0.0, 0.25, d.y);
+        float cl = smoothstep(0.45 - uOvercast * 0.4, 0.85 - uOvercast * 0.25, mzFbm(cp)) * smoothstep(0.0, 0.25, d.y);
         vec3 cloudCol = mix(uHor * 1.15, uSunCol * 0.9 + uHor * 0.4, pow(s, 3.0));
         cloudCol = mix(cloudCol, vec3(0.12, 0.14, 0.22), uNight * 0.8);
-        col = mix(col, cloudCol, cl * 0.75);
+        cloudCol = mix(cloudCol, uHor * 0.55 * (0.8 + 0.2 * mzFbm(cp * 2.0)), uOvercast * 0.7);
+        col = mix(col, cloudCol, cl * (0.75 + uOvercast * 0.25));
+        col = mix(col, uHor * 0.75, uOvercast * 0.35);
+        // Regenbogen gegenüber der Sonne (≈ 42°)
+        float ang = acos(clamp(dot(d, -uSun), -1.0, 1.0));
+        float rb = (ang - 0.733) / 0.04;
+        if (abs(rb) < 1.0 && uRainbow > 0.01) {
+          vec3 spec = clamp(vec3(1.5 - abs(rb * 3.0 - 2.0), 1.5 - abs(rb * 3.0), 1.5 - abs(rb * 3.0 + 2.0)), 0.0, 1.0);
+          col += spec * (1.0 - rb * rb) * uRainbow * 0.32 * smoothstep(0.0, 0.08, d.y) * (1.0 - uNight);
+        }
+        // Blitz erhellt die Wolken
+        col += vec3(0.75, 0.8, 1.0) * uFlash * (0.4 + cl * 1.6);
         gl_FragColor = vec4(col, 1.0);
         #include <tonemapping_fragment>
         #include <colorspace_fragment>
@@ -121,7 +135,12 @@ export function createSky(scene, renderer) {
   const moonDir = new THREE.Vector3();
   const state = { night: 0, dayTime: 0.3, sunDir, fogColor: new THREE.Color() };
 
-  function update(dayTime, focus, dt) {
+  const grey = new THREE.Color(0.32, 0.34, 0.38);
+  const flashCol = new THREE.Color(0.8, 0.85, 1);
+  // cl: Klimafaktoren (fog, rain, storm, rainbow, lightning)
+  function update(dayTime, focus, dt, cl = null) {
+    const ov = cl ? Math.min(1, cl.rain * 0.85 + cl.fog * 0.6 + cl.snowfall * 0.6 + cl.storm * 0.3) : 0;
+    const flash = cl?.lightning ?? 0;
     state.dayTime = dayTime;
     const a = (dayTime - 0.25) * Math.PI * 2; // 0 bei Sonnenaufgang
     sunDir.set(Math.cos(a) * 0.75, Math.sin(a), -0.45 + Math.cos(a) * 0.15).normalize();
@@ -133,6 +152,14 @@ export function createSky(scene, renderer) {
     state.night = night;
     U.uNight.value = night;
     const m = sky.material.uniforms;
+    // bedeckter Himmel: grauer, flacher
+    k.zen.lerp(grey.clone().multiplyScalar(0.5 + (1 - night) * 0.45).lerp(k.zen, 0.35), ov * 0.75);
+    k.hor.lerp(grey.clone().multiplyScalar(0.55 + (1 - night) * 0.55).lerp(k.hor, 0.35), ov * 0.7);
+    k.fog.lerp(k.hor, ov * 0.6);
+    m.uOvercast.value = ov;
+    m.uRainbow.value = cl?.rainbow ?? 0;
+    m.uFlash.value = flash;
+    scene.fog.density = 0.0052 * (1 + (cl?.fog ?? 0) * 1.8 + (cl?.rain ?? 0) * 0.5 + (cl?.snowfall ?? 0) * 0.3);
     m.uZen.value.copy(k.zen);
     m.uHor.value.copy(k.hor);
     m.uSun.value.copy(sunDir);
@@ -143,7 +170,9 @@ export function createSky(scene, renderer) {
 
     const lightDir = sunDir.y > -0.05 ? sunDir : moonDir;
     sun.color.copy(k.sun);
-    sun.intensity = k.si * smoothstep(-0.05, 0.08, Math.max(sunDir.y, night * moonDir.y));
+    const winter = U.uSeason.value.w;
+    sun.intensity = k.si * smoothstep(-0.05, 0.08, Math.max(sunDir.y, night * moonDir.y)) * (1 - ov * 0.65) * (1 - winter * 0.35) + flash * 4;
+    if (flash > 0.05) sun.color.lerp(flashCol, flash);
     U.uSunDir.value.copy(lightDir);
     U.uSunColor.value.copy(k.sun).multiplyScalar(sun.intensity);
     // Schattenkamera folgt dem Fokus, auf Texel gerastert gegen Flimmern
@@ -154,7 +183,7 @@ export function createSky(scene, renderer) {
     sun.position.set(fx + lightDir.x * 120, focus.y + Math.max(lightDir.y, 0.15) * 120, fz + lightDir.z * 120);
     hemi.color.copy(k.hs);
     hemi.groundColor.copy(k.hg);
-    hemi.intensity = k.hi * 1.6;
+    hemi.intensity = k.hi * 1.6 * (1 - ov * 0.25) + flash * 2;
     sky.position.copy(focus);
 
     envAge += dt;

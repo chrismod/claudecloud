@@ -54,7 +54,7 @@ const TEMPLATES = {
   thread: (lv) => ({ goal: 120 + lv * 40, text: (n) => `Webt gemeinsam ${fmt(n)} m² mit dem Faden` }),
   animal: (lv) => ({ goal: 2 + lv, text: (n) => `Lockt ${n} Tiere zurück` }),
   wisp: (lv) => ({ goal: 1 + Math.floor(lv / 3), text: (n) => (n === 1 ? 'Bringt ein verirrtes Licht heim' : `Bringt ${n} verirrte Lichter heim`) }),
-  moderling: (lv) => ({ goal: 3 + lv, text: (n) => `Vertreibt ${n} Moderlinge` }),
+  moderling: (lv) => ({ goal: 3 + Math.min(lv, 5), text: (n) => `Vertreibt ${n} Moderlinge` }),
   star: () => ({ goal: 1, text: () => 'Fangt eine Sternspore' }),
 };
 const fmt = (n) => Math.round(n).toLocaleString('de-DE');

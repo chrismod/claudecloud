@@ -223,6 +223,9 @@ export function createMotherTrees(scene, field) {
       t.crown.scale.set(cs, cs, cs);
       t.crown.visible = a > 0.01;
       t.crown.material.emissiveIntensity = U.uNight.value * 0.06 * a;
+      // Jahreszeit: goldene Krone im Herbst, bereift im Winter, heller im Frühling
+      const se = U.uSeason.value;
+      t.crown.material.color.setRGB(1 + se.z * 0.9 + se.w * 0.5 + se.x * 0.1, 1 + se.z * 0.15 + se.w * 0.55 + se.x * 0.15, 1 - se.z * 0.55 + se.w * 0.6);
       t.lanterns.visible = a > 0.3;
       t.lanterns.scale.setScalar(Math.max(0.001, a));
       t.lanterns.material.color.setRGB(2.6, 2.2, 1.1).multiplyScalar(0.4 + U.uNight.value * 0.8 + 0.2 * Math.sin(time * 1.5));

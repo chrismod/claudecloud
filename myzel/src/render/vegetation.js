@@ -20,23 +20,23 @@ function specs() {
   const gm = GEO.giantMushroom();
   const leaves = pal('#ffffff', '#f0f5d0', '#d6ecc0', '#fff2c4');
   return {
-    grass: { translucent: true, tipH: 0.8, geo: GEO.grass(), r: 2, per: 640, mode: GROW, min: 0.42, wind: 1, dry: '#9c8a5e', dryMix: 1, pal: pal('#ffffff', '#e8f2c0', '#d0e6a8', '#f6f0b0'), double: true },
-    flower: { geo: GEO.flower(), r: 2, per: 80, mode: GROW, wind: 0.9, pal: pal('#ffffff', '#ffd84a', '#b78cff', '#ff7fae'), double: true, glow: 0.35 },
-    fern: { translucent: true, tipH: 0.5, geo: GEO.fern(), r: 3, per: 50, mode: GROW, wind: 0.5, pal: pal('#ffffff', '#e6f5c8', '#cfe8b0', '#f0e8b8'), double: true },
-    reed: { geo: GEO.reed(), r: 3, per: 70, mode: GROW, min: 0.35, wind: 0.6, dry: '#8d7f5a', dryMix: 1, pal: leaves, double: true },
-    mushRed: { rim: true, double: true, geo: GEO.mushRed(), r: 2, per: 11, mode: GROW, pal: pal('#d42a1e', '#e8481c', '#b8142a', '#f0661a'), glow: 0.1 },
-    mushBrown: { rim: true, double: true, geo: GEO.mushBrown(), r: 2, per: 14, mode: GROW, pal: pal('#7a4a26', '#9a6234', '#5e3a20', '#b88a52') },
+    grass: { season: 'grass', translucent: true, tipH: 0.8, geo: GEO.grass(), r: 2, per: 640, mode: GROW, min: 0.42, wind: 1, dry: '#9c8a5e', dryMix: 1, pal: pal('#ffffff', '#e8f2c0', '#d0e6a8', '#f6f0b0'), double: true },
+    flower: { season: 'flower', geo: GEO.flower(), r: 2, per: 80, mode: GROW, wind: 0.9, pal: pal('#ffffff', '#ffd84a', '#b78cff', '#ff7fae'), double: true, glow: 0.35 },
+    fern: { season: 'grass', translucent: true, tipH: 0.5, geo: GEO.fern(), r: 3, per: 50, mode: GROW, wind: 0.5, pal: pal('#ffffff', '#e6f5c8', '#cfe8b0', '#f0e8b8'), double: true },
+    reed: { season: 'grass', geo: GEO.reed(), r: 3, per: 70, mode: GROW, min: 0.35, wind: 0.6, dry: '#8d7f5a', dryMix: 1, pal: leaves, double: true },
+    mushRed: { season: 'shroom', rim: true, double: true, geo: GEO.mushRed(), r: 2, per: 11, mode: GROW, pal: pal('#d42a1e', '#e8481c', '#b8142a', '#f0661a'), glow: 0.1 },
+    mushBrown: { season: 'shroom', rim: true, double: true, geo: GEO.mushBrown(), r: 2, per: 14, mode: GROW, pal: pal('#7a4a26', '#9a6234', '#5e3a20', '#b88a52') },
     mushGlow: { rim: true, breathe: true, double: true, geo: GEO.mushGlow(), r: 2, per: 16, mode: GROW, pal: pal('#5ff0ff', '#b37bff', '#52ffb0', '#7aa8ff'), glow: 1.4 },
-    parasol: { rim: true, double: true, geo: GEO.parasol(), r: 2, per: 5, mode: GROW, wind: 0.05, pal: pal('#ffffff', '#f0e0c8', '#e8d4b8', '#fff0dc') },
-    puff: { geo: GEO.puffball(), r: 3, per: 5, mode: REGROW, pal: leaves, glow: 0.5 },
-    bush: { translucent: true, tipH: 1.4, occlude: true, geo: GEO.bush(), r: 3, per: 10, mode: GROW, wind: 0.15, pal: pal('#ffffff', '#e0f0b0', '#c8e0a0', '#f8e0a0'), shadow: true, glow: 0.4 },
+    parasol: { season: 'shroom', rim: true, double: true, geo: GEO.parasol(), r: 2, per: 5, mode: GROW, wind: 0.05, pal: pal('#ffffff', '#f0e0c8', '#e8d4b8', '#fff0dc') },
+    puff: { season: 'shroom', geo: GEO.puffball(), r: 3, per: 5, mode: REGROW, pal: leaves, glow: 0.5 },
+    bush: { season: 'decid', translucent: true, tipH: 1.4, occlude: true, geo: GEO.bush(), r: 3, per: 10, mode: GROW, wind: 0.15, pal: pal('#ffffff', '#e0f0b0', '#c8e0a0', '#f8e0a0'), shadow: true, glow: 0.4 },
     rock: { geo: GEO.rock(), r: 3, per: 5, mode: STATIC, moss: true, shadow: true, pal: leaves },
     oakTrunk: { occlude: true, geo: oak.trunk, r: 3, per: 9, mode: TRUNK, dry: '#6b665f', shadow: true, pal: leaves },
-    oakCrown: { translucent: true, tipH: 8, occlude: true, geo: oak.crown, r: 3, per: 9, mode: GROW, wind: 0.04, pal: leaves, shadow: true },
+    oakCrown: { season: 'decid', translucent: true, tipH: 8, occlude: true, geo: oak.crown, r: 3, per: 9, mode: GROW, wind: 0.04, pal: leaves, shadow: true },
     birchTrunk: { occlude: true, geo: birch.trunk, r: 3, per: 9, mode: TRUNK, dry: '#8a8680', shadow: true, pal: leaves },
-    birchCrown: { translucent: true, tipH: 10, occlude: true, geo: birch.crown, r: 3, per: 9, mode: GROW, wind: 0.05, pal: pal('#ffffff', '#f4f0b0', '#e0f0c0', '#ffe090'), shadow: true },
+    birchCrown: { season: 'decid', translucent: true, tipH: 10, occlude: true, geo: birch.crown, r: 3, per: 9, mode: GROW, wind: 0.05, pal: pal('#ffffff', '#f4f0b0', '#e0f0c0', '#ffe090'), shadow: true },
     firTrunk: { occlude: true, geo: fir.trunk, r: 3, per: 9, mode: TRUNK, dry: '#5f5a54', shadow: true, pal: leaves },
-    firCrown: { occlude: true, geo: fir.crown, r: 3, per: 9, mode: GROW, wind: 0.02, pal: pal('#ffffff', '#e0f0e0', '#d8e8c8', '#f0f0d8'), shadow: true },
+    firCrown: { season: 'conifer', occlude: true, geo: fir.crown, r: 3, per: 9, mode: GROW, wind: 0.02, pal: pal('#ffffff', '#e0f0e0', '#d8e8c8', '#f0f0d8'), shadow: true },
     gmStem: { breathe: true, occlude: true, geo: gm.stem, r: 3, per: 9, mode: GROW, wind: 0.005, pal: leaves, shadow: true, glow: 0.8 },
     gmCap: { breathe: true, rim: true, rimStr: 0.3, occlude: true, geo: gm.cap, r: 3, per: 9, mode: GROW, wind: 0.005, pal: pal('#8a4fe0', '#24b3a4', '#e0603a', '#3d7fe0'), shadow: true, glow: 0.7 },
     log: { geo: GEO.deadLog(), r: 3, per: 2, mode: CONSUME, dry: '#5d554c', shadow: true, pal: leaves, glow: 0.7 },
@@ -52,10 +52,12 @@ function injectVertex(shader, spec, depth) {
   shader.uniforms.uWindAmp = { value: spec.wind ?? 0 };
   shader.uniforms.uMin = { value: spec.min ?? 0 };
   shader.uniforms.uWind = U.uWind;
+  shader.uniforms.uSeason = U.uSeason;
   shader.vertexShader =
     `#define MODE ${spec.mode}
     ${spec.breathe ? '#define BREATHE' : ''}
-    uniform float uTime; uniform float uMin; uniform float uWindAmp; uniform float uWind;
+    ${spec.season ? '#define S_' + spec.season.toUpperCase() : ''}
+    uniform float uTime; uniform float uMin; uniform float uWindAmp; uniform float uWind; uniform vec4 uSeason;
     attribute vec4 aInst; attribute vec2 aMask;
     varying float vGrow; varying float vLife; varying vec4 vVit; varying vec2 vMask; varying float vUp; varying float vHueR; varying float vRot; varying float vTip;
     ${GLSL_VIT}
@@ -93,6 +95,16 @@ function injectVertex(shader, spec, depth) {
       #ifdef BREATHE
         sc *= 1.0 + 0.035 * sin(uTime * 1.4 + aInst.y * 20.0);
       #endif
+      // Jahreszeiten: Laubbäume kahl im Winter, Blumen im Frühling, Pilze im Herbst
+      #if defined(S_DECID)
+        sc *= 1.0 - uSeason.w * 0.95;
+      #elif defined(S_FLOWER)
+        sc *= (1.0 + uSeason.x * 0.3) * (1.0 - uSeason.w) * (1.0 - uSeason.z * 0.6);
+      #elif defined(S_SHROOM)
+        sc *= (1.0 + uSeason.z * 0.35) * (1.0 - uSeason.w * 0.85);
+      #elif defined(S_GRASS)
+        sc *= 1.0 - uSeason.w * 0.35;
+      #endif
       transformed *= sc;
       vRot = rot;
       vTip = clamp(position.y / ${(spec.tipH ?? 1).toFixed(2)}, 0.0, 1.0);
@@ -127,8 +139,12 @@ function makeMaterial(spec) {
     shader.uniforms.uDry = { value: new THREE.Color(spec.dry ?? '#8a7f6a') };
     shader.uniforms.uDryMix = { value: spec.dryMix ?? 0 };
     shader.uniforms.uGlowStr = { value: spec.glow ?? 0 };
+    shader.uniforms.uSnow = U.uSnow;
+    shader.uniforms.uWet = U.uWet;
     shader.fragmentShader =
       `#define MODE ${spec.mode}
+      ${spec.season ? '#define S_' + spec.season.toUpperCase() : ''}
+      uniform vec4 uSeason; uniform float uSnow; uniform float uWet;
       ${spec.moss ? '#define MOSS' : ''}
       uniform float uNight; uniform vec3 uPal[4]; uniform vec3 uDry; uniform float uDryMix; uniform float uGlowStr;
       ${spec.rim ? '#define RIM' : ''}
@@ -151,7 +167,28 @@ function makeMaterial(spec) {
           #endif
           float rotF = smoothstep(0.2, 0.7, vRot);
           diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.05, 0.02, 0.06) * (0.6 + lum * 2.0), rotF * 0.85);
+          #if defined(S_DECID)
+            // Herbstlaub je Baum: rot, orange, gold – im Frühling blühen manche Kronen
+            vec3 autumn = vHueR < 0.3 ? vec3(0.62, 0.12, 0.03) : vHueR < 0.65 ? vec3(0.78, 0.36, 0.05) : vec3(0.72, 0.58, 0.1);
+            diffuseColor.rgb = mix(diffuseColor.rgb, autumn * (0.55 + lum * 2.2), uSeason.z * 0.92 * vMask.x);
+            float blossom = step(0.55, fract(vHueR * 7.31)) * smoothstep(0.35, 0.9, vTip);
+            diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.95, 0.62, 0.74) * (0.7 + lum), uSeason.x * blossom * 0.75 * vMask.x);
+          #elif defined(S_CONIFER)
+            diffuseColor.rgb *= mix(vec3(1.0), vec3(0.8, 0.9, 0.95), uSeason.w);
+          #elif defined(S_GRASS)
+            diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.36, 0.25, 0.1) * (0.6 + lum * 1.6), uSeason.z * 0.45 + uSeason.w * 0.55);
+            diffuseColor.rgb *= mix(vec3(1.0), vec3(0.92, 1.12, 0.85), uSeason.x * 0.6);
+          #endif
+          // Schnee auf allem, was nach oben zeigt; Nässe macht dunkler
+          float snowF = uSnow * smoothstep(0.2, 0.7, vUp);
+          diffuseColor.rgb = mix(diffuseColor.rgb, vec3(0.5, 0.54, 0.6), snowF * 0.9);
+          diffuseColor.rgb *= 1.0 - uWet * 0.22 * (1.0 - snowF);
           `,
+        )
+        .replace(
+          '#include <roughnessmap_fragment>',
+          `#include <roughnessmap_fragment>
+          roughnessFactor *= 1.0 - uWet * 0.45 * (1.0 - snowF);`,
         )
         .replace(
           '#include <emissivemap_fragment>',
@@ -172,14 +209,14 @@ function makeMaterial(spec) {
     if (spec.occlude) addOcclusion(shader, true);
   };
   mat.customProgramCacheKey = () =>
-    'veg' + spec.mode + (spec.moss ? 'm' : '') + (spec.double ? 'd' : '') + (spec.occlude ? 'o' : '') + (spec.rim ? 'r' + (spec.rimStr ?? 1) : '') + (spec.translucent ? 't' + (spec.tipH ?? 1) : '') + (spec.breathe ? 'b' : '');
+    'veg' + spec.mode + (spec.moss ? 'm' : '') + (spec.double ? 'd' : '') + (spec.occlude ? 'o' : '') + (spec.rim ? 'r' + (spec.rimStr ?? 1) : '') + (spec.translucent ? 't' + (spec.tipH ?? 1) : '') + (spec.breathe ? 'b' : '') + (spec.season ?? '');
   return mat;
 }
 
 function makeDepthMaterial(spec) {
   const mat = new THREE.MeshDepthMaterial({ depthPacking: THREE.RGBADepthPacking });
   mat.onBeforeCompile = (shader) => injectVertex(shader, spec, true);
-  mat.customProgramCacheKey = () => 'vegd' + spec.mode + (spec.breathe ? 'b' : '') + (spec.tipH ?? 1);
+  mat.customProgramCacheKey = () => 'vegd' + spec.mode + (spec.breathe ? 'b' : '') + (spec.tipH ?? 1) + (spec.season ?? '');
   return mat;
 }
 
