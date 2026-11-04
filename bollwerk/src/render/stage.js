@@ -193,7 +193,7 @@ function skyMaterial(theme) {
           float h = hash(cell);
           // runde, kleine Sterne mit weichem Rand
           float r = length(fract(d) - 0.5);
-          col += vec3(0.85, 0.92, 1.0) * step(0.9992, h) * smoothstep(0.5, 0.1, r) * stars * (0.6 + 0.4 * hash(cell + 3.0)) * step(-0.05, d.y);
+          col += vec3(0.85, 0.92, 1.0) * step(0.9992, h) * (1.0 - smoothstep(0.1, 0.5, r)) * stars * (0.6 + 0.4 * hash(cell + 3.0)) * step(-0.05, d.y);
         }
         gl_FragColor = vec4(col, 1.0);
         #include <colorspace_fragment>
@@ -236,7 +236,7 @@ export class Stage {
     container.appendChild(renderer.domElement);
 
     this.scene = new THREE.Scene();
-    this.camera = new THREE.PerspectiveCamera(36, 1, 0.1, 400);
+    this.camera = new THREE.PerspectiveCamera(36, 1, 0.8, 400);
 
     this.hemi = new THREE.HemisphereLight('#ffffff', '#444444', 1);
     this.scene.add(this.hemi);
@@ -284,8 +284,12 @@ export class Stage {
 
     this.shake = 0;
     this.bounds = { w: 10, h: 10 };
+    this.listeners = [];
     this.resize();
-    window.addEventListener('resize', () => this.resize());
+    // Größe wird zusätzlich jedes Bild geprüft (checkSize): eingebettete Ansichten melden Größenänderungen
+    // nicht immer per resize-Ereignis
+    window.addEventListener('resize', () => this.checkSize());
+    if (window.ResizeObserver) new ResizeObserver(() => this.checkSize()).observe(container);
   }
 
   applyTheme(name) {
@@ -354,10 +358,26 @@ export class Stage {
     }
   }
 
+  onResize(fn) {
+    this.listeners.push(fn);
+  }
+
+  viewSize() {
+    return [this.container.clientWidth || window.innerWidth, this.container.clientHeight || window.innerHeight, window.devicePixelRatio || 1];
+  }
+
+  checkSize() {
+    const [w, h, dpr] = this.viewSize();
+    if (w !== this.width || h !== this.height || dpr !== this.dpr) this.resize();
+  }
+
   resize() {
     const wasPortrait = this.camera.aspect < 0.9;
-    const w = this.container.clientWidth || window.innerWidth;
-    const h = this.container.clientHeight || window.innerHeight;
+    const [w, h, dpr] = this.viewSize();
+    this.dpr = dpr;
+    const pr = Math.min(dpr, this.settings.quality === 'low' ? 1 : 2);
+    this.renderer.setPixelRatio(pr);
+    this.composer.setPixelRatio(pr);
     this.renderer.setSize(w, h);
     this.composer.setSize(w, h);
     this.camera.aspect = w / h;
@@ -365,11 +385,11 @@ export class Stage {
     this.width = w;
     this.height = h;
     if (wasPortrait !== this.camera.aspect < 0.9 && this.bounds) this.resetView();
+    for (const fn of this.listeners || []) fn(w, h);
   }
 
   setQuality(q) {
     this.settings.quality = q;
-    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, q === 'low' ? 1 : 2));
     this.renderer.shadowMap.enabled = q !== 'low';
     this.scene.traverse((o) => o.material && (o.material.needsUpdate = true));
     this.resize();
@@ -390,6 +410,7 @@ export class Stage {
   }
 
   render(dt) {
+    this.checkSize();
     let ox = 0;
     let oy = 0;
     if (this.shake > 0) {

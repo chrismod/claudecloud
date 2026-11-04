@@ -10,21 +10,23 @@ export class Overlay {
     this.texts = [];
     this.v = new THREE.Vector3();
     this.resize();
-    window.addEventListener('resize', () => this.resize());
+    stage.onResize(() => this.resize());
   }
 
   resize() {
     const dpr = Math.min(window.devicePixelRatio || 1, 2);
     this.dpr = dpr;
-    this.cv.width = Math.round(window.innerWidth * dpr);
-    this.cv.height = Math.round(window.innerHeight * dpr);
-    this.cv.style.width = window.innerWidth + 'px';
-    this.cv.style.height = window.innerHeight + 'px';
+    this.w = this.stage.width || window.innerWidth;
+    this.h = this.stage.height || window.innerHeight;
+    this.cv.width = Math.round(this.w * dpr);
+    this.cv.height = Math.round(this.h * dpr);
+    this.cv.style.width = this.w + 'px';
+    this.cv.style.height = this.h + 'px';
   }
 
   project(x, y, z) {
     const v = this.v.set(x, y, z).project(this.stage.camera);
-    return [((v.x + 1) / 2) * window.innerWidth, ((1 - v.y) / 2) * window.innerHeight, v.z];
+    return [((v.x + 1) / 2) * this.w, ((1 - v.y) / 2) * this.h, v.z];
   }
 
   text(wx, wy, wz, str, color = '#ffd25e', size = 14) {
@@ -38,7 +40,7 @@ export class Overlay {
   draw(dt, game, board) {
     const g = this.g;
     g.setTransform(this.dpr, 0, 0, this.dpr, 0, 0);
-    g.clearRect(0, 0, window.innerWidth, window.innerHeight);
+    g.clearRect(0, 0, this.w, this.h);
     if (!game) return;
     const camDist = this.stage.camera.position.distanceTo(this.stage.controls.target);
     const zoom = Math.max(0.65, Math.min(1.6, 16 / camDist));

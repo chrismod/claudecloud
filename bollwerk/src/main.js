@@ -57,8 +57,8 @@ const fx = new Fx(board, towerViews, enemyViews);
 enemyViews.fx = fx;
 const overlay = new Overlay($('overlay'), stage, enemyViews);
 const sound = new Sound();
-fx.setScale(window.innerHeight);
-window.addEventListener('resize', () => fx.setScale(window.innerHeight));
+fx.setScale(stage.height);
+stage.onResize((w, h) => fx.setScale(h));
 
 const thumbs = renderSnapshots(TOWER_ORDER, Object.keys(ENEMIES));
 
@@ -166,8 +166,17 @@ function loadMap(mapDef, play) {
   }
 }
 
+// Hintergrund-Vorschau im Menü: erst nach kurzem Verweilen wechseln, sonst flackert die Szene beim Überfahren
+let previewTimer = null;
+function previewMap(m) {
+  clearTimeout(previewTimer);
+  previewTimer = setTimeout(() => {
+    if (ui.mode === 'menu' && m !== def) loadMap(m, false);
+  }, 450);
+}
+
 function renderMenu() {
-  renderMapList(progress, (m) => (sound.unlock(), sound.click(), loadMap(m, true)), (m) => m !== def && loadMap(m, false));
+  renderMapList(progress, (m) => (clearTimeout(previewTimer), sound.unlock(), sound.click(), loadMap(m, true)), previewMap);
   $('menu-crystals').textContent = progress.crystals;
 }
 
