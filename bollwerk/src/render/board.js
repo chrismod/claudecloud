@@ -384,6 +384,9 @@ export class Board {
     const rocks = [];
     const bushes = [];
     const flowers = [];
+    const lava = [];
+    const crystals = [];
+    const D = { tree: 0.32, trees: 'mixed', rock: 0.13, bush: 0.2, flower: 0.45, tuft: 5, ...theme.deco };
     const free = (x, y) => map.tileAt(x, y) === '.' && !map.road.has(y * map.W + x);
     for (let y = -0; y < map.H; y++) {
       for (let x = 0; x < map.W; x++) {
@@ -392,10 +395,15 @@ export class Board {
         const r = rng();
         const px = this.wx(x + 0.5) + (rng() - 0.5) * 0.4;
         const pz = this.wz(y + 0.5) + (rng() - 0.5) * 0.4;
-        if (r < 0.32 && !nearRoad) trees.push([px, pz, 0.7 + rng() * 0.6, rng()]);
-        else if (r < 0.45) rocks.push([px, pz, 0.12 + rng() * 0.14, rng()]);
-        else if (r < 0.65) bushes.push([px, pz, 0.12 + rng() * 0.1, rng()]);
-        if (rng() < 0.45) for (let k = 0; k < 4; k++) flowers.push([this.wx(x + rng()), this.wz(y + rng()), rng()]);
+        if (D.lava && !nearRoad && rng() < D.lava) {
+          lava.push([this.wx(x + 0.5), this.wz(y + 0.5), 0.28 + rng() * 0.16, rng()]);
+          continue;
+        }
+        if (r < D.tree && !nearRoad) trees.push([px, pz, 0.7 + rng() * 0.6, rng()]);
+        else if (r < D.tree + D.rock) rocks.push([px, pz, 0.12 + rng() * 0.14, rng()]);
+        else if (r < D.tree + D.rock + D.bush) bushes.push([px, pz, 0.12 + rng() * 0.1, rng()]);
+        if (D.crystal && rng() < D.crystal) for (let k = 0; k < 3; k++) crystals.push([px + (rng() - 0.5) * 0.3, pz + (rng() - 0.5) * 0.3, 0.06 + rng() * 0.08, rng()]);
+        if (rng() < D.flower) for (let k = 0; k < 4; k++) flowers.push([this.wx(x + rng()), this.wz(y + rng()), rng()]);
       }
     }
     // Rand der Insel
@@ -404,8 +412,10 @@ export class Board {
       const t = rng();
       const x = side < 2 ? (t - 0.5) * map.W : (side === 2 ? -0.5 : 0.5) * (map.W + 0.6);
       const z = side >= 2 ? (t - 0.5) * map.H : (side === 0 ? -0.5 : 0.5) * (map.H + 0.6);
-      if (rng() < 0.5) bushes.push([x, z, 0.1 + rng() * 0.12, rng()]);
-      else flowers.push([x, z, rng()]);
+      if (rng() < 0.5) {
+        if (rng() < D.bush * 2.5) bushes.push([x, z, 0.1 + rng() * 0.12, rng()]);
+        else if (rng() < D.rock * 2) rocks.push([x, z, 0.08 + rng() * 0.1, rng()]);
+      } else if (rng() < D.flower * 2) flowers.push([x, z, rng()]);
     }
     const m4 = new THREE.Matrix4();
     const q = new THREE.Quaternion();
@@ -414,14 +424,40 @@ export class Board {
     const col = new THREE.Color();
     const leaves = theme.leaves.map((c) => new THREE.Color(c));
 
-    if (trees.length) {
+    if (trees.length && D.trees === 'cactus') {
+      // Kakteen: Stamm mit zwei Armen
+      const cyl = (r, h) => new THREE.CapsuleGeometry(r, h, 4, 8);
+      const geo = mergeGeometries([cyl(0.07, 0.42).translate(0, 0.28, 0), cyl(0.045, 0.14).translate(0.11, 0.33, 0), new THREE.CylinderGeometry(0.03, 0.03, 0.1, 6).rotateZ(Math.PI / 2).translate(0.06, 0.24, 0), cyl(0.04, 0.12).translate(-0.1, 0.4, 0), new THREE.CylinderGeometry(0.03, 0.03, 0.09, 6).rotateZ(Math.PI / 2).translate(-0.05, 0.32, 0)]);
+      const mesh = new THREE.InstancedMesh(geo, new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: 0.7 }), trees.length);
+      trees.forEach(([x, z, sc, r], i) => {
+        q.setFromAxisAngle(v.set(0, 1, 0), r * 6.28);
+        m4.compose(v.set(x, 0, z), q, s.setScalar(sc * 1.1));
+        mesh.setMatrixAt(i, m4);
+        mesh.setColorAt(i, col.copy(leaves[Math.floor(r * 97) % leaves.length]));
+      });
+      mesh.castShadow = true;
+      G.add(mesh);
+    } else if (trees.length && D.trees === 'dead') {
+      // Verkohlte Bäume: Stamm mit kahlen Ästen
+      const br = (len, rz, ry, y) => new THREE.CylinderGeometry(0.012, 0.025, len, 5).translate(0, len / 2, 0).rotateZ(rz).rotateY(ry).translate(0, y, 0);
+      const geo = mergeGeometries([new THREE.CylinderGeometry(0.03, 0.065, 0.62, 6).translate(0, 0.31, 0), br(0.24, 0.8, 0, 0.38), br(0.2, -0.9, 0.8, 0.46), br(0.17, 0.7, 2.4, 0.52), br(0.14, -0.6, 3.6, 0.3)]);
+      const mesh = new THREE.InstancedMesh(geo, new THREE.MeshStandardMaterial({ color: '#2a2220', roughness: 1, flatShading: true }), trees.length);
+      trees.forEach(([x, z, sc, r], i) => {
+        q.setFromAxisAngle(v.set(0, 1, 0), r * 6.28);
+        m4.compose(v.set(x, 0, z), q, s.setScalar(sc));
+        mesh.setMatrixAt(i, m4);
+      });
+      mesh.castShadow = true;
+      G.add(mesh);
+    } else if (trees.length) {
+      const snow = D.trees === 'snow';
       const trunkGeo = new THREE.CylinderGeometry(0.04, 0.06, 0.3, 6);
       trunkGeo.translate(0, 0.15, 0);
       const crownGeo = mergeGeometries([new THREE.ConeGeometry(0.26, 0.45, 7).translate(0, 0.42, 0), new THREE.ConeGeometry(0.2, 0.38, 7).translate(0, 0.66, 0)]);
       const roundGeo = new THREE.IcosahedronGeometry(0.24, 0).translate(0, 0.5, 0);
       const trunk = new THREE.InstancedMesh(trunkGeo, new THREE.MeshStandardMaterial({ color: '#7a5636', roughness: 1 }), trees.length);
-      const pines = trees.filter((t) => t[3] < 0.55);
-      const rounds = trees.filter((t) => t[3] >= 0.55);
+      const pines = trees.filter((t) => snow || t[3] < 0.55);
+      const rounds = trees.filter((t) => !snow && t[3] >= 0.55);
       const crownMat = swayMaterial(new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: 0.85, flatShading: true }), this.wind, 0.07, 0.25);
       const pine = new THREE.InstancedMesh(crownGeo, crownMat, Math.max(1, pines.length));
       const round = new THREE.InstancedMesh(roundGeo, crownMat, Math.max(1, rounds.length));
@@ -441,6 +477,18 @@ export class Board {
         });
       place(pine, pines);
       place(round, rounds);
+      if (snow && pines.length) {
+        // Schneehauben auf den Tannen
+        const capGeo = mergeGeometries([new THREE.ConeGeometry(0.2, 0.18, 7).translate(0, 0.58, 0), new THREE.ConeGeometry(0.15, 0.16, 7).translate(0, 0.8, 0)]);
+        const caps = new THREE.InstancedMesh(capGeo, swayMaterial(new THREE.MeshStandardMaterial({ color: '#f7fbff', roughness: 0.6, flatShading: true }), this.wind, 0.07, 0.25), pines.length);
+        pines.forEach(([x, z, sc, r], i) => {
+          q.setFromAxisAngle(v.set(0, 1, 0), r * 6.28);
+          m4.compose(v.set(x, 0, z), q, s.set(sc * 1.02, sc * (0.9 + r * 0.3), sc * 1.02));
+          caps.setMatrixAt(i, m4);
+        });
+        caps.castShadow = true;
+        G.add(caps);
+      }
       for (const m of [trunk, pine, round]) {
         m.castShadow = true;
         m.receiveShadow = true;
@@ -476,7 +524,7 @@ export class Board {
         for (let x = -1; x <= map.W; x++) {
           const inside = x >= 0 && y >= 0 && x < map.W && y < map.H;
           if (inside && !free(x, y)) continue;
-          const n = inside ? 5 : 2;
+          const n = Math.floor((inside ? D.tuft : D.tuft * 0.4) + rng());
           for (let k = 0; k < n; k++) {
             const px = this.wx(x + rng());
             const pz = this.wz(y + rng());
@@ -515,13 +563,51 @@ export class Board {
     }
 
     if (flowers.length) {
-      const palette = ['#ffffff', '#ffd84d', '#ff8fb1', '#b89cff', '#ff7b54'].map((c) => new THREE.Color(c));
+      const palette = (D.flowers || ['#ffffff', '#ffd84d', '#ff8fb1', '#b89cff', '#ff7b54']).map((c) => new THREE.Color(c));
       const mesh = new THREE.InstancedMesh(new THREE.SphereGeometry(0.035, 6, 4), new THREE.MeshStandardMaterial({ color: '#ffffff', roughness: 0.6 }), flowers.length);
       flowers.forEach(([x, z, r], i) => {
         m4.makeTranslation(x, 0.04, z);
         mesh.setMatrixAt(i, m4);
         mesh.setColorAt(i, palette[Math.floor(r * 50) % palette.length]);
       });
+      G.add(mesh);
+    }
+    this.buildGlow(lava, crystals, G);
+  }
+
+  // Lavapfützen und Leuchtkristalle (Vulkan, Sternennacht)
+  buildGlow(lava, crystals, G) {
+    const m4 = new THREE.Matrix4();
+    const q = new THREE.Quaternion();
+    const v = new THREE.Vector3();
+    const s = new THREE.Vector3();
+    this.lavaMat = null;
+    if (lava.length) {
+      const rim = new THREE.InstancedMesh(new THREE.CircleGeometry(1, 12).rotateX(-Math.PI / 2), new THREE.MeshStandardMaterial({ color: '#1a1414', roughness: 1, flatShading: true }), lava.length);
+      this.lavaMat = new THREE.MeshBasicMaterial({ color: new THREE.Color('#ff4a10') });
+      const pool = new THREE.InstancedMesh(new THREE.CircleGeometry(1, 12).rotateX(-Math.PI / 2), this.lavaMat, lava.length);
+      lava.forEach(([x, z, r, k], i) => {
+        q.setFromAxisAngle(v.set(0, 1, 0), k * 6.28);
+        m4.compose(v.set(x, 0.006, z), q, s.set(r * 1.25, 1, r * 1.1));
+        rim.setMatrixAt(i, m4);
+        m4.compose(v.set(x, 0.012, z), q, s.set(r, 1, r * 0.85));
+        pool.setMatrixAt(i, m4);
+      });
+      rim.receiveShadow = true;
+      G.add(rim, pool);
+      this.lavaSpots = lava;
+    }
+    if (crystals.length) {
+      const mat = new THREE.MeshStandardMaterial({ color: '#bfe6ff', emissive: '#7a6cff', emissiveIntensity: 1.6, roughness: 0.15, flatShading: true });
+      const mesh = new THREE.InstancedMesh(new THREE.OctahedronGeometry(1, 0), mat, crystals.length);
+      const c = new THREE.Color();
+      crystals.forEach(([x, z, sc, k], i) => {
+        q.setFromEuler(new THREE.Euler((k - 0.5) * 0.6, k * 6, (k - 0.5) * 0.5));
+        m4.compose(v.set(x, sc * 1.2, z), q, s.set(sc * 0.6, sc * 2.2, sc * 0.6));
+        mesh.setMatrixAt(i, m4);
+        mesh.setColorAt(i, c.set(k < 0.5 ? '#9ad8ff' : '#d4b4ff'));
+      });
+      mesh.castShadow = true;
       G.add(mesh);
     }
   }
@@ -725,6 +811,7 @@ export class Board {
       this.beamMat.uniforms.time.value = this.time;
       this.coreRing.scale.setScalar(1 + this.coreFlash * 0.4 + Math.sin(this.time * 3) * 0.02);
     }
+    if (this.lavaMat) this.lavaMat.color.setRGB(1, 0.3, 0.05).multiplyScalar(0.95 + Math.sin(this.time * 1.7) * 0.2);
     for (const g of this.glyphs) g.material.opacity = 0.75 + Math.sin(this.time * 2 + g.position.x) * 0.2;
   }
 

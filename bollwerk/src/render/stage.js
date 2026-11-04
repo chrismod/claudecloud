@@ -24,6 +24,7 @@ export const THEMES = {
     road: '#e6cf9f',
     roadEdge: '#c9ad78',
     leaves: ['#4f8f3a', '#3f7d33', '#69a845'],
+    deco: { tree: 0.32, trees: 'mixed', rock: 0.13, bush: 0.2, flower: 0.45, tuft: 5 },
     exposure: 1.0,
     bloom: 0.55,
   },
@@ -44,6 +45,7 @@ export const THEMES = {
     road: '#d9b98a',
     roadEdge: '#b8925e',
     leaves: ['#d8803a', '#c45a2c', '#e6b043'],
+    deco: { tree: 0.34, trees: 'mixed', rock: 0.13, bush: 0.2, flower: 0.2, tuft: 4, flowers: ['#ffd84d', '#ff7b54', '#ffffff'] },
     exposure: 1.0,
     bloom: 0.55,
   },
@@ -64,8 +66,97 @@ export const THEMES = {
     road: '#d8c2a6',
     roadEdge: '#ab9077',
     leaves: ['#3f7f6a', '#2f6c5e', '#5b9a6e'],
+    deco: { tree: 0.3, trees: 'mixed', rock: 0.13, bush: 0.2, flower: 0.35, tuft: 4 },
     exposure: 1.05,
     bloom: 0.8,
+  },
+  desert: {
+    skyTop: '#4f8fd0',
+    skyBottom: '#f7dcb0',
+    skyDeep: '#c58d5a',
+    fog: '#e8cfa4',
+    sun: '#fff0d0',
+    sunI: 2.8,
+    hemiSky: '#fff2dc',
+    hemiGround: '#8a6a40',
+    hemiI: 1.25,
+    grass: ['#e2c58e', '#d4b47a', '#ecd3a0'],
+    earth: '#b07a48',
+    rock: '#c59a6a',
+    stone: '#f3e9d8',
+    road: '#c9a476',
+    roadEdge: '#a8814f',
+    leaves: ['#6f9a4a', '#5c8a3e', '#86ad58'],
+    cloud: '#fff4e6',
+    deco: { tree: 0.1, trees: 'cactus', rock: 0.22, bush: 0.05, flower: 0.06, tuft: 1, flowers: ['#ff6f61', '#ffd166'] },
+    exposure: 0.95,
+    bloom: 0.5,
+  },
+  snow: {
+    skyTop: '#7fa6cf',
+    skyBottom: '#e8eff6',
+    skyDeep: '#8fa8c6',
+    fog: '#dfe7ef',
+    sun: '#ffffff',
+    sunI: 2.3,
+    hemiSky: '#eef6ff',
+    hemiGround: '#8a98a8',
+    hemiI: 1.3,
+    grass: ['#eef3f8', '#dfe8f1', '#f7fafc'],
+    earth: '#6f7684',
+    rock: '#8a93a0',
+    stone: '#c9d2dc',
+    road: '#aebccb',
+    roadEdge: '#8c9cad',
+    leaves: ['#3f6b5a', '#2f5a4c', '#4f7d6a'],
+    deco: { tree: 0.3, trees: 'snow', rock: 0.12, bush: 0.03, flower: 0, tuft: 1 },
+    exposure: 0.92,
+    bloom: 0.5,
+  },
+  volcano: {
+    skyTop: '#3a2230',
+    skyBottom: '#c4583a',
+    skyDeep: '#2a1418',
+    fog: '#5a2a24',
+    sun: '#ffb080',
+    sunI: 2.2,
+    hemiSky: '#ffb89a',
+    hemiGround: '#2a1a18',
+    hemiI: 1.0,
+    grass: ['#4a3c3a', '#3c302e', '#5a4844'],
+    earth: '#3a2a26',
+    rock: '#2e2a2c',
+    stone: '#d6cbc2',
+    road: '#8a6e5e',
+    roadEdge: '#5e4a40',
+    leaves: ['#2a2422', '#3a302c', '#4a3a32'],
+    deco: { tree: 0.12, trees: 'dead', rock: 0.3, bush: 0, flower: 0, tuft: 0.6, lava: 0.2 },
+    cloud: '#6a3a32',
+    exposure: 1.05,
+    bloom: 0.9,
+  },
+  night: {
+    skyTop: '#0c1230',
+    skyBottom: '#3a3270',
+    skyDeep: '#120e2a',
+    fog: '#1c1840',
+    sun: '#b8c8ff',
+    sunI: 1.5,
+    hemiSky: '#8a9aff',
+    hemiGround: '#1a1830',
+    hemiI: 0.95,
+    grass: ['#2f5a5a', '#284c50', '#3a6a66'],
+    earth: '#2a2440',
+    rock: '#4a4a66',
+    stone: '#cdd2e6',
+    road: '#958fb0',
+    roadEdge: '#6a6688',
+    leaves: ['#1f4a4a', '#2a5a56', '#16403f'],
+    deco: { tree: 0.2, trees: 'mixed', rock: 0.1, bush: 0.12, flower: 0.2, flowers: ['#9ad8ff', '#c9a4ff'], tuft: 3, crystal: 0.14 },
+    stars: 1,
+    cloud: '#34306a',
+    exposure: 1.15,
+    bloom: 1.0,
   },
 };
 
@@ -78,6 +169,7 @@ function skyMaterial(theme) {
       top: { value: new THREE.Color(theme.skyTop) },
       bottom: { value: new THREE.Color(theme.skyBottom) },
       deep: { value: new THREE.Color(theme.skyDeep) },
+      stars: { value: 0 },
     },
     vertexShader: /* glsl */ `
       varying vec3 vDir;
@@ -88,11 +180,21 @@ function skyMaterial(theme) {
       }`,
     fragmentShader: /* glsl */ `
       uniform vec3 top, bottom, deep;
+      uniform float stars;
+      float hash(vec3 p) { return fract(sin(dot(p, vec3(12.9898, 78.233, 37.719))) * 43758.5453); }
       varying vec3 vDir;
       void main() {
         float y = normalize(vDir).y;
         // über dem Horizont zum Zenit, darunter in die Tiefe unter den schwebenden Inseln
         vec3 col = y > 0.0 ? mix(bottom, top, smoothstep(0.0, 0.7, y)) : mix(bottom, deep, smoothstep(0.0, 0.55, -y));
+        if (stars > 0.0) {
+          vec3 d = normalize(vDir) * 700.0;
+          vec3 cell = floor(d);
+          float h = hash(cell);
+          // runde, kleine Sterne mit weichem Rand
+          float r = length(fract(d) - 0.5);
+          col += vec3(0.85, 0.92, 1.0) * step(0.9992, h) * smoothstep(0.5, 0.1, r) * stars * (0.6 + 0.4 * hash(cell + 3.0)) * step(-0.05, d.y);
+        }
         gl_FragColor = vec4(col, 1.0);
         #include <colorspace_fragment>
       }`,
@@ -191,6 +293,11 @@ export class Stage {
     this.sky.material.uniforms.top.value.set(t.skyTop);
     this.sky.material.uniforms.bottom.value.set(t.skyBottom);
     this.sky.material.uniforms.deep.value.set(t.skyDeep);
+    this.sky.material.uniforms.stars.value = t.stars || 0;
+    for (const c of this.clouds.children) {
+      c.material.opacity = t.stars ? 0.1 : 0.55;
+      c.material.color.set(t.cloud || '#ffffff');
+    }
     this.scene.fog = new THREE.Fog(t.skyDeep, 70, 190);
     this.hemi.color.set(t.hemiSky);
     this.hemi.groundColor.set(t.hemiGround);

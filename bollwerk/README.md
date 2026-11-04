@@ -17,6 +17,7 @@ npm install
 npm run dev            # Entwicklungsserver auf http://localhost:5173
 npm test               # Regeln, Karten, Determinismus und Balance (headless, ~2 s)
 npm run balance        # Bot spielt alle Karten und berichtet, wie weit er kommt
+npm run tune           # Schwierigkeit aller 30 Level neu abstimmen (~2 min)
 npm run build:single   # → dist-single/bollwerk.html (eine Datei, ~720 KB, three.js eingebettet)
 npm run build:artifact # → dist-single/bollwerk-artifact.html (Variante für claude.ai-Artifacts)
 ```
@@ -109,17 +110,28 @@ wirbeln Staub auf, Panzer und Bosse stampfen schwankend (Bosse lassen den Boden 
 mit den Flügeln und legen sich in die Kurve, Spalter rotieren, Eisbrecher funkeln. Treffer stauchen den
 Körper, eingefrorene Gegner stecken in einem Eisblock, besiegte blähen sich kurz auf und zerplatzen.
 
-### Karten
+### Level
 
-| # | Karte | Ziel | Idee | Neue Türme |
-| --- | --- | --- | --- | --- |
-| 1 | Lichtung | 20 | ein gewundener Weg zum Kennenlernen | Bolzer, Mörser, Frostkristall, Funkenturm |
-| 2 | Gabelung | 25 | zwei Portale, gemeinsamer Weg zum Kern | Falke, Säurespeier |
-| 3 | Spirale | 30 | langer Weg nach innen, Abendstimmung | Glutwerfer, Resonator |
-| 4 | Kreuzweg | 30 | der Weg kreuzt sich selbst, zweites Portal | Schwarm, Münzpresse |
-| 5 | Dreiklang | 30 | drei Portale, Kern in der Mitte | Prisma |
+30 Level in 6 Kapiteln, jedes mit eigener Landschaft. Level werden nacheinander freigeschaltet; in den
+Einstellungen lässt sich alles sofort freischalten. Neue Türme kommen in den ersten acht Leveln dazu.
+Ab Kapitel 2 tauchen Gegnerarten von Kapitel zu Kapitel früher auf, die Bosse starten je Kapitel mit
+einem anderen.
 
-Karten werden nacheinander freigeschaltet. In den Einstellungen lässt sich alles sofort freischalten.
+| Kapitel | Landschaft | Level |
+| --- | --- | --- |
+| 1 · Grüntal | Wiese, Pollen | Lichtung · Bachlauf · Gabelung · Hügelkamm · Kreuzweg |
+| 2 · Bernsteinwald | Herbstwald, fallende Blätter | Laubpfad · Zwei Bäche · Spirale · Wurzelwerk · Dreiklang |
+| 3 · Dünenmeer | Wüste mit Kakteen, Sandwehen | Oase (Luftangriff) · Karawane (Ansturm) · Sandsturm · Fata Morgana · Sphinx (Boss alle 5 Wellen) |
+| 4 · Frostgipfel | Schnee, verschneite Tannen, Schneefall | Gletscher · Lawine (schwer gepanzert) · Eisgrat · Frostbiss (nur 10 Leben) · Nordlicht |
+| 5 · Glutöde | Asche, Lavapfützen, Glutfunken | Aschefeld · Magmastrom (Spalterschwarm) · Caldera · Obsidian (Schildwall) · Feuerprobe |
+| 6 · Sternenfall | Nacht mit Sternenhimmel, Leuchtkristalle | Sternenpfad · Mondsichel · Nebel · Himmelsleiter (Luftangriff) · Bollwerk (4 Portale, Boss alle 5 Wellen) |
+
+Die ersten fünf Karten sind von Hand gezeichnet. Für die übrigen werden nur die Wege als Wegpunkte
+angegeben, Plattformen und Sonderfelder entstehen reproduzierbar daraus (`generateGrid` in
+`src/game/maps.js`). Die Schwierigkeit jeder Karte stimmt `npm run tune` ab: Der Bot spielt mit der
+Forschung, die man bis zu diesem Level ungefähr verdient hätte, und soll das Kartenziel im ersten
+Kapitel um 60 %, im zweiten um 45 % und danach um 30 % übertreffen. Das Ergebnis steht in
+`src/game/tuning.js`.
 
 ## Technik
 
@@ -147,7 +159,8 @@ src/
   audio.js             prozedurale Klänge
   game/
     data.js            Türme, Gegner, Fähigkeiten, Feldboni
-    maps.js            Karten, Wege (mit gerundeten Ecken)
+    maps.js            30 Level in 6 Kapiteln, Wege (mit gerundeten Ecken), Plattform-Generator
+    tuning.js          Schwierigkeitsfaktor je Level (von scripts/tune.mjs erzeugt)
     waves.js           Wellengenerator und Skalierung
     game.js            Simulation (inkl. Boss-Fähigkeiten)
     research.js        Forschungsbaum, Boni, Kristall-Belohnung
@@ -172,4 +185,4 @@ scripts/               Balancing-Bericht, Kartenprüfung, Single-File-Build
 - Minen/Ressourcenfelder und baubare Modifikatoren auf freien Feldern
 - Weitere Sprachen (eine neue Datei in `src/lang/` genügt)
 - Täglicher Wettbewerb mit fester Saat und Bestenliste (die Simulation ist deterministisch)
-- Karteneditor
+- Karteneditor (Karten brauchen nur Größe und Wegpunkte)

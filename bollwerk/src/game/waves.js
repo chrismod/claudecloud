@@ -27,17 +27,22 @@ export function waveIncome(n) {
 
 const BASE_INTERVAL = { walker: 0.75, runner: 0.45 };
 
-export function isBossWave(n) {
-  return n % 10 === 0;
+// Level-Konfiguration: shift (Gegnerarten früher), bias (Gewichte), bossEvery, bossOffset
+export function unlockWave(type, cfg = {}) {
+  const w = ENEMY_UNLOCK[type];
+  if (w == null) return null;
+  return type === 'walker' ? 1 : Math.max(2, w - (cfg.shift || 0) * Math.ceil(w / 6));
+}
+
+export function isBossWave(n, cfg = {}) {
+  return n % (cfg.bossEvery || 10) === 0;
 }
 
 // Liefert { n, boss, groups: [{ type, count, interval, delay }] }
-export function generateWave(n, seed = 1) {
+export function generateWave(n, seed = 1, cfg = {}) {
   const rng = makeRng(seed * 7919 + n * 104729);
-  const unlocked = Object.entries(ENEMY_UNLOCK)
-    .filter(([, w]) => w <= n)
-    .map(([k]) => k);
-  const fresh = Object.entries(ENEMY_UNLOCK).find(([, w]) => w === n)?.[0];
+  const unlocked = Object.keys(ENEMY_UNLOCK).filter((k) => unlockWave(k, cfg) <= n);
+  const fresh = Object.keys(ENEMY_UNLOCK).find((k) => k !== 'walker' && unlockWave(k, cfg) === n);
   const B = budget(n);
   const groups = [];
   const intervalOf = (type) => (ENEMIES[type].interval ?? BASE_INTERVAL[type] ?? 0.75) / (1 + n * 0.008);
@@ -46,8 +51,9 @@ export function generateWave(n, seed = 1) {
     groups.push({ type, count, interval: intervalOf(type), delay });
   };
 
-  if (isBossWave(n)) {
-    const bossType = BOSS_ROTATION[(n / 10 - 1) % BOSS_ROTATION.length];
+  if (isBossWave(n, cfg)) {
+    const k = n / (cfg.bossEvery || 10) - 1 + (cfg.bossOffset || 0);
+    const bossType = BOSS_ROTATION[k % BOSS_ROTATION.length];
     const bosses = 1 + Math.floor(n / 40);
     add(rng() < 0.5 ? 'walker' : 'runner', 0.45, 0);
     groups.push({ type: bossType, count: bosses, interval: 6, delay: 3 });
@@ -55,11 +61,11 @@ export function generateWave(n, seed = 1) {
   }
 
   // Hauptgruppe: neue Art bekommt ihren großen Auftritt
-  const weights = unlocked.map((k) => [k, k === 'walker' ? 2.5 : 2]);
+  const weights = unlocked.map((k) => [k, (k === 'walker' ? 2.5 : 2) * (cfg.bias?.[k] ?? 1)]);
   const primary = fresh || rng.weighted(weights);
   if (n >= 4 && rng() < 0.65) {
     const rest = unlocked.filter((k) => k !== primary);
-    const secondary = rest.length ? rng.pick(rest) : primary;
+    const secondary = rest.length ? rng.weighted(rest.map((k) => [k, cfg.bias?.[k] ?? 1])) : primary;
     add(primary, 0.62, 0);
     add(secondary, 0.38, rng.range(1.5, 4));
   } else {

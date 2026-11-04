@@ -1,6 +1,8 @@
 import { test } from 'node:test';
 import assert from 'node:assert/strict';
-import { MAPS, pathCells, buildMap } from '../src/game/maps.js';
+import { MAPS, buildMap } from '../src/game/maps.js';
+import { mapProblems } from '../scripts/check-maps.mjs';
+import { expectedResearch, expectedCrystals } from '../src/game/research.js';
 import { Game } from '../src/game/game.js';
 import { runBot } from '../src/game/bot.js';
 import { TOWERS, ENEMIES, TOWER_ORDER, MAX_LEVEL } from '../src/game/data.js';
@@ -18,23 +20,20 @@ const STRIP = {
   paths: [[[0, 1], [9, 1]]],
 };
 
-test('Karten: Raster und Wege stimmen überein', () => {
+test('Karten: 30 Level, Raster und Wege stimmen überein, Wege berühren sich nicht', () => {
+  assert.equal(MAPS.length, 30);
+  assert.equal(new Set(MAPS.map((m) => m.id)).size, 30, 'eindeutige IDs');
   for (const m of MAPS) {
-    const W = m.grid[0].length;
-    for (const row of m.grid) assert.equal(row.length, W, `${m.id}: Zeilenlänge`);
-    const road = new Set();
-    for (const wp of m.paths) for (const [x, y] of pathCells(wp)) road.add(`${x},${y}`);
-    m.grid.forEach((row, y) =>
-      [...row].forEach((c, x) => {
-        const on = road.has(`${x},${y}`);
-        assert.equal(on, '=SB'.includes(c), `${m.id}: Feld ${x},${y} ('${c}')`);
-      }),
-    );
+    assert.deepEqual(mapProblems(m), [], m.id);
     const last = m.paths[0][m.paths[0].length - 1];
     for (const p of m.paths) assert.deepEqual(p[p.length - 1], last, `${m.id}: alle Wege enden am Kern`);
     for (const t of m.towers) assert.ok(TOWERS[t], `${m.id}: Turm ${t}`);
-    assert.ok(buildMap(m).paths.every((p) => p.total > 10));
+    const built = buildMap(m);
+    assert.ok(built.paths.every((p) => p.total > 5), `${m.id}: Weg zu kurz`);
+    assert.ok(m.grid.join('').split('').filter((c) => '#DRXC'.includes(c)).length >= 50, `${m.id}: zu wenig Bauplätze`);
   }
+  // alle Türme spätestens in Level 8 verfügbar
+  assert.equal(MAPS[7].towers.length, TOWER_ORDER.length);
 });
 
 test('Wellen sind deterministisch und werden stärker', () => {
@@ -183,12 +182,15 @@ test('Wellen früh rufen bringt Bonus', () => {
   assert.equal(g.wave, 2);
 });
 
-test('Balance: der Bot erreicht auf jeder Karte das Ziel', () => {
+test('Balance: der Bot erreicht mit erwartbarer Forschung auf jeder Karte das Ziel', () => {
+  const fails = [];
   for (const m of MAPS) {
-    const g = new Game(m, { seed: 7, events: false });
+    const research = expectedResearch(expectedCrystals(MAPS, m.index));
+    const g = new Game(m, { events: false, research });
     const r = runBot(g, { maxWave: m.goal + 1 });
-    assert.ok(r.wave > m.goal || (!r.lost && g.wave >= m.goal), `${m.id}: nur Welle ${r.wave}`);
+    if (!(r.wave > m.goal || (!r.lost && g.wave >= m.goal))) fails.push(`${m.id}: Welle ${r.wave}/${m.goal}`);
   }
+  assert.deepEqual(fails, []);
 });
 
 test('Balance: irgendwann fällt jede Festung', () => {

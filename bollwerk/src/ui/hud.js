@@ -139,7 +139,7 @@ export class Hud {
         const p = game.previewWave(wn);
         for (const { type, count } of p.list) {
           const c = document.createElement('div');
-          const isNew = ENEMY_UNLOCK[type] === wn;
+          const isNew = game.isNewEnemy(type, wn);
           const en = enemy(type);
           c.className = 'chip' + (ENEMIES[type].boss ? ' boss' : '') + (isNew ? ' new' : '');
           c.dataset.badge = t('ui.hud.newBadge');

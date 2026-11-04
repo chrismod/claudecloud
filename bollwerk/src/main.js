@@ -600,7 +600,7 @@ function processEvents() {
           hud.toast(t('ui.hud.boss', { n: e.n, name: en.name, blurb: en.blurb.replace(/^Boss\. /, '') }), 'boss');
         }
         for (const g of w.groups) {
-          if (ENEMY_UNLOCK[g.type] === e.n && !seenTypes.has(g.type)) {
+          if (game.isNewEnemy(g.type, e.n) && !seenTypes.has(g.type)) {
             seenTypes.add(g.type);
             hud.toast(t('ui.hud.newEnemy', { name: enemy(g.type).name, blurb: enemy(g.type).blurb }));
           }

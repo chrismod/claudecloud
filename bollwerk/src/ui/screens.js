@@ -1,5 +1,5 @@
 // Menüs: Kartenwahl, Forschung, Almanach, Endbildschirm, Hilfe.
-import { MAPS, buildMap } from '../game/maps.js';
+import { MAPS, CHAPTERS, buildMap } from '../game/maps.js';
 import { TOWERS, TOWER_ORDER, ENEMIES, ENEMY_UNLOCK, TILE_BONUS } from '../game/data.js';
 import { RESEARCH, BRANCHES, RESEARCH_BY_ID, parentOf, canResearch, spentOn } from '../game/research.js';
 import { THEMES } from '../render/stage.js';
@@ -67,10 +67,49 @@ export function mapUnlocked(progress, i) {
   return progress.unlockAll || i === 0 || !!progress.maps[MAPS[i - 1].id]?.won;
 }
 
+// Besonderheiten eines Levels als kurze Etiketten
+export function mapTags(m) {
+  const tags = [];
+  if (m.bias) {
+    const top = Object.entries(m.bias).sort((x, y) => y[1] - x[1])[0][0];
+    tags.push(t(`mod.bias.${top}`));
+  }
+  if (m.bossEvery) tags.push(t('mod.bossEvery', { n: m.bossEvery }));
+  if (m.lives < 20) tags.push(t('mod.lives', { n: m.lives }));
+  return tags;
+}
+
+let shownChapter = null;
+
 export function renderMapList(progress, onPick, onHover) {
+  // Standard: Kapitel des ersten noch nicht geschafften, freigeschalteten Levels
+  if (shownChapter == null) {
+    const next = MAPS.find((m, i) => mapUnlocked(progress, i) && !progress.maps[m.id]?.won) || MAPS[0];
+    shownChapter = next.chapter;
+  }
+  const tabs = $('chapter-tabs');
+  tabs.innerHTML = '';
+  CHAPTERS.forEach((ch, ci) => {
+    const maps = MAPS.filter((m) => m.chapter === ci);
+    const won = maps.filter((m) => progress.maps[m.id]?.won).length;
+    const open = mapUnlocked(progress, maps[0].index);
+    const b = document.createElement('button');
+    b.className = `chapter th-${ch.theme}${ci === shownChapter ? ' on' : ''}${open ? '' : ' locked'}`;
+    b.innerHTML = `<small>${t('ui.menu.chapter', { n: ci + 1 })}</small><b>${open ? '' : '🔒 '}${t(`chapter.${ch.id}.name`)}</b><span>${won ? '★ ' : ''}${t('ui.menu.chapterDone', { n: won })}</span>`;
+    b.title = t(`chapter.${ch.id}.desc`);
+    b.onclick = () => {
+      shownChapter = ci;
+      renderMapList(progress, onPick, onHover);
+      const firstOpen = maps.find((m) => mapUnlocked(progress, m.index));
+      if (firstOpen) onHover?.(firstOpen);
+    };
+    tabs.appendChild(b);
+  });
+
   const box = $('map-list');
   box.innerHTML = '';
-  MAPS.forEach((m, i) => {
+  for (const m of MAPS.filter((x) => x.chapter === shownChapter)) {
+    const i = m.index;
     const rec = progress.maps[m.id] || {};
     const unlocked = mapUnlocked(progress, i);
     const b = document.createElement('button');
@@ -81,13 +120,16 @@ export function renderMapList(progress, onPick, onHover) {
     const info = document.createElement('div');
     const status = rec.won ? `<span class="won">${t('ui.menu.won')}</span>` : unlocked ? `<span>${t('ui.menu.goal', { n: m.goal })}</span>` : `<span>${t('ui.menu.locked', { name: mapName(MAPS[i - 1].id) })}</span>`;
     const portals = m.paths.length > 1 ? t('ui.menu.portalN', { n: m.paths.length }) : t('ui.menu.portal1');
-    info.innerHTML = `<h3>${i + 1}. ${mapName(m.id)}</h3><p>${t(`map.${m.id}.desc`)}</p><div class="meta">${status}<span>${rec.best ? t('ui.menu.record', { n: rec.best }) : portals}</span></div>`;
+    const tags = mapTags(m)
+      .map((x) => `<i class="tag">${x}</i>`)
+      .join('');
+    info.innerHTML = `<h3>${i + 1}. ${mapName(m.id)}</h3><p>${t(`map.${m.id}.desc`)}</p>${tags ? `<div class="tags">${tags}</div>` : ''}<div class="meta">${status}<span>${rec.best ? t('ui.menu.record', { n: rec.best }) : portals}</span></div>`;
     b.append(...info.childNodes);
     b.disabled = !unlocked;
     b.addEventListener('click', () => unlocked && onPick(m));
     b.addEventListener('pointerenter', () => unlocked && onHover?.(m));
     box.appendChild(b);
-  });
+  }
 }
 
 // ---------- Forschung ----------

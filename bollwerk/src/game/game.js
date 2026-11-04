@@ -3,7 +3,7 @@
 import { TOWERS, ENEMIES, ABILITIES, MAX_LEVEL, MODULE_LEVEL, SELL_RATE, RANKS, RANK_DMG, RANK_RANGE } from './data.js';
 import { buildMap, posAt } from './maps.js';
 import { researchMods } from './research.js';
-import { generateWave, waveSchedule, hpMul, armorMul, bountyMul, speedMul, waveIncome, summarizeWave } from './waves.js';
+import { generateWave, unlockWave, waveSchedule, hpMul, armorMul, bountyMul, speedMul, waveIncome, summarizeWave } from './waves.js';
 import { makeRng, hashString } from './rng.js';
 
 const STEP_MAX = 1 / 30;
@@ -23,6 +23,8 @@ export class Game {
     this.barrier = 0;
     this.goal = mapDef.goal;
     this.hpScale = mapDef.hpScale ?? 1;
+    // Level-Besonderheiten für den Wellengenerator
+    this.waveCfg = { shift: mapDef.shift || 0, bias: mapDef.bias, bossEvery: mapDef.bossEvery, bossOffset: (mapDef.chapter || 0) % 4 };
     this.state = 'ready'; // ready | running | won | lost
     this.endless = false;
     this.wave = 0;
@@ -55,8 +57,13 @@ export class Game {
 
   // Wellen ----------------------------------------------------------------
   waveDef(n) {
-    if (!this.waveCache.has(n)) this.waveCache.set(n, generateWave(n, this.seed));
+    if (!this.waveCache.has(n)) this.waveCache.set(n, generateWave(n, this.seed, this.waveCfg));
     return this.waveCache.get(n);
+  }
+
+  // Taucht diese Gegnerart in Welle n zum ersten Mal auf?
+  isNewEnemy(type, n) {
+    return type !== 'walker' && unlockWave(type, this.waveCfg) === n;
   }
 
   previewWave(n = this.wave + 1) {

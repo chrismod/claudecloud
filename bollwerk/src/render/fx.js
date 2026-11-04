@@ -208,10 +208,20 @@ export class Fx {
     if (r() > dt * rate) return;
     const x = (r() - 0.5) * a.W;
     const z = (r() - 0.5) * a.H;
-    if (a.theme === 'dusk') {
+    if (a.theme === 'dusk' || a.theme === 'night') {
       this.glow.emit(x, 0.3 + r() * 1.2, z, (r() - 0.5) * 0.3, (r() - 0.5) * 0.15, (r() - 0.5) * 0.3, col(r() < 0.7 ? '#fff3a0' : '#b8ffcf', 2.2), 0.05 + r() * 0.03, 4 + r() * 3, { drag: 0, fade: 0 });
     } else if (a.theme === 'autumn') {
       this.smoke.emit(x - 2, 2.5 + r(), z, 0.5 + r() * 0.3, -0.35 - r() * 0.2, (r() - 0.5) * 0.3, col(r() < 0.5 ? '#d8803a' : r() < 0.5 ? '#c45a2c' : '#e6b043'), 0.07, 7, { drag: 0, fade: 0 });
+    } else if (a.theme === 'snow') {
+      for (let i = 0; i < 3; i++) this.glow.emit((r() - 0.5) * a.W * 1.1, 3 + r() * 1.5, (r() - 0.5) * a.H * 1.1, 0.15 + (r() - 0.5) * 0.2, -0.45 - r() * 0.25, (r() - 0.5) * 0.2, col('#ffffff', 0.9), 0.04 + r() * 0.03, 9, { drag: 0, fade: 0 });
+    } else if (a.theme === 'desert') {
+      this.smoke.emit(x - 3, 0.15 + r() * 0.6, z, 1.2 + r() * 0.8, 0.02, (r() - 0.5) * 0.2, col('#e8cfa0'), 0.05 + r() * 0.05, 4, { drag: 0, fade: 0, grow: 0.05 });
+    } else if (a.theme === 'volcano') {
+      const spots = this.board.lavaSpots;
+      const p = spots?.length ? spots[Math.floor(r() * spots.length)] : null;
+      const ex = p ? p[0] + (r() - 0.5) * p[2] : x;
+      const ez = p ? p[1] + (r() - 0.5) * p[2] : z;
+      for (let i = 0; i < 2; i++) this.glow.emit(ex, 0.05, ez, (r() - 0.5) * 0.3, 0.5 + r() * 0.7, (r() - 0.5) * 0.3, col(r() < 0.6 ? '#ff8a3d' : '#ffd27a', 2), 0.04 + r() * 0.03, 2.5 + r() * 2, { drag: 0.2, fade: 0 });
     } else {
       this.glow.emit(x, 0.2 + r() * 1.5, z, 0.15 + r() * 0.2, 0.05, (r() - 0.5) * 0.15, col('#fffbe0', 0.9), 0.035, 5 + r() * 3, { drag: 0, fade: 0 });
     }

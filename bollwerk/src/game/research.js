@@ -102,8 +102,32 @@ export function researchMods(levels = {}) {
 // Kristalle für eine Partie: mehr für weiter, schwerere Karten und Siege
 export function crystalsFor(mapIndex, wavesSurvived, won, firstWin) {
   const w = Math.max(0, wavesSurvived);
-  let n = w * (1 + 0.15 * mapIndex) + (w * w) / 60;
-  if (won) n += 10 + 5 * mapIndex;
-  if (firstWin) n += 10 + 5 * mapIndex;
+  let n = w * (1 + 0.05 * mapIndex) + (w * w) / 60;
+  if (won) n += 10 + 2 * mapIndex;
+  if (firstWin) n += 10 + 2 * mapIndex;
   return Math.round(n);
+}
+
+// Forschung, die ein Spieler mit diesem Kristallbudget ungefähr hätte (für Bot und Abstimmung):
+// immer der günstigste verfügbare nächste Schritt.
+export function expectedResearch(budget) {
+  const levels = {};
+  let left = Math.floor(budget);
+  for (;;) {
+    let best = null;
+    for (const r of RESEARCH) {
+      const chk = canResearch(levels, left, r.id);
+      if (chk.ok && (!best || chk.cost < best.cost)) best = { id: r.id, cost: chk.cost };
+    }
+    if (!best) return levels;
+    left -= best.cost;
+    levels[best.id] = (levels[best.id] || 0) + 1;
+  }
+}
+
+// Kristalle, die man bis vor Level i erspielt hätte (jedes Level einmal gewonnen, mit Abschlag)
+export function expectedCrystals(maps, i) {
+  let sum = 0;
+  for (let j = 0; j < i; j++) sum += crystalsFor(j, maps[j].goal, true, true);
+  return sum * 0.75;
 }
