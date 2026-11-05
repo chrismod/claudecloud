@@ -1,6 +1,6 @@
 // Simulationskern: Wellen, Gegner, Türme, Geschosse, Statuseffekte, Wirtschaft.
 // Reines JavaScript ohne three.js – läuft im Browser und headless in Node (Tests, Balancing).
-import { TOWERS, ENEMIES, ABILITIES, MAX_LEVEL, MODULE_LEVEL, SELL_RATE, RANKS, RANK_DMG, RANK_RANGE } from './data.js';
+import { TOWERS, ENEMIES, ABILITIES, SELL_RATE, ABILITY_LEVELS, MASTER_LEVEL, ULT_LEVEL, XP_DMG, XP_RANGE, xpFor } from './data.js';
 import { buildMap, posAt } from './maps.js';
 import { researchMods } from './research.js';
 import { generateWave, unlockWave, waveSchedule, hpMul, armorMul, bountyMul, speedMul, waveIncome, summarizeWave } from './waves.js';
@@ -43,6 +43,7 @@ export class Game {
     this.abilities = { meteor: 0, blizzard: 0, overdrive: 0 }; // verbleibende Abklingzeit
     this.overdriveT = 0;
     this.waveCache = new Map();
+    this.defaults = {}; // zuletzt gewählte Einstellungen je Turmtyp
     this.stats = { kills: 0, earned: 0, leaked: 0, built: 0, bestWave: 0 };
   }
 
@@ -388,7 +389,7 @@ export class Game {
       this.lives = Math.min(this.maxLives, this.lives + this.mods.medic);
       if (this.lives > before) this.emit({ type: 'medic', amount: this.lives - before });
     }
-    let bounty = Math.max(1, Math.round(def.bounty * bountyMul(e.n) * mult));
+    let bounty = Math.max(1, Math.round(def.bounty * bountyMul(e.n) * mult * (e.boss ? this.mods.bossBounty : 1)));
     for (const t of this.towers) {
       if (t.stats.killBonus && (t.x - e.x) ** 2 + (t.y - e.y) ** 2 <= t.stats.range ** 2) bounty += t.stats.killBonus;
     }
@@ -434,7 +435,7 @@ export class Game {
   }
 
   poison(e, dps, dur, src, s = null) {
-    const cap = dps * 3;
+    const cap = dps * (s?.poisonStack || 3);
     e.poisonDps = Math.min(Math.max(cap, e.poisonDps), e.poisonDps + dps);
     e.poisonT = Math.max(e.poisonT, dur);
     e.poisonSrc = src;
@@ -458,14 +459,24 @@ export class Game {
   }
 
   costOf(type) {
-    return Math.round(TOWERS[type].cost * this.mods.buildCost);
+    return Math.round(TOWERS[type].cost * this.mods.buildCost * this.mods.tower[type].cost);
+  }
+
+  maxLevel(t) {
+    return this.mods.tower[t.type].maxLevel;
+  }
+
+  maxXp(t) {
+    return this.mods.tower[t.type].maxXp;
   }
 
   build(type, cx, cy) {
     if (!this.canBuild(type, cx, cy).ok) return null;
     const def = TOWERS[type];
     const cost = this.costOf(type);
-    const rank = Math.min(this.mods.veteran, RANKS.length - 1);
+    const startLevel = Math.min(1 + this.mods.veteran, this.mods.tower[type].maxXp);
+    // neue Türme übernehmen die zuletzt gewählten Einstellungen ihres Typs
+    const d = this.defaults[type] || {};
     const t = {
       id: this.ids++,
       type,
@@ -476,15 +487,20 @@ export class Game {
       y: cy + 0.5,
       tile: this.map.tileAt(cx, cy),
       level: 1,
-      module: null,
-      xp: RANKS[rank],
-      rank,
+      xpLevel: startLevel,
+      xp: xpFor(startLevel),
+      abilities: [],
+      ultChoice: null,
       kills: 0,
       dealt: 0,
       spent: cost,
       disabledT: 0,
       fresh: true,
-      targeting: def.targeting || 'first',
+      targeting: d.targeting || def.targeting || 'first',
+      priority: d.priority || 'none',
+      lockTarget: !!d.lockTarget,
+      enabled: true,
+      lockedOn: null,
       cd: 0,
       aim: -Math.PI / 2,
       shots: 0,
@@ -509,17 +525,13 @@ export class Game {
   }
 
   upgradeCost(t) {
-    if (t.level >= MAX_LEVEL) return null;
-    return Math.round(t.def.cost * (t.def.upMul ?? 0.6) * Math.pow(1.33, t.level - 1) * this.mods.upgradeCost);
-  }
-
-  needsModule(t) {
-    return t.level >= MODULE_LEVEL && t.module == null;
+    if (t.level >= this.maxLevel(t)) return null;
+    return Math.round(t.def.cost * (t.def.upMul ?? 0.6) * Math.pow(1.33, t.level - 1) * this.mods.upgradeCost * this.mods.tower[t.type].cost);
   }
 
   canUpgrade(t) {
     const c = this.upgradeCost(t);
-    return c != null && !this.needsModule(t) && this.coins >= c && this.state !== 'lost';
+    return c != null && this.coins >= c && this.state !== 'lost';
   }
 
   upgrade(t) {
@@ -533,11 +545,31 @@ export class Game {
     return true;
   }
 
-  chooseModule(t, idx) {
-    if (!this.needsModule(t) || !t.def.modules[idx]) return false;
-    t.module = idx;
+  // So weit aufrüsten, wie das Geld reicht
+  upgradeMax(t) {
+    let n = 0;
+    while (this.upgrade(t)) n++;
+    return n;
+  }
+
+  // Offene Wahl auf einer Erfahrungsstufe: Fähigkeit (Stufe 4 und 7) oder Ultimate/Stärke (Stufe 20)
+  pendingChoice(t) {
+    for (let i = 0; i < ABILITY_LEVELS.length; i++) {
+      if (t.xpLevel >= ABILITY_LEVELS[i] && t.abilities.length <= i) {
+        return { slot: ABILITY_LEVELS[i], options: t.def.abilities.map((_, k) => k).filter((k) => !t.abilities.includes(k)) };
+      }
+    }
+    if (t.xpLevel >= ULT_LEVEL && t.ultChoice == null) return { slot: ULT_LEVEL, options: this.mods.tower[t.type].ult ? ['ult', 'power'] : ['power'] };
+    return null;
+  }
+
+  chooseAbility(t, choice) {
+    const p = this.pendingChoice(t);
+    if (!p || !p.options.includes(choice)) return false;
+    if (p.slot === ULT_LEVEL) t.ultChoice = choice;
+    else t.abilities.push(choice);
     this.refreshStats();
-    this.emit({ type: 'module', id: t.id, tower: t.type, module: idx, x: t.x, y: t.y });
+    this.emit({ type: 'module', id: t.id, tower: t.type, choice, x: t.x, y: t.y });
     return true;
   }
 
@@ -556,13 +588,55 @@ export class Game {
     return v;
   }
 
+  // Turm-Einstellungen
+  rememberSettings(t) {
+    this.defaults[t.type] = { targeting: t.targeting, priority: t.priority, lockTarget: t.lockTarget };
+  }
+
   setTargeting(t, mode) {
     t.targeting = mode;
     t.beamTarget = null;
+    t.lockedOn = null;
+    this.rememberSettings(t);
   }
 
-  // Grundwerte einer Stufe ohne Rang/Feld/Buffs – auch für die Vorschau im UI
-  levelStats(type, level, module) {
+  setPriority(t, p) {
+    t.priority = p;
+    t.beamTarget = null;
+    t.lockedOn = null;
+    this.rememberSettings(t);
+  }
+
+  setLockTarget(t, on) {
+    t.lockTarget = on;
+    t.lockedOn = null;
+    this.rememberSettings(t);
+  }
+
+  setEnabled(t, on) {
+    t.enabled = on;
+    t.beam = null;
+    t.beamTarget = null;
+  }
+
+  // Einstellungen auf alle Türme dieses Typs übertragen
+  applyToType(t) {
+    let n = 0;
+    for (const o of this.towers) {
+      if (o === t || o.type !== t.type) continue;
+      o.targeting = t.targeting;
+      o.priority = t.priority;
+      o.lockTarget = t.lockTarget;
+      o.lockedOn = null;
+      o.beamTarget = null;
+      n++;
+    }
+    this.rememberSettings(t);
+    return n;
+  }
+
+  // Grundwerte einer Ausbaustufe (ohne Fähigkeiten, Erfahrung, Feld, Forschung) – auch für die Vorschau im UI
+  levelStats(type, level) {
     const d = TOWERS[type];
     const s = { ...d.base };
     const L = level - 1;
@@ -570,24 +644,37 @@ export class Game {
       if (MULT_KEYS.has(k) || d.growMul?.[k]) s[k] = (s[k] || 0) * Math.pow(v, L);
       else s[k] = (s[k] || 0) + v * L;
     }
-    if (module != null && d.modules[module]) d.modules[module].apply(s);
-    if (level >= MAX_LEVEL && d.master) d.master.apply(s);
-    if (s.slow) s.slow = Math.min(0.75, s.slow);
     return s;
   }
 
   computeStats(t) {
-    const s = this.levelStats(t.type, t.level, t.module);
-    const attacker = t.def.kind !== 'support' && t.def.kind !== 'economy';
-    if (attacker) {
-      s.dmg *= (1 + RANK_DMG * t.rank) * (this.mods.dmg[t.def.dmgType] || 1);
-      s.range *= (1 + RANK_RANGE * t.rank) * this.mods.range;
-      if (s.rate) s.rate *= this.mods.rate;
+    const d = t.def;
+    const s = this.levelStats(t.type, t.level);
+    for (const k of [...t.abilities].sort()) d.abilities[k].apply(s);
+    if (t.xpLevel >= MASTER_LEVEL && d.master) d.master.apply(s);
+    if (t.ultChoice === 'ult') d.ultimate.apply(s);
+    const tm = this.mods.tower[t.type];
+    if (tm.special && d.special) d.special(s, tm.special);
+    const power = t.ultChoice === 'power' ? 1.1 : 1;
+    const lv = t.xpLevel - 1;
+    const kind = d.kind;
+    if (kind === 'support') {
+      s.buffDmg *= tm.dmg * power;
+      s.buffRate *= tm.rate * power;
+    } else if (kind === 'economy') {
+      s.income *= tm.dmg * power;
+    } else {
+      s.dmg *= (1 + XP_DMG * lv) * (this.mods.dmg[d.dmgType] || 1) * tm.dmg * power;
+      s.range *= (1 + XP_RANGE * lv) * this.mods.range * tm.range;
+      if (s.rate) s.rate *= this.mods.rate * tm.rate;
     }
-    if (t.tile === 'D' && s.dmg) s.dmg *= 1.25;
-    if (t.tile === 'R') s.range *= 1.2;
-    if (t.tile === 'X') s.xpMul = 2;
-    if (t.tile === 'C') s.bountyBonus = (s.bountyBonus || 0) + 0.3;
+    const tb = this.mods.tileBonus;
+    if (t.tile === 'D' && s.dmg) s.dmg *= 1 + 0.25 * tb;
+    if (t.tile === 'R') s.range *= 1 + 0.2 * tb;
+    if (t.tile === 'X') s.xpMul = 1 + tb;
+    if (t.tile === 'C') s.bountyBonus = (s.bountyBonus || 0) + 0.3 * tb;
+    s.xpMul = (s.xpMul || 1) * tm.xp;
+    if (s.slow) s.slow = Math.min(0.75, s.slow);
     return s;
   }
 
@@ -603,7 +690,7 @@ export class Game {
         if ((a.x - t.x) ** 2 + (a.y - t.y) ** 2 > r * r) continue;
         if (!best || a.stats.buffDmg > best.stats.buffDmg) best = a;
       }
-      // Weitere Resonatoren steuern nur Modul-Boni bei, die Grundverstärkung zählt einmal
+      // Weitere Resonatoren steuern nur Fähigkeits-Boni bei, die Grundverstärkung zählt einmal
       const extra = { buffRange: 0, buffBounty: 0 };
       for (const a of amps) {
         const r = a.stats.range + 0.01;
@@ -622,20 +709,39 @@ export class Game {
   }
 
   gainXp(t, amount) {
+    const cap = this.maxXp(t);
+    if (t.xpLevel >= cap) return;
     t.xp += amount * (t.stats.xpMul || 1) * this.mods.xp;
     let up = false;
-    while (t.rank < RANKS.length - 1 && t.xp >= RANKS[t.rank + 1]) {
-      t.rank++;
+    while (t.xpLevel < cap && t.xp >= xpFor(t.xpLevel + 1)) {
+      t.xpLevel++;
       up = true;
     }
+    if (t.xpLevel >= cap) t.xp = Math.min(t.xp, xpFor(cap));
     if (up) {
       this.refreshStats();
-      this.emit({ type: 'rank', id: t.id, rank: t.rank, x: t.x, y: t.y });
+      this.emit({ type: 'rank', id: t.id, rank: t.xpLevel, x: t.x, y: t.y, choice: !!this.pendingChoice(t) });
     }
   }
 
   canHit(t, e) {
     return e.flying ? t.def.air : t.def.ground;
+  }
+
+  // Passt der Gegner zum Vorrang des Turms?
+  preferred(t, e) {
+    switch (t.priority) {
+      case 'boss':
+        return e.boss;
+      case 'air':
+        return e.flying;
+      case 'shield':
+        return e.shield > 0;
+      case 'armor':
+        return e.armor - e.corrosion > 0.5;
+      default:
+        return false;
+    }
   }
 
   score(t, e, d2) {
@@ -653,9 +759,13 @@ export class Game {
       case 'near':
         s = -d2;
         break;
+      case 'random':
+        s = this.rng();
+        break;
       default:
         s = -(e.path.total - e.dist);
     }
+    if (this.preferred(t, e)) s += 1e12;
     if (t.def.preferAir && e.flying) s += 1e9;
     return s;
   }
@@ -669,6 +779,9 @@ export class Game {
   }
 
   bestTarget(t, range = t.stats.range) {
+    // Ziel halten: beim bisherigen Gegner bleiben, solange er erreichbar ist
+    const held = t.lockedOn;
+    if (t.lockTarget && held && this.targetable(held) && this.canHit(t, held) && this.inRange(t, held, range) >= 0) return held;
     let best = null;
     let bestScore = -Infinity;
     for (const e of this.enemies) {
@@ -681,6 +794,7 @@ export class Game {
         best = e;
       }
     }
+    t.lockedOn = best;
     return best;
   }
 
@@ -705,6 +819,10 @@ export class Game {
   }
 
   updateTower(t, dt) {
+    if (!t.enabled) {
+      t.beam = null;
+      return;
+    }
     if (t.disabledT > 0) {
       t.disabledT -= dt;
       t.beam = null;
@@ -794,7 +912,9 @@ export class Game {
   }
 
   fireMissiles(t, s, e) {
-    const n = s.salvo || 1;
+    // Ultimate „Atomrakete“: jede n-te Salve eine einzige gewaltige Rakete
+    const nuke = s.nukeEvery && (t.shots + 1) % s.nukeEvery === 0;
+    const n = nuke ? 1 : s.salvo || 1;
     const targets = n > 1 ? this.topTargets(t, n) : [e];
     for (let i = 0; i < n; i++) {
       const tg = targets[i % targets.length];
@@ -813,9 +933,10 @@ export class Game {
         tx: tg.x,
         ty: tg.y,
         life: 4,
-        dmg: s.dmg,
+        dmg: nuke ? s.dmg * (s.salvo || 1) * 3 : s.dmg,
         type: 'explosive',
-        splash: s.splash,
+        splash: nuke ? Math.max(2, s.splash * 2) : s.splash,
+        nuke,
         airMul: s.airMul || 1,
         delay: i * 0.06,
         alive: true,
@@ -886,14 +1007,17 @@ export class Game {
     const r2 = s.range * s.range;
     const hit = this.enemies.filter((e) => this.targetable(e) && (e.x - t.x) ** 2 + (e.y - t.y) ** 2 <= r2);
     if (!hit.length) return false;
+    // Ultimate „Nullpunkt“: jeder n-te Puls friert alles ein
+    const zero = s.zeroEvery && (t.shots + 1) % s.zeroEvery === 0;
     for (const e of hit) {
       this.damage(e, s.dmg, 'cold', { src: t });
       if (!e.alive) continue;
       this.slowEnemy(e, s.slow, s.slowDur);
       if (s.brittle && !e.def.noSlow) ((e.brittle = s.brittle), (e.brittleT = s.slowDur));
-      if (s.freezeChance && this.rng() < s.freezeChance) this.freeze(e, s.freezeDur);
+      if (zero) this.freeze(e, s.zeroDur);
+      else if (s.freezeChance && this.rng() < s.freezeChance) this.freeze(e, s.freezeDur);
     }
-    this.emit({ type: 'pulse', id: t.id, x: t.x, y: t.y, r: s.range });
+    this.emit({ type: 'pulse', id: t.id, x: t.x, y: t.y, r: s.range, zero });
     return true;
   }
 
@@ -1037,7 +1161,7 @@ export class Game {
       const d = Math.hypot(dx, dy);
       if (d < 0.18 || p.life <= 0) {
         p.alive = false;
-        this.explode(p.x, p.y, p.splash, p.dmg, 'explosive', p.src, { airMul: p.airMul, air: true, ground: true });
+        this.explode(p.x, p.y, p.splash, p.dmg, 'explosive', p.src, { airMul: p.airMul, air: true, ground: true, big: !!p.nuke });
         return;
       }
       const want = Math.atan2(dy, dx);
@@ -1132,7 +1256,7 @@ export class Game {
     }
     for (const m of this.meteors) {
       m.t -= dt;
-      if (m.t <= 0) this.explode(m.x, m.y, ABILITIES.meteor.radius, 140 * hpMul(Math.max(1, this.wave)) * this.mods.meteor, 'explosive', null, { noArmor: true, air: true, ground: true, big: true, burn: 10 * hpMul(this.wave) });
+      if (m.t <= 0) this.explode(m.x, m.y, ABILITIES.meteor.radius * this.mods.meteorRadius, 140 * hpMul(Math.max(1, this.wave)) * this.mods.meteor, 'explosive', null, { noArmor: true, air: true, ground: true, big: true, burn: 10 * hpMul(this.wave) });
     }
 
     if (this.enemies.some((e) => !e.alive)) this.enemies = this.enemies.filter((e) => e.alive);

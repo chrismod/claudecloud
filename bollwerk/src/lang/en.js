@@ -37,7 +37,7 @@ export default {
       medic: 'Field repairs: <b>+{n}</b> core health',
       newEnemy: 'New: <b>{name}</b> – {blurb}',
       boss: 'Wave {n}: <b>{name}</b> approaches! {blurb}',
-      rank: 'Rank {n}',
+      rank: 'XP {n}',
       stomp: 'Stomp! {n} towers knocked out',
       burst: 'The Broodmother bursts open!',
       seconds: '{n} s',
@@ -67,6 +67,29 @@ export default {
       disabledDesc: 'by a boss stomp – back in {n} s',
       targetTip: 'Target the {name} enemy first',
       close: 'Close',
+      upgradeLevel: 'Upgrade {l}/{max}',
+      xpLevel: 'XP level {l}/{max}',
+      abilities: 'Abilities',
+      slot: 'XP {l}',
+      chooseOne: 'Choose one',
+      unlocksAt: 'unlocks at XP level {l}',
+      xpCapped: 'XP cap reached – research raises it',
+      capped: 'Max for now',
+      cappedTip: 'Research raises the upgrade cap',
+      upgradeMax: 'Max',
+      upgradeMaxTip: 'Upgrade as far as your coins go (Shift+U)',
+      power: ['Power', '+10% to everything this tower does.'],
+      ultLocked: 'Research this tower’s ultimate to unlock it.',
+      settings: 'Settings',
+      priority: 'Priority',
+      priorityTip: 'These enemies first, then the targeting rule',
+      hold: 'Hold target',
+      holdTip: 'Stay on the current target until it dies or leaves range',
+      active: 'Active',
+      activeTip: 'Switch off so the tower stops firing (other towers get the experience)',
+      applyAll: 'Apply to all {name}',
+      applied: 'Settings applied to {n} more towers',
+      chooseToast: '<b>{name}</b> reached XP level {l} – choose an ability!',
     },
     stat: {
       dmg: 'Damage',
@@ -137,6 +160,7 @@ export default {
       record: 'Best: wave {n}',
       crystals: '+{n} crystals for research',
       crystalsLater: 'Finish now for <b>{n}</b> crystals – or keep going for more.',
+      dust: '+{n} stardust for endless research',
     },
     codex: {
       title: 'Codex',
@@ -147,7 +171,8 @@ export default {
       noDamage: 'no damage',
       support: 'Support',
       fromMap: 'from “{map}”',
-      level10: 'Level 10',
+      level10: 'XP 10',
+      level20: 'XP 20 · ultimate',
       hp: 'Health {v}',
       shield: ' + shield {v}',
       speed: 'Speed {v}',
@@ -161,12 +186,13 @@ export default {
       rulesHtml: `
       <h4>Goal</h4><p>Enemies pour out of the portals and follow the path to the core. Every enemy that reaches it costs core health. Survive the required number of waves to unlock the next map – then keep going in endless mode as far as you can.</p>
       <h4>Coins</h4><p>Every defeated enemy pays a bounty, every wave a base income. Calling the next wave early earns a bonus for the time you saved. Selling refunds 70% – a tower that hasn't fired yet is refunded in full.</p>
-      <h4>Upgrades, modules, mastery</h4><p>Towers can be upgraded to level 10. At level 5 you choose one of two modules that change how the tower plays. Level 10 adds its mastery ability.</p>
-      <h4>Experience</h4><p>Towers gain experience with every point of damage and climb up to ten ranks. Each rank gives +4% damage and +1.5% range.</p>
+      <h4>Upgrades</h4><p>Coins upgrade a tower’s stats. Without research every tower stops at upgrade level 6; tower research raises the cap to 10.</p>
+      <h4>Experience and abilities</h4><p>Towers gain experience with every point of damage. At XP level 4 and 7 you pick one of three abilities, at XP level 10 the mastery ability is added, and at XP level 20 you choose between the tower’s ultimate (unlocked through research) and +10% power. Each XP level also gives +3% damage and +1% range. Without research experience stops at level 10; research raises it to 20 and endless research beyond.</p>
+      <h4>Tower settings</h4><p>Every tower has its own targeting (first, last, strongest, weakest, nearest, random) and a priority (bosses, flyers, shields, armored) that is checked first. “Hold target” keeps the current enemy until it dies. Switched-off towers stop firing, so others collect the experience. New towers take over the last settings of their type.</p>
       <h4>Damage types and armor</h4><p>Armor subtracts a fixed amount from every direct hit (at least 20% gets through). Many small hits suffer, big hits barely notice. Damage over time (fire, poison, laser, frost) ignores armor. Acid eats it away. Energy deals double damage to shields.</p>
       <h4>Status effects</h4><p>Slow and freeze keep enemies in your fire longer – bosses are only half as susceptible. Burn and poison deal damage over time; brittle and mark increase all further damage.</p>
       <h4>Bosses</h4><p>Every 10th wave a boss arrives, each with its own ability: the Colossus stomps and knocks out nearby towers, the Broodmother bursts into brood, the Phantom blinks out of reach, and the Aegis shields its escort.</p>
-      <h4>Research</h4><p>Every run earns crystals – more for each wave survived, for harder maps and for victories. Spend them in the research tree on permanent upgrades. You can refund everything at any time.</p>`,
+      <h4>Research</h4><p>Every run earns crystals – more for each wave survived, for harder maps and for victories. The research tree has global branches and a chain for every tower (damage, upgrade cap, range, fire rate, a special stat, price, training, XP cap, ultimate). Waves beyond a map’s goal also earn stardust for the endless research, which has no cap. You can refund everything at any time.</p>`,
     },
     settings: {
       title: 'Settings',
@@ -204,6 +230,15 @@ export default {
       refund: 'Refund all',
       refundConfirm: 'Refund all?',
       spent: '{n} invested',
+      dust: 'Stardust',
+      hint: 'Drag to move, scroll or pinch to zoom, click a node for details.',
+      buy: 'Research',
+      requires: 'Requires',
+      endless: 'Endless research: no cap. Paid with stardust, which you only earn for waves beyond a map’s goal.',
+      levelOf: 'Level {l}',
+      levelOfMax: 'Level {l}/{m}',
+      notEnough: 'Not enough {cur}',
+      center: 'Center',
       done: 'Done',
     },
   },
@@ -223,7 +258,9 @@ export default {
     strong: { name: 'strongest', short: 'Strong' },
     weak: { name: 'weakest', short: 'Weak' },
     near: { name: 'nearest', short: 'Near' },
+    random: { name: 'random', short: 'Random' },
   },
+  priority: { none: 'None', boss: 'Bosses', air: 'Flyers', shield: 'Shields', armor: 'Armored' },
   tile: {
     D: { name: 'Power Field', desc: '+25% damage' },
     R: { name: 'High Ground', desc: '+20% range' },
@@ -237,8 +274,10 @@ export default {
       mods: [
         ['Twin Barrel', 'Fires at two targets at once (85% damage each).'],
         ['Tungsten Core', 'Ignores 70% of armor, +25% damage.'],
+        ['Rapid Fire', '+30% fire rate.'],
       ],
       master: ['Precision', '20% chance to deal double damage.'],
+      ult: ['Bullet Storm', 'Fires at 2 more targets, +10% damage.'],
     },
     mortar: {
       name: 'Mortar',
@@ -246,8 +285,10 @@ export default {
       mods: [
         ['Cluster Shells', 'Each shell splits into 4 bomblets (35% damage each).'],
         ['Incendiary', 'Leaves the ground burning for 3 s.'],
+        ['Long Barrel', '+1 range, no minimum range.'],
       ],
       master: ['Shockwave', '+25% blast radius, 15% chance to stun.'],
+      ult: ['Carpet Bombing', 'Shells split into 6 bomblets, +20% damage.'],
     },
     frost: {
       name: 'Frost Crystal',
@@ -255,8 +296,10 @@ export default {
       mods: [
         ['Permafrost', '12% chance to freeze enemies for 1 s.'],
         ['Brittle', 'Chilled enemies take +20% damage from all sources.'],
+        ['Deep Chill', 'Slow lasts twice as long, +5% slow.'],
       ],
       master: ['Ice Age', '+10% slow, +0.3 range.'],
+      ult: ['Absolute Zero', 'Every 6th pulse freezes everything in range for 1 s.'],
     },
     tesla: {
       name: 'Spark Tower',
@@ -264,8 +307,10 @@ export default {
       mods: [
         ['Chain Reaction', '+3 jumps, no damage loss per jump.'],
         ['Capacitor', 'Every 4th bolt stuns everything it hits for 0.7 s. +20% damage.'],
+        ['Surge', '+35% damage.'],
       ],
       master: ['High Voltage', '+25% damage, +0.6 jump range.'],
+      ult: ['Thunderstorm', '+5 jumps, +1 jump range.'],
     },
     sniper: {
       name: 'Falcon',
@@ -273,8 +318,10 @@ export default {
       mods: [
         ['Headshot', '30% chance to deal 4× damage.'],
         ['Penetrator', 'Pierces every enemy on the line of fire.'],
+        ['Quickload', '+35% fire rate.'],
       ],
       master: ['Mark', 'Hit enemies take +15% damage for 3 s.'],
+      ult: ['Deadeye', 'Every shot is a critical hit (at least ×3).'],
     },
     acid: {
       name: 'Acid Spitter',
@@ -282,8 +329,10 @@ export default {
       mods: [
         ['Plague', 'Poisoned enemies infect everyone nearby when they die.'],
         ['Corrosion', 'Triple armor corrosion. Poisoned enemies take +15% damage.'],
+        ['Caustic Cloud', '+0.4 splash radius, poison lasts 2 s longer.'],
       ],
       master: ['Neurotoxin', 'Poisoned enemies are 15% slower.'],
+      ult: ['Meltdown', 'Poison stacks up to 5×, double corrosion.'],
     },
     flame: {
       name: 'Scorcher',
@@ -291,8 +340,10 @@ export default {
       mods: [
         ['Napalm', 'Double burn damage, burns for 5 s.'],
         ['Firestorm', '100° cone, +0.5 range.'],
+        ['Fuel Tanks', '+0.4 range, +20% damage.'],
       ],
       master: ['White Heat', '+35% damage.'],
+      ult: ['Inferno', 'Flames in every direction, +20% damage.'],
     },
     laser: {
       name: 'Prism',
@@ -300,8 +351,10 @@ export default {
       mods: [
         ['Focus Lens', 'Ramps up to ×5 in 2.5 s.'],
         ['Refraction', 'The beam splits to 2 more targets (50% each).'],
+        ['Quick Charge', 'Ramps up twice as fast.'],
       ],
       master: ['Overheat', 'Sets the target on fire.'],
+      ult: ['Death Ray', 'Maximum ramp-up doubled.'],
     },
     missile: {
       name: 'Swarm',
@@ -309,8 +362,10 @@ export default {
       mods: [
         ['Missile Hail', '5 missiles per salvo (70% damage each).'],
         ['Warhead', 'One heavy missile: ×2.6 damage, large radius.'],
+        ['Cluster Warheads', '+0.3 blast radius, +15% damage.'],
       ],
       master: ['Seeker', '+1 range, ×2 damage against flyers.'],
+      ult: ['Doomsday', 'Every 5th salvo is one huge missile with triple damage per missile.'],
     },
     amp: {
       name: 'Resonator',
@@ -318,8 +373,10 @@ export default {
       mods: [
         ['Far Sight', 'Boosted towers get +15% range.'],
         ['Plunder', 'Kills by boosted towers pay +30% bounty.'],
+        ['Overclock', 'Neighbors get +8% more fire rate.'],
       ],
       master: ['Resonance Field', 'Radius of 2.3 tiles.'],
+      ult: ['Harmony', 'Boosts are 50% stronger.'],
     },
     mint: {
       name: 'Mint',
@@ -327,8 +384,10 @@ export default {
       mods: [
         ['Compound Interest', 'Also earns 2% of your coins every wave (max 40 + 10 per level).'],
         ['Bounty Office', 'Kills within 2.5 tiles pay +2 coins.'],
+        ['Gold Standard', '+40% minting.'],
       ],
       master: ['Treasury', '+25% minting.'],
+      ult: ['Golden Age', 'Double minting.'],
     },
   },
   enemy: {
@@ -399,6 +458,30 @@ export default {
     earlier: 'Enemies appear earlier',
   },
   research: {
+    tnode: {
+      tdmg: { name: 'Damage', desc: '+{v}% damage', descSupport: '+{v}% effect' },
+      tupg: { name: 'Upgrade cap', desc: 'Max upgrade level {v}' },
+      trange: { name: 'Range', desc: '+{v}% range' },
+      trate: { name: 'Fire rate', desc: '+{v}% fire rate', descSupport: '+{v}% fire rate boost' },
+      tcost: { name: 'Price', desc: 'Building and upgrading {v}% cheaper' },
+      txp: { name: 'Training', desc: '+{v}% experience' },
+      txpcap: { name: 'XP cap', desc: 'Max XP level {v}' },
+      tult: { name: 'Ultimate', desc: 'Unlocks “{ult}” as a choice at XP level 20' },
+    },
+    special: {
+      bolt: { name: 'Sights', desc: '+{v}% critical chance' },
+      mortar: { name: 'Payload', desc: '+{v}% blast radius' },
+      frost: { name: 'Cryo Cores', desc: '+{v}% slow' },
+      tesla: { name: 'Conductors', desc: '+{v} jumps' },
+      sniper: { name: 'Hollow Points', desc: '+{v} critical multiplier' },
+      acid: { name: 'Concentrate', desc: '+{v}% poison damage' },
+      flame: { name: 'Accelerant', desc: '+{v}% burn damage' },
+      laser: { name: 'Lens Array', desc: '+{v} max ramp-up' },
+      missile: { name: 'Seeker Heads', desc: '+{v}× damage against flyers' },
+      amp: { name: 'Tuning', desc: '+{v}% damage boost' },
+      mint: { name: 'Dies', desc: '+{v}% minting' },
+    },
+    branch_extra: { tower: 'Towers', endless: 'Endless' },
     branch: {
       eco: { name: 'Economy', desc: 'Coins, bounties and refunds' },
       arms: { name: 'Arsenal', desc: 'Damage, range and fire rate' },
@@ -406,6 +489,19 @@ export default {
       cmd: { name: 'Command', desc: 'Abilities and bosses' },
     },
     node: {
+      crystalGain: { name: 'Prospecting', desc: '+{v}% crystals from every run' },
+      tileBonus: { name: 'Ley Lines', desc: 'Special platforms are {v}% stronger' },
+      meteorRadius: { name: 'Wide Impact', desc: '+{v}% Orbital Strike radius' },
+      bossBounty: { name: 'Trophy Hunters', desc: '+{v}% bounty from bosses' },
+      'e.dmg': { name: 'Endless Firepower', desc: '+{v}% damage for all towers' },
+      'e.rate': { name: 'Endless Cadence', desc: '+{v}% fire rate for all towers' },
+      'e.range': { name: 'Endless Reach', desc: '+{v}% range for all towers' },
+      'e.coins': { name: 'Endless Treasury', desc: '+{v}% starting coins' },
+      'e.bounty': { name: 'Endless Spoils', desc: '+{v}% bounty' },
+      'e.lives': { name: 'Endless Bulwark', desc: '+{v} core health' },
+      'e.xpcap': { name: 'Endless Mastery', desc: '+{v} max XP level for all towers' },
+      'e.dust': { name: 'Star Catcher', desc: '+{v}% stardust' },
+      hub: { name: 'Core', desc: 'The root of all research.' },
       startCoins: { name: 'War Chest', desc: '+{v}% starting coins' },
       income: { name: 'Supply Lines', desc: '+{v}% income per wave' },
       bounty: { name: 'Bounty Hunters', desc: '+{v}% bounty' },

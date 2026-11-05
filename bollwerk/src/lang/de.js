@@ -37,7 +37,7 @@ export default {
       medic: 'Feldreparatur: <b>+{n}</b> Leben für den Kern',
       newEnemy: 'Neu: <b>{name}</b> – {blurb}',
       boss: 'Welle {n}: <b>{name}</b> naht! {blurb}',
-      rank: 'Rang {n}',
+      rank: 'EP {n}',
       stomp: 'Stampfer! {n} Türme lahmgelegt',
       burst: 'Die Brutmutter platzt auf!',
       seconds: '{n} s',
@@ -67,6 +67,29 @@ export default {
       disabledDesc: 'durch einen Boss-Stampfer – wieder bereit in {n} s',
       targetTip: '{name} Gegner zuerst',
       close: 'Schließen',
+      upgradeLevel: 'Ausbau {l}/{max}',
+      xpLevel: 'Erfahrung {l}/{max}',
+      abilities: 'Fähigkeiten',
+      slot: 'EP {l}',
+      chooseOne: 'Wähle eine',
+      unlocksAt: 'ab Erfahrungsstufe {l}',
+      xpCapped: 'Erfahrungsgrenze erreicht – Forschung hebt sie an',
+      capped: 'Vorerst Maximum',
+      cappedTip: 'Forschung hebt die Ausbaugrenze an',
+      upgradeMax: 'Max',
+      upgradeMaxTip: 'So weit aufrüsten, wie das Geld reicht (Shift+U)',
+      power: ['Stärke', '+10 % auf alles, was dieser Turm tut.'],
+      ultLocked: 'Erforsche die Ultimate dieses Turms, um sie freizuschalten.',
+      settings: 'Einstellungen',
+      priority: 'Vorrang',
+      priorityTip: 'Diese Gegner zuerst, danach gilt die Zielwahl',
+      hold: 'Ziel halten',
+      holdTip: 'Beim aktuellen Ziel bleiben, bis es stirbt oder die Reichweite verlässt',
+      active: 'Aktiv',
+      activeTip: 'Abschalten: Der Turm feuert nicht mehr (andere Türme bekommen die Erfahrung)',
+      applyAll: 'Auf alle {name} übertragen',
+      applied: 'Einstellungen auf {n} weitere Türme übertragen',
+      chooseToast: '<b>{name}</b> hat Erfahrungsstufe {l} erreicht – Fähigkeit wählen!',
     },
     stat: {
       dmg: 'Schaden',
@@ -137,6 +160,7 @@ export default {
       record: 'Rekord: Welle {n}',
       crystals: '+{n} Kristalle für die Forschung',
       crystalsLater: 'Jetzt beenden bringt <b>{n}</b> Kristalle – weiterspielen bringt mehr.',
+      dust: '+{n} Sternenstaub für die endlose Forschung',
     },
     codex: {
       title: 'Almanach',
@@ -147,7 +171,8 @@ export default {
       noDamage: 'kein Schaden',
       support: 'Unterstützung',
       fromMap: 'ab „{map}“',
-      level10: 'Stufe 10',
+      level10: 'EP 10',
+      level20: 'EP 20 · Ultimate',
       hp: 'Leben {v}',
       shield: ' + Schild {v}',
       speed: 'Tempo {v}',
@@ -161,12 +186,13 @@ export default {
       rulesHtml: `
       <h4>Ziel</h4><p>Gegner strömen aus den Portalen den Weg entlang zum Kern. Jeder, der ankommt, kostet Lebenspunkte. Überstehe die geforderte Zahl an Wellen, um die nächste Karte freizuschalten – danach geht es im Endlosmodus weiter, so weit du kommst.</p>
       <h4>Münzen</h4><p>Jeder besiegte Gegner bringt Kopfgeld, jede Welle ein Grundeinkommen. Wer die nächste Welle früher ruft, bekommt einen Bonus für die gesparte Zeit. Verkaufen bringt 70 % zurück – ein Turm, der noch keinen Schuss abgegeben hat, wird voll erstattet.</p>
-      <h4>Aufrüsten, Module, Meisterstufe</h4><p>Türme lassen sich bis Stufe 10 verbessern. Auf Stufe 5 wählst du eines von zwei Modulen, das die Spielweise des Turms verändert. Auf Stufe 10 kommt die Meisterfähigkeit dazu.</p>
-      <h4>Erfahrung</h4><p>Türme sammeln mit jedem Schadenspunkt Erfahrung und steigen bis zu zehn Ränge auf. Jeder Rang gibt +4 % Schaden und +1,5 % Reichweite.</p>
+      <h4>Aufrüsten</h4><p>Münzen verbessern die Werte eines Turms. Ohne Forschung endet jeder Turm bei Ausbaustufe 6; die Turmforschung hebt die Grenze auf 10.</p>
+      <h4>Erfahrung und Fähigkeiten</h4><p>Türme sammeln mit jedem Schadenspunkt Erfahrung. Auf Erfahrungsstufe 4 und 7 wählst du je eine von drei Fähigkeiten, auf Stufe 10 kommt die Meisterfähigkeit dazu, auf Stufe 20 wählst du zwischen der Ultimate des Turms (per Forschung freigeschaltet) und +10 % Stärke. Jede Erfahrungsstufe gibt außerdem +3 % Schaden und +1 % Reichweite. Ohne Forschung endet die Erfahrung bei Stufe 10; Forschung hebt sie auf 20, die endlose Forschung noch weiter.</p>
+      <h4>Turm-Einstellungen</h4><p>Jeder Turm hat seine eigene Zielwahl (vorderster, hinterster, stärkster, schwächster, nächster, zufälliger) und einen Vorrang (Bosse, Flieger, Schilde, Gepanzerte), der zuerst geprüft wird. „Ziel halten“ bleibt am aktuellen Gegner, bis er fällt. Abgeschaltete Türme feuern nicht, damit andere die Erfahrung bekommen. Neue Türme übernehmen die letzten Einstellungen ihres Typs.</p>
       <h4>Schadensarten und Panzerung</h4><p>Panzerung zieht von jedem direkten Treffer einen festen Betrag ab (mindestens 20 % kommen durch). Viele kleine Treffer leiden darunter, große Treffer kaum. Dauerschaden (Feuer, Gift, Laserstrahl, Frost) ignoriert Panzerung. Säure zersetzt sie. Energie wirkt doppelt auf Schilde.</p>
       <h4>Statuseffekte</h4><p>Verlangsamung und Einfrieren halten Gegner länger im Feuer – Bosse sind nur halb so anfällig. Brand und Gift schaden über Zeit, Sprödigkeit und Markierung erhöhen jeden weiteren Schaden.</p>
       <h4>Bosse</h4><p>Jede 10. Welle kommt ein Boss mit eigener Fähigkeit: Der Koloss stampft und legt Türme in der Nähe lahm, die Brutmutter platzt zu einem Schwarm auf, das Phantom springt außer Reichweite, und die Ägis schirmt ihre Begleiter ab.</p>
-      <h4>Forschung</h4><p>Jede Partie bringt Kristalle – mehr für jede überstandene Welle, für schwerere Karten und für Siege. Im Forschungsbaum tauschst du sie gegen dauerhafte Verbesserungen. Du kannst jederzeit alles zurückerstatten.</p>`,
+      <h4>Forschung</h4><p>Jede Partie bringt Kristalle – mehr für jede überstandene Welle, für schwerere Karten und für Siege. Der Forschungsbaum hat globale Zweige und für jeden Turm eine eigene Kette (Schaden, Ausbaugrenze, Reichweite, Feuerrate, Spezialwert, Preis, Training, Erfahrungsgrenze, Ultimate). Wellen über dem Kartenziel bringen zusätzlich Sternenstaub für die endlose Forschung ohne Obergrenze. Du kannst jederzeit alles zurückerstatten.</p>`,
     },
     settings: {
       title: 'Einstellungen',
@@ -204,6 +230,15 @@ export default {
       refund: 'Alles erstatten',
       refundConfirm: 'Wirklich erstatten?',
       spent: '{n} investiert',
+      dust: 'Sternenstaub',
+      hint: 'Ziehen verschiebt, Mausrad oder zwei Finger zoomen, Knoten anklicken für Details.',
+      buy: 'Erforschen',
+      requires: 'Benötigt',
+      endless: 'Endlose Forschung: keine Obergrenze. Bezahlt mit Sternenstaub, den es nur für Wellen über dem Kartenziel gibt.',
+      levelOf: 'Stufe {l}',
+      levelOfMax: 'Stufe {l}/{m}',
+      notEnough: 'Nicht genug {cur}',
+      center: 'Zentrieren',
       done: 'Fertig',
     },
   },
@@ -223,7 +258,9 @@ export default {
     strong: { name: 'Stärkster', short: 'Stark' },
     weak: { name: 'Schwächster', short: 'Schwach' },
     near: { name: 'Nächster', short: 'Nah' },
+    random: { name: 'Zufälliger', short: 'Zufall' },
   },
+  priority: { none: 'Keiner', boss: 'Bosse', air: 'Flieger', shield: 'Schilde', armor: 'Gepanzerte' },
   tile: {
     D: { name: 'Kraftfeld', desc: '+25 % Schaden' },
     R: { name: 'Hochplateau', desc: '+20 % Reichweite' },
@@ -237,8 +274,10 @@ export default {
       mods: [
         ['Zwillingslauf', 'Feuert gleichzeitig auf zwei Ziele (je 85 % Schaden).'],
         ['Wolframkern', 'Ignoriert 70 % der Panzerung, +25 % Schaden.'],
+        ['Schnellfeuer', '+30 % Feuerrate.'],
       ],
       master: ['Präzision', '20 % Chance auf doppelten Schaden.'],
+      ult: ['Kugelhagel', 'Feuert auf 2 weitere Ziele, +10 % Schaden.'],
     },
     mortar: {
       name: 'Mörser',
@@ -246,8 +285,10 @@ export default {
       mods: [
         ['Streumunition', 'Jede Granate zerfällt in 4 Submunitionen (je 35 % Schaden).'],
         ['Brandsatz', 'Hinterlässt 3 s lang brennenden Boden.'],
+        ['Langes Rohr', '+1 Reichweite, kein Mindestabstand.'],
       ],
       master: ['Schockwelle', '+25 % Explosionsradius, 15 % Chance zu betäuben.'],
+      ult: ['Flächenbombardement', 'Granaten zerfallen in 6 Submunitionen, +20 % Schaden.'],
     },
     frost: {
       name: 'Frostkristall',
@@ -255,8 +296,10 @@ export default {
       mods: [
         ['Permafrost', '12 % Chance, Gegner 1 s einzufrieren.'],
         ['Sprödigkeit', 'Unterkühlte Gegner erleiden +20 % Schaden aus allen Quellen.'],
+        ['Tiefe Kälte', 'Verlangsamung hält doppelt so lange, +5 % Verlangsamung.'],
       ],
       master: ['Eiszeit', '+10 % Verlangsamung, +0,3 Reichweite.'],
+      ult: ['Nullpunkt', 'Jeder 6. Puls friert alles in Reichweite 1 s ein.'],
     },
     tesla: {
       name: 'Funkenturm',
@@ -264,8 +307,10 @@ export default {
       mods: [
         ['Kettenreaktion', '+3 Sprünge, kein Schadensverlust pro Sprung.'],
         ['Kondensator', 'Jeder 4. Blitz betäubt alle Getroffenen 0,7 s. +20 % Schaden.'],
+        ['Stromstoß', '+35 % Schaden.'],
       ],
       master: ['Hochspannung', '+25 % Schaden, +0,6 Sprungweite.'],
+      ult: ['Gewittersturm', '+5 Sprünge, +1 Sprungweite.'],
     },
     sniper: {
       name: 'Falke',
@@ -273,8 +318,10 @@ export default {
       mods: [
         ['Kopfschuss', '30 % Chance auf vierfachen Schaden.'],
         ['Durchschlag', 'Durchschlägt alle Gegner auf der Schusslinie.'],
+        ['Schnellader', '+35 % Feuerrate.'],
       ],
       master: ['Markierung', 'Getroffene Gegner erleiden 3 s lang +15 % Schaden.'],
+      ult: ['Todesauge', 'Jeder Schuss ist kritisch (mindestens ×3).'],
     },
     acid: {
       name: 'Säurespeier',
@@ -282,8 +329,10 @@ export default {
       mods: [
         ['Seuche', 'Vergiftete Gegner stecken beim Tod alle in der Nähe an.'],
         ['Zersetzung', 'Dreifache Korrosion. Vergiftete erleiden +15 % Schaden.'],
+        ['Ätzwolke', '+0,4 Radius, Gift wirkt 2 s länger.'],
       ],
       master: ['Nervengift', 'Vergiftete Gegner sind 15 % langsamer.'],
+      ult: ['Kernschmelze', 'Gift stapelt sich bis 5×, doppelte Korrosion.'],
     },
     flame: {
       name: 'Glutwerfer',
@@ -291,8 +340,10 @@ export default {
       mods: [
         ['Napalm', 'Doppelter Brandschaden, brennt 5 s.'],
         ['Feuersturm', 'Kegel 100° breit, +0,5 Reichweite.'],
+        ['Zusatztanks', '+0,4 Reichweite, +20 % Schaden.'],
       ],
       master: ['Weißglut', '+35 % Schaden.'],
+      ult: ['Inferno', 'Flammen in alle Richtungen, +20 % Schaden.'],
     },
     laser: {
       name: 'Prisma',
@@ -300,8 +351,10 @@ export default {
       mods: [
         ['Fokuslinse', 'Steigert sich bis ×5 in 2,5 s.'],
         ['Brechung', 'Strahl teilt sich auf 2 weitere Ziele (je 50 %).'],
+        ['Schnellladung', 'Lädt sich doppelt so schnell auf.'],
       ],
       master: ['Überhitzung', 'Setzt das Ziel in Brand.'],
+      ult: ['Todesstrahl', 'Doppelte maximale Aufladung.'],
     },
     missile: {
       name: 'Schwarm',
@@ -309,8 +362,10 @@ export default {
       mods: [
         ['Raketenhagel', '5 Raketen pro Salve (je 70 % Schaden).'],
         ['Gefechtskopf', 'Eine schwere Rakete: ×2,6 Schaden, großer Radius.'],
+        ['Streusprengköpfe', '+0,3 Explosionsradius, +15 % Schaden.'],
       ],
       master: ['Zielsuche', '+1 Reichweite, ×2 Schaden gegen Flieger.'],
+      ult: ['Weltuntergang', 'Jede 5. Salve ist eine riesige Rakete mit dreifachem Schaden je Rakete.'],
     },
     amp: {
       name: 'Resonator',
@@ -318,8 +373,10 @@ export default {
       mods: [
         ['Fernsicht', 'Verstärkte Türme erhalten +15 % Reichweite.'],
         ['Beutezug', 'Kills verstärkter Türme bringen +30 % Kopfgeld.'],
+        ['Übertaktung', 'Nachbarn erhalten +8 % mehr Feuerrate.'],
       ],
       master: ['Resonanzfeld', 'Wirkungsradius 2,3 Felder.'],
+      ult: ['Harmonie', 'Verstärkungen wirken 50 % stärker.'],
     },
     mint: {
       name: 'Münzpresse',
@@ -327,8 +384,10 @@ export default {
       mods: [
         ['Zinseszins', 'Zusätzlich 2 % deines Guthabens pro Welle (max. 40 + 10 je Stufe).'],
         ['Kopfgeldbüro', 'Kills in 2,5 Feldern Umkreis bringen +2 Münzen.'],
+        ['Goldstandard', '+40 % Prägung.'],
       ],
       master: ['Staatsschatz', '+25 % Prägung.'],
+      ult: ['Goldenes Zeitalter', 'Doppelte Prägung.'],
     },
   },
   enemy: {
@@ -399,6 +458,30 @@ export default {
     earlier: 'Gegner kommen früher',
   },
   research: {
+    tnode: {
+      tdmg: { name: 'Schaden', desc: '+{v} % Schaden', descSupport: '+{v} % Wirkung' },
+      tupg: { name: 'Ausbaugrenze', desc: 'Maximale Ausbaustufe {v}' },
+      trange: { name: 'Reichweite', desc: '+{v} % Reichweite' },
+      trate: { name: 'Feuerrate', desc: '+{v} % Feuerrate', descSupport: '+{v} % Feuerraten-Verstärkung' },
+      tcost: { name: 'Preis', desc: 'Bauen und Aufrüsten {v} % günstiger' },
+      txp: { name: 'Training', desc: '+{v} % Erfahrung' },
+      txpcap: { name: 'Erfahrungsgrenze', desc: 'Maximale Erfahrungsstufe {v}' },
+      tult: { name: 'Ultimate', desc: 'Schaltet „{ult}“ als Wahl auf Erfahrungsstufe 20 frei' },
+    },
+    special: {
+      bolt: { name: 'Visier', desc: '+{v} % Chance auf kritische Treffer' },
+      mortar: { name: 'Sprengladung', desc: '+{v} % Explosionsradius' },
+      frost: { name: 'Kryokerne', desc: '+{v} % Verlangsamung' },
+      tesla: { name: 'Leiter', desc: '+{v} Sprünge' },
+      sniper: { name: 'Hohlspitz', desc: '+{v} kritischer Multiplikator' },
+      acid: { name: 'Konzentrat', desc: '+{v} % Giftschaden' },
+      flame: { name: 'Brandbeschleuniger', desc: '+{v} % Brandschaden' },
+      laser: { name: 'Linsenkranz', desc: '+{v} maximale Aufladung' },
+      missile: { name: 'Suchköpfe', desc: '+{v}× Schaden gegen Flieger' },
+      amp: { name: 'Feinabstimmung', desc: '+{v} % Schadensverstärkung' },
+      mint: { name: 'Prägestempel', desc: '+{v} % Prägung' },
+    },
+    branch_extra: { tower: 'Türme', endless: 'Endlos' },
     branch: {
       eco: { name: 'Wirtschaft', desc: 'Münzen, Kopfgeld, Erstattung' },
       arms: { name: 'Arsenal', desc: 'Schaden, Reichweite, Feuerrate' },
@@ -406,6 +489,19 @@ export default {
       cmd: { name: 'Kommando', desc: 'Fähigkeiten und Bosse' },
     },
     node: {
+      crystalGain: { name: 'Schürfrecht', desc: '+{v} % Kristalle aus jeder Partie' },
+      tileBonus: { name: 'Kraftlinien', desc: 'Sonderplattformen wirken {v} % stärker' },
+      meteorRadius: { name: 'Breite Wirkung', desc: '+{v} % Radius des Orbitalschlags' },
+      bossBounty: { name: 'Trophäenjäger', desc: '+{v} % Kopfgeld von Bossen' },
+      'e.dmg': { name: 'Endlose Feuerkraft', desc: '+{v} % Schaden für alle Türme' },
+      'e.rate': { name: 'Endloser Takt', desc: '+{v} % Feuerrate für alle Türme' },
+      'e.range': { name: 'Endlose Reichweite', desc: '+{v} % Reichweite für alle Türme' },
+      'e.coins': { name: 'Endlose Schatzkammer', desc: '+{v} % Startmünzen' },
+      'e.bounty': { name: 'Endlose Beute', desc: '+{v} % Kopfgeld' },
+      'e.lives': { name: 'Endloses Bollwerk', desc: '+{v} Leben für den Kern' },
+      'e.xpcap': { name: 'Endlose Meisterschaft', desc: '+{v} maximale Erfahrungsstufe für alle Türme' },
+      'e.dust': { name: 'Sternenfänger', desc: '+{v} % Sternenstaub' },
+      hub: { name: 'Kern', desc: 'Die Wurzel aller Forschung.' },
       startCoins: { name: 'Kriegskasse', desc: '+{v} % Startmünzen' },
       income: { name: 'Nachschub', desc: '+{v} % Einkommen je Welle' },
       bounty: { name: 'Kopfgeldjäger', desc: '+{v} % Kopfgeld' },

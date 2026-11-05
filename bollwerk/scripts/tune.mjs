@@ -34,6 +34,8 @@ for (const m of MAPS) {
     if (reached(m, mid, research) >= want) lo = mid;
     else hi = mid;
   }
+  // Der Verlauf hängt nicht stetig vom Faktor ab (ein Boss entscheidet viel): nachprüfen und notfalls absenken
+  while (lo > 0.3 && reached(m, Math.round(lo * 100) / 100, research) < m.goal * Math.min(1.15, target(m.index))) lo *= 0.92;
   out[m.id] = Math.round(lo * 100) / 100;
   console.log(`${String(m.index + 1).padStart(2)} ${m.id.padEnd(14)} Ziel ${m.goal} · Faktor ${out[m.id]} · Bot ${reached(m, out[m.id], research)} · Forschung ${Object.values(research).reduce((a, b) => a + b, 0)} Stufen`);
 }

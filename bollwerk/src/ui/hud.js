@@ -1,5 +1,5 @@
 // HUD: Ressourcen, Wellenkarte, Boss-Balken, Bauleiste, Fähigkeiten und Turm-Inspektor.
-import { TOWERS, TOWER_ORDER, ENEMIES, ENEMY_UNLOCK, ABILITIES, TARGETING, TILE_BONUS, MAX_LEVEL, MODULE_LEVEL, RANKS } from '../game/data.js';
+import { TOWERS, TOWER_ORDER, ENEMIES, ABILITIES, TARGETING, PRIORITIES, TILE_BONUS, MAX_LEVEL, ABILITY_LEVELS, MASTER_LEVEL, ULT_LEVEL, xpFor } from '../game/data.js';
 import { MAPS } from '../game/maps.js';
 import { t, tower, enemy, num, fmt, pct } from '../i18n.js';
 
@@ -218,8 +218,8 @@ export class Hud {
   statRows(tw, game) {
     const s = tw.stats;
     const d = tw.def;
-    const base = game.levelStats(tw.type, tw.level, tw.module);
-    const next = tw.level < MAX_LEVEL && !game.needsModule(tw) ? game.levelStats(tw.type, tw.level + 1, tw.module) : null;
+    const base = game.levelStats(tw.type, tw.level);
+    const next = game.upgradeCost(tw) != null ? game.levelStats(tw.type, tw.level + 1) : null;
     const up = (k, f = (x) => num(x)) => {
       if (!next || next[k] == null || base[k] == null) return '';
       const mult = base[k] ? s[k] / base[k] : 1;
@@ -250,7 +250,7 @@ export class Hud {
         if (s.splash) add('splash', num(s.splash, 2), 'splash', (x) => num(x, 2));
         if (s.slow) add('slow', pct(s.slow), 'slow', pct);
         if (s.chains) add('jumps', String(Math.floor(s.chains)), 'chains', (x) => (x >= 1 ? String(Math.floor(x)) : num(x, 2)));
-        if (s.crit) add('crit', `${pct(s.crit)} · ×${num(s.critMul)}`);
+        if (s.crit) add('crit', `${pct(Math.min(1, s.crit))} · ×${num(s.critMul)}`);
         if (s.poisonDps) add('poison', t('ui.stat.perSec', { v: num(s.poisonDps), d: s.poisonDur }), 'poisonDps');
         if (s.corrosion) add('corrosion', t('ui.stat.corrosionVal', { v: num(s.corrosion, 2) }), 'corrosion', (x) => num(x, 2));
         if (s.burnDps) add('burn', t('ui.stat.perSec', { v: num(s.burnDps), d: s.burnDur }), 'burnDps');
@@ -264,7 +264,8 @@ export class Hud {
   }
 
   inspectorSig(tw, game) {
-    return [tw.id, tw.level, tw.module, tw.targeting, tw.rank, game.canUpgrade(tw), game.sellValue(tw), tw.buffedBy, tw.disabledT > 0, Math.floor(game.coins / 5)].join('|');
+    const p = game.pendingChoice(tw);
+    return [tw.id, tw.level, tw.abilities.join(','), tw.ultChoice, tw.xpLevel, tw.targeting, tw.priority, tw.lockTarget, tw.enabled, p ? p.slot : '', game.canUpgrade(tw), game.sellValue(tw), tw.buffedBy, tw.disabledT > 0, Math.floor(game.coins / 5)].join('|');
   }
 
   updateInspector(game, tw) {
@@ -286,9 +287,9 @@ export class Hud {
     if (dis) dis.textContent = t('ui.insp.disabledDesc', { n: Math.ceil(tw.disabledT) });
     const bar = box.querySelector('.xp .bar i');
     if (bar) {
-      const lo = RANKS[tw.rank];
-      const hi = RANKS[tw.rank + 1];
-      bar.style.width = hi ? `${Math.min(100, ((tw.xp - lo) / (hi - lo)) * 100)}%` : '100%';
+      const lo = xpFor(tw.xpLevel);
+      const hi = xpFor(tw.xpLevel + 1);
+      bar.style.width = tw.xpLevel >= game.maxXp(tw) ? '100%' : `${Math.min(100, ((tw.xp - lo) / (hi - lo)) * 100)}%`;
     }
   }
 
@@ -297,44 +298,78 @@ export class Hud {
     const tx = tower(tw.type);
     const box = $('inspector');
     const cost = game.upgradeCost(tw);
-    const needsModule = game.needsModule(tw);
+    const maxL = game.maxLevel(tw);
+    const maxX = game.maxXp(tw);
     const attacker = d.kind !== 'support' && d.kind !== 'economy';
-    const stars = '★'.repeat(tw.rank) + '☆'.repeat(Math.max(0, 10 - tw.rank));
-    let html = `<div class="insp-head"><img alt="" src="${this.thumbs.towers[tw.type] || ''}"><div><h3>${tx.name}</h3><div class="lvl">${t('ui.insp.level', { l: tw.level, max: MAX_LEVEL })}${d.dmgType ? ` · ${t(`dmg.${d.dmgType}`)}` : ''}</div></div><button class="x" data-act="close" aria-label="${t('ui.insp.close')}">✕</button></div>`;
+    const pending = game.pendingChoice(tw);
+    let html = `<div class="insp-head"><img alt="" src="${this.thumbs.towers[tw.type] || ''}"><div><h3>${tx.name}</h3><div class="lvl">${t('ui.insp.upgradeLevel', { l: tw.level, max: maxL })}${d.dmgType ? ` · ${t(`dmg.${d.dmgType}`)}` : ''}</div></div><button class="x" data-act="close" aria-label="${t('ui.insp.close')}">✕</button></div>`;
     if (tw.disabledT > 0) html += `<div class="note warn"><span class="tag">${t('ui.insp.disabled')}</span><span data-live="disabled"></span></div>`;
-    if (attacker) {
-      html += `<div class="xp"><span class="stars" title="${t('ui.insp.rankTip', { r: tw.rank, d: tw.rank * 4, g: num(tw.rank * 1.5) })}">${stars}</span><span class="bar"><i></i></span></div>`;
-      html += `<div class="note" data-live="kills"></div>`;
-    }
+
+    // Erfahrung
+    const capped = tw.xpLevel >= maxX;
+    html += `<div class="xp" title="${capped ? t('ui.insp.xpCapped') : ''}"><span class="xl">${t('ui.insp.xpLevel', { l: tw.xpLevel, max: maxX })}</span><span class="bar ${capped ? 'capped' : ''}"><i></i></span></div>`;
+    if (attacker) html += `<div class="note" data-live="kills"></div>`;
     html += `<dl class="stats">${this.statRows(tw, game)}</dl>`;
+
     const notes = [];
     if (tw.tile !== '#') notes.push(`<span class="tag" style="color:${TILE_BONUS[tw.tile].color}">${t(`tile.${tw.tile}.name`)}</span>${t(`tile.${tw.tile}.desc`)}`);
     if (tw.buffedBy) notes.push(`<span class="tag" style="color:#ffe7a3">${t('ui.insp.resonance')}</span>${t('ui.insp.resonanceDesc')}`);
     if (attacker) notes.push(t('ui.insp.hits', { what: [d.ground && t('ui.insp.ground'), d.air && t('ui.insp.air')].filter(Boolean).join(` ${t('ui.insp.and')} `) }));
     if (notes.length) html += `<div class="note">${notes.join('<br>')}</div>`;
 
+    // Einstellungen
     if (attacker) {
-      html += `<div class="section-label">${t('ui.insp.targeting')} <kbd>T</kbd></div><div class="targeting">${TARGETING.map((m) => `<button data-target="${m.key}" title="${t('ui.insp.targetTip', { name: t(`target.${m.key}.name`) })}" class="${tw.targeting === m.key ? 'on' : ''}">${t(`target.${m.key}.short`)}</button>`).join('')}</div>`;
+      html += `<div class="section-label">${t('ui.insp.targeting')} <kbd>T</kbd></div><div class="targeting six">${TARGETING.map((m) => `<button data-target="${m.key}" title="${t('ui.insp.targetTip', { name: t(`target.${m.key}.name`) })}" class="${tw.targeting === m.key ? 'on' : ''}">${t(`target.${m.key}.short`)}</button>`).join('')}</div>`;
+      html += `<div class="section-label" title="${t('ui.insp.priorityTip')}">${t('ui.insp.priority')}</div><div class="targeting prio">${PRIORITIES.map((p) => `<button data-prio="${p}" class="${tw.priority === p ? 'on' : ''}">${t(`priority.${p}`)}</button>`).join('')}</div>`;
+      html += `<div class="toggles"><label title="${t('ui.insp.holdTip')}"><input type="checkbox" data-act="hold" ${tw.lockTarget ? 'checked' : ''}> ${t('ui.insp.hold')}</label><label title="${t('ui.insp.activeTip')}"><input type="checkbox" data-act="active" ${tw.enabled ? 'checked' : ''}> ${t('ui.insp.active')}</label></div>`;
+      if (game.towers.some((o) => o !== tw && o.type === tw.type)) html += `<button class="link" data-act="apply">${t('ui.insp.applyAll', { name: tx.name })}</button>`;
     }
 
-    html += `<div class="section-label">${t('ui.insp.modules')} ${tw.level < MODULE_LEVEL ? t('ui.insp.fromLevel', { l: MODULE_LEVEL }) : ''}</div><div class="modules">`;
-    tx.mods.forEach(([name, desc], i) => {
-      let cls = 'module';
-      if (needsModule) cls += ' pick';
-      else if (tw.module === i) cls += ' chosen';
-      else cls += ' dim';
-      html += `<button class="${cls}" data-module="${i}" ${needsModule ? '' : 'disabled'}><b>${name}</b><span>${desc}</span></button>`;
+    // Fähigkeiten nach Erfahrungsstufe
+    html += `<div class="section-label">${t('ui.insp.abilities')}</div><div class="slots">`;
+    ABILITY_LEVELS.forEach((lvl, i) => {
+      const chosen = tw.abilities[i];
+      if (chosen != null) {
+        html += `<div class="module chosen"><span class="slot">${t('ui.insp.slot', { l: lvl })}</span><b>${tx.mods[chosen][0]}</b><span>${tx.mods[chosen][1]}</span></div>`;
+      } else if (pending && pending.slot === lvl) {
+        html += `<div class="pick-head"><span class="slot">${t('ui.insp.slot', { l: lvl })}</span>${t('ui.insp.chooseOne')}</div>`;
+        for (const k of pending.options) html += `<button class="module pick" data-ability="${k}"><b>${tx.mods[k][0]}</b><span>${tx.mods[k][1]}</span></button>`;
+      } else {
+        html += `<div class="module dim"><span class="slot">${t('ui.insp.slot', { l: lvl })}</span><span>${t('ui.insp.unlocksAt', { l: lvl })}</span></div>`;
+      }
     });
-    html += `<div class="module master ${tw.level >= MAX_LEVEL ? 'chosen' : 'dim'}"><b>${t('ui.insp.mastery')} · ${tx.master[0]}</b><span>${tx.master[1]}</span></div></div>`;
+    html += `<div class="module master ${tw.xpLevel >= MASTER_LEVEL ? 'chosen' : 'dim'}"><span class="slot">${t('ui.insp.slot', { l: MASTER_LEVEL })}</span><b>${tx.master[0]}</b><span>${tx.master[1]}</span></div>`;
+    if (pending && pending.slot === ULT_LEVEL) {
+      html += `<div class="pick-head"><span class="slot">${t('ui.insp.slot', { l: ULT_LEVEL })}</span>${t('ui.insp.chooseOne')}</div>`;
+      for (const k of pending.options) {
+        const [n, ds] = k === 'ult' ? tx.ult : t('ui.insp.power');
+        html += `<button class="module pick ${k === 'ult' ? 'ult' : ''}" data-ability="${k}"><b>${n}</b><span>${ds}</span></button>`;
+      }
+      if (!pending.options.includes('ult')) html += `<div class="note">${t('ui.insp.ultLocked')}</div>`;
+    } else if (tw.ultChoice) {
+      const [n, ds] = tw.ultChoice === 'ult' ? tx.ult : t('ui.insp.power');
+      html += `<div class="module chosen ult"><span class="slot">${t('ui.insp.slot', { l: ULT_LEVEL })}</span><b>${n}</b><span>${ds}</span></div>`;
+    } else {
+      html += `<div class="module dim ult"><span class="slot">${t('ui.insp.slot', { l: ULT_LEVEL })}</span><b>${tx.ult[0]}</b><span>${maxX < ULT_LEVEL ? t('ui.insp.xpCapped') : t('ui.insp.unlocksAt', { l: ULT_LEVEL })}</span></div>`;
+    }
+    html += `</div>`;
 
-    const upLabel = cost == null ? t('ui.insp.maxLevel') : needsModule ? t('ui.insp.chooseFirst') : `${t('ui.insp.upgrade')} <small>${t('ui.insp.upgradeCost', { c: cost })}</small>`;
-    html += `<div class="insp-actions"><button class="primary" data-act="upgrade" ${game.canUpgrade(tw) ? '' : 'disabled'}>${upLabel}</button><button class="ghost" data-act="sell" title="${t('ui.insp.sellTip')}">${t('ui.insp.sell')} <small>+${game.sellValue(tw)}${tw.fresh ? ` ${t('ui.insp.full')}` : ''}</small></button></div>`;
+    const upLabel = cost == null ? (tw.level >= MAX_LEVEL ? t('ui.insp.maxLevel') : t('ui.insp.capped')) : `${t('ui.insp.upgrade')} <small>${t('ui.insp.upgradeCost', { c: cost })}</small>`;
+    html += `<div class="insp-actions three"><button class="primary" data-act="upgrade" ${game.canUpgrade(tw) ? '' : 'disabled'} title="${cost == null && tw.level < MAX_LEVEL ? t('ui.insp.cappedTip') : ''}">${upLabel}</button><button class="ghost" data-act="max" ${game.canUpgrade(tw) ? '' : 'disabled'} title="${t('ui.insp.upgradeMaxTip')}">${t('ui.insp.upgradeMax')}</button><button class="ghost" data-act="sell" title="${t('ui.insp.sellTip')}">${t('ui.insp.sell')} <small>+${game.sellValue(tw)}${tw.fresh ? ` ${t('ui.insp.full')}` : ''}</small></button></div>`;
     box.innerHTML = html;
-    box.querySelector('[data-act="close"]').onclick = () => this.a.deselect();
-    box.querySelector('[data-act="upgrade"]').onclick = () => this.a.upgrade(tw);
-    box.querySelector('[data-act="sell"]').onclick = () => this.a.sell(tw);
+    const on = (sel, fn) => box.querySelector(sel) && (box.querySelector(sel).onclick = fn);
+    on('[data-act="close"]', () => this.a.deselect());
+    on('[data-act="upgrade"]', () => this.a.upgrade(tw));
+    on('[data-act="max"]', () => this.a.upgradeMax(tw));
+    on('[data-act="sell"]', () => this.a.sell(tw));
+    on('[data-act="apply"]', () => this.a.applyToType(tw));
+    const hold = box.querySelector('[data-act="hold"]');
+    if (hold) hold.onchange = () => this.a.setLockTarget(tw, hold.checked);
+    const act = box.querySelector('[data-act="active"]');
+    if (act) act.onchange = () => this.a.setEnabled(tw, act.checked);
     for (const b of box.querySelectorAll('[data-target]')) b.onclick = () => this.a.setTargeting(tw, b.dataset.target);
-    for (const b of box.querySelectorAll('[data-module]')) b.onclick = () => this.a.chooseModule(tw, Number(b.dataset.module));
+    for (const b of box.querySelectorAll('[data-prio]')) b.onclick = () => this.a.setPriority(tw, b.dataset.prio);
+    for (const b of box.querySelectorAll('[data-ability]')) b.onclick = () => this.a.chooseAbility(tw, /^\d+$/.test(b.dataset.ability) ? Number(b.dataset.ability) : b.dataset.ability);
     this.updateInspector(game, tw);
   }
 }

@@ -93,7 +93,10 @@ export class Bot {
     if ((this.timer -= dt) > 0) return;
     this.timer = 0.5;
     if (this.useAbilities) this.abilities();
-    for (const t of g.towers) if (g.needsModule(t)) g.chooseModule(t, this.moduleFor(t));
+    for (const t of g.towers) {
+      const p = g.pendingChoice(t);
+      if (p) g.chooseAbility(t, p.slot === 20 ? p.options[0] : p.options[this.moduleFor(t) % p.options.length]);
+    }
     for (let guard = 0; guard < 10; guard++) {
       const attackers = g.towers.filter((t) => t.def.kind !== 'support' && t.def.kind !== 'economy');
       const next = this.plan[this.idx % this.plan.length];

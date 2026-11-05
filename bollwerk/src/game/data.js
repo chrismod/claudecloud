@@ -16,11 +16,29 @@ export const TARGETING = [
   { key: 'strong' },
   { key: 'weak' },
   { key: 'near' },
+  { key: 'random' },
 ];
 
-export const MAX_LEVEL = 10;
-export const MODULE_LEVEL = 5; // ab dieser Stufe wird ein Modul gewählt
+// Vorrang: diese Gegner zuerst, sonst gilt die Zielwahl
+export const PRIORITIES = ['none', 'boss', 'air', 'shield', 'armor'];
+
+export const MAX_LEVEL = 10; // absolute Obergrenze der Ausbaustufe
+export const BASE_MAX_LEVEL = 6; // ohne Forschung
 export const SELL_RATE = 0.7;
+
+// Erfahrungsstufen (wie in Infinitode 2): Stufe 4 und 7 je eine von drei Fähigkeiten,
+// Stufe 10 die Meisterfähigkeit, Stufe 20 Ultimate oder +10 % Stärke.
+export const ABILITY_LEVELS = [4, 7];
+export const MASTER_LEVEL = 10;
+export const ULT_LEVEL = 20;
+export const BASE_MAX_XP = 10; // ohne Forschung
+export const HARD_MAX_XP = 50;
+export const XP_DMG = 0.03; // +3 % Schaden je Erfahrungsstufe über 1
+export const XP_RANGE = 0.01;
+// Gesamt-XP für Stufe L (L = 1 … HARD_MAX_XP)
+export function xpFor(L) {
+  return L <= 1 ? 0 : Math.round(2.5 * Math.pow(L - 1, 1.9));
+}
 
 // Feldboni auf Sonderplattformen
 export const TILE_BONUS = {
@@ -30,10 +48,6 @@ export const TILE_BONUS = {
   C: { color: '#ffc94d' },
 };
 
-// Erfahrungsränge: Schwelle (XP) je Rang, Bonus pro Rang
-export const RANKS = [0, 10, 28, 55, 95, 150, 225, 320, 440, 590, 770];
-export const RANK_DMG = 0.04;
-export const RANK_RANGE = 0.015;
 
 const S = (o) => o; // nur zur Lesbarkeit
 
@@ -51,11 +65,14 @@ export const TOWERS = {
     ground: true,
     base: S({ dmg: 7, range: 2.6, rate: 1.8, projSpeed: 14 }),
     grow: { dmg: 1.33, range: 0.06, rate: 1.03 },
-    modules: [
+    abilities: [
       { apply: (s) => ((s.multishot = 2), (s.dmg *= 0.85)) },
       { apply: (s) => ((s.armorPierce = 0.7), (s.dmg *= 1.25)) },
+      { apply: (s) => (s.rate *= 1.3) },
     ],
     master: { apply: (s) => ((s.crit = 0.2), (s.critMul = 2)) },
+    ultimate: { apply: (s) => ((s.multishot = (s.multishot || 1) + 2), (s.dmg *= 1.1)) },
+    special: (s, L) => (s.crit = (s.crit || 0) + 0.03 * L, (s.critMul = Math.max(s.critMul || 0, 2))),
   },
   mortar: {
     cost: 60,
@@ -67,11 +84,14 @@ export const TOWERS = {
     ground: true,
     base: S({ dmg: 26, range: 4.0, minRange: 1.0, rate: 0.5, splash: 0.95, flight: 0.9 }),
     grow: { dmg: 1.33, range: 0.05, rate: 1.03, splash: 0.03 },
-    modules: [
+    abilities: [
       { apply: (s) => (s.cluster = 4) },
       { apply: (s) => ((s.fireField = 3), (s.fieldFrac = 0.35)) },
+      { apply: (s) => ((s.range += 1), (s.minRange = 0)) },
     ],
     master: { apply: (s) => ((s.splash *= 1.25), (s.stunChance = 0.15), (s.stunDur = 0.6)) },
+    ultimate: { apply: (s) => ((s.cluster = 6), (s.dmg *= 1.2)) },
+    special: (s, L) => (s.splash *= 1 + 0.04 * L),
   },
   frost: {
     cost: 50,
@@ -83,11 +103,14 @@ export const TOWERS = {
     ground: true,
     base: S({ dmg: 3, range: 1.9, rate: 0.8, slow: 0.3, slowDur: 1.6 }),
     grow: { dmg: 1.3, range: 0.05, rate: 1.0, slow: 0.025 },
-    modules: [
+    abilities: [
       { apply: (s) => ((s.freezeChance = 0.12), (s.freezeDur = 1)) },
       { apply: (s) => (s.brittle = 0.2) },
+      { apply: (s) => ((s.slowDur *= 2), (s.slow += 0.05)) },
     ],
     master: { apply: (s) => ((s.slow += 0.1), (s.range += 0.3)) },
+    ultimate: { apply: (s) => ((s.zeroEvery = 6), (s.zeroDur = 1)) },
+    special: (s, L) => (s.slow += 0.02 * L),
   },
   tesla: {
     cost: 70,
@@ -99,11 +122,14 @@ export const TOWERS = {
     ground: true,
     base: S({ dmg: 13, range: 2.4, rate: 0.9, chains: 3, chainRange: 1.7, falloff: 0.8 }),
     grow: { dmg: 1.3, range: 0.05, rate: 1.03, chains: 0.25 },
-    modules: [
+    abilities: [
       { apply: (s) => ((s.chains += 3), (s.falloff = 1)) },
       { apply: (s) => ((s.stunEvery = 4), (s.stunDur = 0.7), (s.dmg *= 1.2)) },
+      { apply: (s) => (s.dmg *= 1.35) },
     ],
     master: { apply: (s) => ((s.dmg *= 1.25), (s.chainRange += 0.6)) },
+    ultimate: { apply: (s) => ((s.chains += 5), (s.chainRange += 1)) },
+    special: (s, L) => (s.chains += 0.4 * L),
   },
   sniper: {
     cost: 90,
@@ -116,11 +142,14 @@ export const TOWERS = {
     targeting: 'strong',
     base: S({ dmg: 52, range: 5.5, rate: 0.38, crit: 0.1, critMul: 2.5 }),
     grow: { dmg: 1.34, range: 0.1, rate: 1.03 },
-    modules: [
+    abilities: [
       { apply: (s) => ((s.crit = 0.3), (s.critMul = 4)) },
       { apply: (s) => ((s.pierce = true), (s.dmg *= 0.9)) },
+      { apply: (s) => (s.rate *= 1.35) },
     ],
     master: { apply: (s) => ((s.mark = 0.15), (s.markDur = 3)) },
+    ultimate: { apply: (s) => ((s.crit = 1), (s.critMul = Math.max(s.critMul, 3))) },
+    special: (s, L) => (s.critMul += 0.2 * L),
   },
   acid: {
     cost: 65,
@@ -133,11 +162,14 @@ export const TOWERS = {
     base: S({ dmg: 6, range: 2.8, rate: 0.75, splash: 0.7, flight: 0.45, poisonDps: 6, poisonDur: 4, corrosion: 1 }),
     grow: { dmg: 1.3, range: 0.05, rate: 1.02, poisonDps: 1.32, corrosion: 0.2 },
     growMul: { poisonDps: true },
-    modules: [
+    abilities: [
       { apply: (s) => (s.plague = 1.5) },
       { apply: (s) => ((s.corrosion *= 3), (s.poisonVuln = 0.15)) },
+      { apply: (s) => ((s.splash += 0.4), (s.poisonDur += 2)) },
     ],
     master: { apply: (s) => (s.poisonSlow = 0.15) },
+    ultimate: { apply: (s) => ((s.poisonStack = 5), (s.corrosion *= 2)) },
+    special: (s, L) => (s.poisonDps *= 1 + 0.08 * L),
   },
   flame: {
     cost: 80,
@@ -150,11 +182,14 @@ export const TOWERS = {
     base: S({ dmg: 17, range: 1.8, cone: 50, burnDps: 5, burnDur: 3 }),
     grow: { dmg: 1.3, range: 0.04, burnDps: 1.3 },
     growMul: { burnDps: true },
-    modules: [
+    abilities: [
       { apply: (s) => ((s.burnDps *= 2), (s.burnDur = 5)) },
       { apply: (s) => ((s.cone = 100), (s.range += 0.5)) },
+      { apply: (s) => ((s.range += 0.4), (s.dmg *= 1.2)) },
     ],
     master: { apply: (s) => (s.dmg *= 1.35) },
+    ultimate: { apply: (s) => ((s.cone = 360), (s.dmg *= 1.2)) },
+    special: (s, L) => (s.burnDps *= 1 + 0.1 * L),
   },
   laser: {
     cost: 120,
@@ -166,11 +201,14 @@ export const TOWERS = {
     ground: true,
     base: S({ dmg: 20, range: 3.0, ramp: 3, rampTime: 3 }),
     grow: { dmg: 1.3, range: 0.05 },
-    modules: [
+    abilities: [
       { apply: (s) => ((s.ramp = 5), (s.rampTime = 2.5)) },
       { apply: (s) => (s.split = 2) },
+      { apply: (s) => (s.rampTime *= 0.5) },
     ],
     master: { apply: (s) => ((s.beamBurn = 0.2), (s.burnDur = 2)) },
+    ultimate: { apply: (s) => (s.ramp *= 2) },
+    special: (s, L) => (s.ramp += 0.2 * L),
   },
   missile: {
     cost: 110,
@@ -183,11 +221,14 @@ export const TOWERS = {
     preferAir: true,
     base: S({ dmg: 18, range: 4.2, rate: 0.6, salvo: 2, splash: 0.6, airMul: 1.6, projSpeed: 5.5 }),
     grow: { dmg: 1.32, range: 0.06, rate: 1.03 },
-    modules: [
+    abilities: [
       { apply: (s) => ((s.salvo = 5), (s.dmg *= 0.7)) },
       { apply: (s) => ((s.salvo = 1), (s.dmg *= 2.6), (s.splash = 1.2)) },
+      { apply: (s) => ((s.splash += 0.3), (s.dmg *= 1.15)) },
     ],
     master: { apply: (s) => ((s.range += 1), (s.airMul = 2)) },
+    ultimate: { apply: (s) => (s.nukeEvery = 5) },
+    special: (s, L) => (s.airMul = (s.airMul || 1) + 0.1 * L),
   },
   amp: {
     cost: 100,
@@ -199,11 +240,14 @@ export const TOWERS = {
     ground: false,
     base: S({ range: 1.5, buffDmg: 0.15, buffRate: 0.08 }),
     grow: { buffDmg: 0.025, buffRate: 0.012 },
-    modules: [
+    abilities: [
       { apply: (s) => (s.buffRange = 0.15) },
       { apply: (s) => (s.buffBounty = 0.3) },
+      { apply: (s) => (s.buffRate += 0.08) },
     ],
     master: { apply: (s) => (s.range = 2.3) },
+    ultimate: { apply: (s) => ((s.buffDmg *= 1.5), (s.buffRate *= 1.5)) },
+    special: (s, L) => (s.buffDmg += 0.01 * L),
   },
   mint: {
     cost: 80,
@@ -217,11 +261,14 @@ export const TOWERS = {
     base: S({ income: 9, range: 2.5 }),
     grow: { income: 1.27 },
     growMul: { income: true },
-    modules: [
+    abilities: [
       { apply: (s) => (s.interest = 0.02) },
       { apply: (s) => (s.killBonus = 2) },
+      { apply: (s) => (s.income *= 1.4) },
     ],
     master: { apply: (s) => (s.income *= 1.25) },
+    ultimate: { apply: (s) => (s.income *= 2) },
+    special: (s, L) => (s.income *= 1 + 0.06 * L),
   },
 };
 

@@ -1,10 +1,10 @@
 // Menüs: Kartenwahl, Forschung, Almanach, Endbildschirm, Hilfe.
 import { MAPS, CHAPTERS, buildMap } from '../game/maps.js';
-import { TOWERS, TOWER_ORDER, ENEMIES, ENEMY_UNLOCK, TILE_BONUS } from '../game/data.js';
-import { RESEARCH, BRANCHES, RESEARCH_BY_ID, parentOf, canResearch, spentOn } from '../game/research.js';
+import { TOWERS, TOWER_ORDER, ENEMIES, ENEMY_UNLOCK, TILE_BONUS, BASE_MAX_LEVEL, BASE_MAX_XP } from '../game/data.js';
+import { RESEARCH, BRANCHES, RESEARCH_BY_ID, canResearch, spentOn, levelOf, reqsMet } from '../game/research.js';
 import { THEMES } from '../render/stage.js';
 import { unlockMapOf } from './hud.js';
-import { t, tower, enemy, num } from '../i18n.js';
+import { t, tower, enemy, num, fmt } from '../i18n.js';
 
 const $ = (id) => document.getElementById(id);
 const mapName = (id) => t(`map.${id}.name`);
@@ -133,55 +133,231 @@ export function renderMapList(progress, onPick, onHover) {
 }
 
 // ---------- Forschung ----------
-function effectText(r, level) {
-  if (level <= 0) return '—';
-  const v = level * r.per;
-  const percent = !['lives', 'veteran', 'barrier', 'blizzard', 'overdrive', 'medic', 'interest'].includes(r.id);
-  const vars = { v: percent ? Math.round(v * 100) : num(v), w: num(level * 1.5), cap: 30 * level };
-  if (r.id === 'interest') vars.v = level;
+const UX = 100;
+const UY = 92;
+const PAD = 70;
+const view = { x: null, y: 0, s: 0.9, sel: 'hub' };
+const SYM = { eco: '¤', arms: '⚔', fort: '⛨', cmd: '✦', tupg: '⇧', trange: '◎', trate: '»', tcost: '%', txp: '✚', txpcap: '⬆', tult: '♛', endless: '∞', hub: '◈' };
+const PERCENT_SPECIAL = { bolt: 3, mortar: 4, frost: 2, acid: 8, flame: 10, amp: 1, mint: 6 };
+const FLAT_SPECIAL = { tesla: 0.4, sniper: 0.2, laser: 0.2, missile: 0.1 };
+const NON_PERCENT = new Set(['lives', 'veteran', 'barrier', 'blizzard', 'overdrive', 'medic', 'interest', 'e.lives', 'e.xpcap']);
+
+function nodeName(r) {
+  if (r.tower) {
+    const k = r.kind.startsWith('ts.') ? `research.special.${r.tower}.name` : `research.tnode.${r.kind}.name`;
+    return t(k);
+  }
+  return t(`research.node.${r.id}.name`);
+}
+
+// Wirkung bei Stufe L als Text
+function nodeEffect(r, L) {
+  if (r.kind === 'hub') return t('research.node.hub.desc');
+  if (L <= 0) return '—';
+  if (r.tower) {
+    const support = TOWERS[r.tower].kind === 'support' || TOWERS[r.tower].kind === 'economy';
+    if (r.kind.startsWith('ts.')) {
+      const v = PERCENT_SPECIAL[r.tower] ? PERCENT_SPECIAL[r.tower] * L : num(FLAT_SPECIAL[r.tower] * L, 2);
+      return t(`research.special.${r.tower}.desc`, { v });
+    }
+    const vars = { v: Math.round(r.per * L * 100), ult: tower(r.tower).ult[0] };
+    if (r.kind === 'tupg') vars.v = BASE_MAX_LEVEL + L;
+    if (r.kind === 'txpcap') vars.v = BASE_MAX_XP + r.per * L;
+    const key = `research.tnode.${r.kind}`;
+    return t(support && t(`${key}.descSupport`) !== `${key}.descSupport` ? `${key}.descSupport` : `${key}.desc`, vars);
+  }
+  const v = r.per * L;
+  const vars = { v: NON_PERCENT.has(r.id) ? num(v) : num(v * 100, 1), w: num(L * 1.5), cap: 30 * L };
   return t(`research.node.${r.id}.desc`, vars);
 }
 
-export function renderResearch(progress, onBuy) {
+function nodeLevelText(r, lv) {
+  return r.max == null ? t('ui.research.levelOf', { l: lv }) : t('ui.research.levelOfMax', { l: lv, m: r.max });
+}
+
+export function renderResearch(progress, thumbs, onBuy) {
   const levels = progress.research;
-  $('research-crystals').textContent = progress.crystals;
-  $('research-spent').textContent = t('ui.research.spent', { n: spentOn(levels) });
-  const tree = $('tree');
-  tree.innerHTML = '';
-  for (const br of BRANCHES) {
-    const col = document.createElement('div');
-    col.className = `branch b-${br}`;
-    col.innerHTML = `<header><h3>${t(`research.branch.${br}.name`)}</h3><p>${t(`research.branch.${br}.desc`)}</p></header>`;
-    for (const r of RESEARCH.filter((x) => x.branch === br)) {
-      const lv = levels[r.id] || 0;
-      const chk = canResearch(levels, progress.crystals, r.id);
-      const parent = parentOf(r.id);
-      const locked = chk.reason === 'locked';
-      const maxed = lv >= r.max;
-      const node = document.createElement('div');
-      node.className = `node${lv ? ' has' : ''}${maxed ? ' maxed' : ''}${locked ? ' locked' : ''}`;
-      const pips = Array.from({ length: r.max }, (_, i) => `<i class="${i < lv ? 'on' : ''}"></i>`).join('');
-      const now = effectText(r, lv);
-      const next = maxed ? '' : effectText(r, lv + 1);
-      node.innerHTML = `<div class="node-top"><b>${t(`research.node.${r.id}.name`)}</b><span class="pips">${pips}</span></div>
-        <div class="eff">${lv ? `<span class="lbl">${t('ui.research.now')}</span> ${now}` : next}</div>
-        ${lv && !maxed ? `<div class="eff next"><span class="lbl">${t('ui.research.next')}</span> ${next}</div>` : ''}
-        ${locked ? `<div class="needs">${t('ui.research.needs', { name: t(`research.node.${parent}.name`) })}</div>` : ''}`;
-      const btn = document.createElement('button');
-      btn.className = 'buy';
-      if (maxed) {
-        btn.textContent = t('ui.research.maxed');
-        btn.disabled = true;
-      } else {
-        btn.innerHTML = `<span class="ico crystal"></span>${r.cost[lv]}`;
-        btn.disabled = !chk.ok;
-        btn.onclick = () => onBuy(r.id);
-      }
-      node.appendChild(btn);
-      col.appendChild(node);
+  const wallet = { c: progress.crystals, d: progress.dust };
+  $('research-crystals').textContent = fmt(progress.crystals);
+  $('research-dust').textContent = fmt(progress.dust);
+  const spent = spentOn(levels);
+  $('research-spent').textContent = t('ui.research.spent', { n: spent.c + (spent.d ? ` + ${spent.d}` : '') });
+
+  const xs = RESEARCH.map((r) => r.x);
+  const ys = RESEARCH.map((r) => r.y);
+  const minX = Math.min(...xs);
+  const minY = Math.min(...ys);
+  const W = (Math.max(...xs) - minX) * UX + PAD * 2;
+  const H = (Math.max(...ys) - minY) * UY + PAD * 2 + 30;
+  const px = (r) => (r.x - minX) * UX + PAD;
+  const py = (r) => (r.y - minY) * UY + PAD + 30;
+
+  const plane = $('rplane');
+  plane.style.width = `${W}px`;
+  plane.style.height = `${H}px`;
+  let html = `<svg class="redges" width="${W}" height="${H}" viewBox="0 0 ${W} ${H}">`;
+  for (const r of RESEARCH) {
+    for (const [rid, need] of r.req) {
+      const q = RESEARCH_BY_ID[rid];
+      const ok = levelOf(levels, rid) >= need;
+      if (rid === 'hub' && r.branch === 'endless') continue; // Endlos-Kette beginnt ohne Linie
+      // Vom Zentrum aus rechtwinklig über eine Sammelschiene, sonst gerade
+      const d = rid === 'hub' ? `M${px(q)} ${py(q)} V${py(q) + 34} H${px(r)} V${py(r)}` : `M${px(q)} ${py(q)} L${px(r)} ${py(r)}`;
+      html += `<path d="${d}" class="${ok ? 'on' : ''} b-${r.branch || 'hub'}"/>`;
     }
-    tree.appendChild(col);
   }
+  html += `</svg>`;
+  // Überschriften der Zweige
+  BRANCHES.forEach((br) => {
+    const first = RESEARCH.find((r) => r.branch === br);
+    html += `<div class="rlabel b-${br}" style="left:${px(first)}px;top:${py(first) - 54}px">${t(`research.branch.${br}.name`)}</div>`;
+  });
+  for (const tt of TOWER_ORDER) {
+    const first = RESEARCH_BY_ID[`${tt}.dmg`];
+    html += `<div class="rlabel b-tower" style="left:${px(first)}px;top:${py(first) - 54}px">${tower(tt).name}</div>`;
+  }
+  const firstEndless = RESEARCH.find((r) => r.branch === 'endless');
+  html += `<div class="rlabel b-endless" style="left:${px(firstEndless) + 1.5 * UX}px;top:${py(firstEndless) - 54}px">${t('research.branch_extra.endless')} · ${t('ui.research.dust')}</div>`;
+
+  for (const r of RESEARCH) {
+    const lv = levelOf(levels, r.id);
+    const maxed = r.max != null && lv >= r.max;
+    const met = reqsMet(levels, r.id);
+    const chk = canResearch(levels, wallet, r.id);
+    const cls = ['rnode', `b-${r.branch || 'hub'}`, r.cur === 'd' ? 'dustnode' : '', lv > 0 ? 'has' : '', maxed ? 'maxed' : '', !met ? 'locked' : '', chk.ok ? 'afford' : '', view.sel === r.id ? 'sel' : '', r.kind === 'tult' ? 'ult' : ''].filter(Boolean).join(' ');
+    let icon;
+    if (r.kind === 'tdmg') icon = `<img alt="" src="${thumbs.towers[r.tower] || ''}">`;
+    else if (r.kind.startsWith('ts.')) icon = '★';
+    else icon = SYM[r.kind] || SYM[r.branch] || '•';
+    const badge = r.kind === 'hub' ? '' : `<i>${r.max == null ? lv : `${lv}/${r.max}`}</i>`;
+    html += `<button class="${cls}" data-id="${r.id}" style="left:${px(r)}px;top:${py(r)}px" title="${nodeName(r)}"><span>${icon}</span>${badge}</button>`;
+  }
+  plane.innerHTML = html;
+
+  const graph = $('rgraph');
+  if (view.x == null) {
+    // Start: Zentrum oben in der Mitte
+    const hub = RESEARCH_BY_ID.hub;
+    view.s = Math.min(1, Math.max(0.5, graph.clientWidth / (W * 0.75)));
+    view.x = graph.clientWidth / 2 - px(hub) * view.s;
+    view.y = 20;
+  }
+  applyView();
+  for (const b of plane.querySelectorAll('.rnode')) {
+    b.onclick = (e) => {
+      if (graph.dataset.dragged === '1') return;
+      e.stopPropagation();
+      view.sel = b.dataset.id;
+      for (const o of plane.querySelectorAll('.rnode.sel')) o.classList.remove('sel');
+      b.classList.add('sel');
+      renderDetail(progress, onBuy);
+    };
+  }
+  bindGraph(graph);
+  renderDetail(progress, onBuy);
+}
+
+function applyView() {
+  $('rplane').style.transform = `translate(${view.x}px, ${view.y}px) scale(${view.s})`;
+}
+
+export function centerResearch() {
+  view.x = null;
+}
+
+// Ziehen, Mausrad und Zwei-Finger-Zoom
+function bindGraph(graph) {
+  if (graph.dataset.bound) return;
+  graph.dataset.bound = '1';
+  const pts = new Map();
+  let last = null;
+  let start = null;
+  let pinch = null;
+  graph.addEventListener('pointerdown', (e) => {
+    pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    graph.dataset.dragged = '0';
+    last = start = { x: e.clientX, y: e.clientY };
+    if (pts.size === 2) {
+      const [a, b] = [...pts.values()];
+      pinch = { d: Math.hypot(a.x - b.x, a.y - b.y) || 1, s: view.s };
+    }
+  });
+  graph.addEventListener('pointermove', (e) => {
+    if (!pts.has(e.pointerId)) return;
+    pts.set(e.pointerId, { x: e.clientX, y: e.clientY });
+    if (pts.size === 2 && pinch) {
+      const [a, b] = [...pts.values()];
+      const rect = graph.getBoundingClientRect();
+      zoomAt((a.x + b.x) / 2 - rect.left, (a.y + b.y) / 2 - rect.top, (pinch.s * Math.hypot(a.x - b.x, a.y - b.y)) / pinch.d);
+      graph.dataset.dragged = '1';
+      return;
+    }
+    if (Math.hypot(e.clientX - start.x, e.clientY - start.y) > 4) graph.dataset.dragged = '1';
+    view.x += e.clientX - last.x;
+    view.y += e.clientY - last.y;
+    last = { x: e.clientX, y: e.clientY };
+    applyView();
+  });
+  const up = (e) => {
+    pts.delete(e.pointerId);
+    if (pts.size < 2) pinch = null;
+    setTimeout(() => (graph.dataset.dragged = '0'), 0);
+  };
+  graph.addEventListener('pointerup', up);
+  graph.addEventListener('pointercancel', up);
+  graph.addEventListener(
+    'wheel',
+    (e) => {
+      e.preventDefault();
+      const rect = graph.getBoundingClientRect();
+      zoomAt(e.clientX - rect.left, e.clientY - rect.top, view.s * Math.exp(-e.deltaY * 0.0015));
+    },
+    { passive: false },
+  );
+}
+
+function zoomAt(cx, cy, s) {
+  s = Math.max(0.35, Math.min(1.8, s));
+  view.x = cx - ((cx - view.x) * s) / view.s;
+  view.y = cy - ((cy - view.y) * s) / view.s;
+  view.s = s;
+  applyView();
+}
+
+function renderDetail(progress, onBuy) {
+  const levels = progress.research;
+  const r = RESEARCH_BY_ID[view.sel] || RESEARCH_BY_ID.hub;
+  const lv = levelOf(levels, r.id);
+  const box = $('rdetail');
+  const chk = canResearch(levels, { c: progress.crystals, d: progress.dust }, r.id);
+  const maxed = r.max != null && lv >= r.max;
+  const branch = r.tower ? tower(r.tower).name : r.branch === 'endless' ? t('research.branch_extra.endless') : r.branch && r.branch !== 'hub' ? t(`research.branch.${r.branch}.name`) : '';
+  let html = `<div class="rd-branch b-${r.branch || 'hub'}">${branch}</div><h3>${nodeName(r)}</h3>`;
+  if (r.kind !== 'hub') html += `<div class="rd-level">${nodeLevelText(r, lv)}</div>`;
+  if (lv > 0 || r.kind === 'hub') html += `<div class="rd-eff"><span class="lbl">${t('ui.research.now')}</span>${nodeEffect(r, Math.max(lv, 1))}</div>`;
+  if (!maxed && r.kind !== 'hub') html += `<div class="rd-eff next"><span class="lbl">${t('ui.research.next')}</span>${nodeEffect(r, lv + 1)}</div>`;
+  if (r.req.length && r.kind !== 'hub') {
+    html += `<div class="rd-req"><span class="lbl">${t('ui.research.requires')}</span>`;
+    for (const [rid, need] of r.req) {
+      const q = RESEARCH_BY_ID[rid];
+      const ok = levelOf(levels, rid) >= need;
+      html += `<div class="${ok ? 'ok' : 'no'}">${ok ? '✓' : '✗'} ${nodeName(q)}${need > 1 ? ` ${need}` : ''}</div>`;
+    }
+    html += `</div>`;
+  }
+  if (r.cur === 'd') html += `<p class="rd-note">${t('ui.research.endless')}</p>`;
+  if (r.kind !== 'hub') {
+    if (maxed) html += `<div class="rd-max">${t('ui.research.maxed')}</div>`;
+    else {
+      const cost = r.cost(lv);
+      const curName = r.cur === 'd' ? t('ui.research.dust') : t('ui.menu.crystals');
+      html += `<button class="primary ${r.cur === 'd' ? 'gold' : 'violet'} rd-buy" ${chk.ok ? '' : 'disabled'}>${t('ui.research.buy')} · <span class="ico ${r.cur === 'd' ? 'dust' : 'crystal'}"></span>${cost}</button>`;
+      if (chk.reason === 'funds') html += `<div class="rd-hint">${t('ui.research.notEnough', { cur: curName })}</div>`;
+    }
+  }
+  box.innerHTML = html;
+  const buy = box.querySelector('.rd-buy');
+  if (buy) buy.onclick = () => onBuy(r.id);
 }
 
 // ---------- Almanach ----------
@@ -193,7 +369,7 @@ export function renderCodex(tab, thumbs) {
       const d = TOWERS[type];
       const tx = tower(type);
       const targets = d.kind === 'support' || d.kind === 'economy' ? t('ui.codex.support') : [d.ground && t('ui.insp.ground'), d.air && t('ui.insp.air')].filter(Boolean).join(' + ');
-      return `<div class="entry"><img alt="" src="${thumbs.towers[type] || ''}"><div><h4>${tx.name}</h4><p>${tx.blurb}</p><div class="facts">${t('ui.codex.coins', { c: d.cost })} · ${d.dmgType ? t(`dmg.${d.dmgType}`) : t('ui.codex.noDamage')} · ${targets} · ${t('ui.codex.fromMap', { map: mapName(unlockMapOf(type)?.id) })}</div><ul>${tx.mods.map(([n, ds]) => `<li><b>${n}:</b> ${ds}</li>`).join('')}<li><b>${t('ui.codex.level10')} · ${tx.master[0]}:</b> ${tx.master[1]}</li></ul></div></div>`;
+      return `<div class="entry"><img alt="" src="${thumbs.towers[type] || ''}"><div><h4>${tx.name}</h4><p>${tx.blurb}</p><div class="facts">${t('ui.codex.coins', { c: d.cost })} · ${d.dmgType ? t(`dmg.${d.dmgType}`) : t('ui.codex.noDamage')} · ${targets} · ${t('ui.codex.fromMap', { map: mapName(unlockMapOf(type)?.id) })}</div><ul>${tx.mods.map(([n, ds]) => `<li><b>${n}:</b> ${ds}</li>`).join('')}<li><b>${t('ui.codex.level10')} · ${tx.master[0]}:</b> ${tx.master[1]}</li><li><b>${t('ui.codex.level20')} · ${tx.ult[0]}:</b> ${tx.ult[1]}</li></ul></div></div>`;
     }).join('');
   } else if (tab === 'enemies') {
     box.innerHTML = Object.entries(ENEMIES)
@@ -240,4 +416,3 @@ export function showEnd(kind, game, def, extra, crystals, actions) {
   }
 }
 
-export { RESEARCH_BY_ID };

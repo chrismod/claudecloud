@@ -40,12 +40,24 @@ Im Hochformat (Handy) dreht sich die Kamera, sodass die lange Kartenseite senkre
 
 ## Spielmechanik
 
+Angelehnt an Infinitode 2: Ausbau mit Münzen, Erfahrung mit Fähigkeitswahl, ein großer Forschungsbaum mit
+Turmketten und endloser Forschung.
+
 - **Wirtschaft:** Kopfgeld je Gegner, Grundeinkommen je Welle, Bonus fürs frühe Rufen der nächsten Welle.
   Verkaufen bringt 70 % – ein Turm, der noch nicht geschossen hat, wird voll erstattet.
-- **Aufrüsten:** Stufe 1–10. Auf **Stufe 5** wählst du eines von zwei **Modulen**, das die Spielweise
-  ändert; auf **Stufe 10** kommt die **Meisterfähigkeit** dazu.
-- **Erfahrung:** Türme sammeln mit jedem Schadenspunkt Erfahrung, bis zu 10 Ränge (+4 % Schaden, +1,5 % Reichweite je Rang).
-- **Zielwahl** je Turm: vorderster, hinterster, stärkster, schwächster oder nächster Gegner.
+- **Ausbau:** Münzen verbessern die Grundwerte. Ohne Forschung endet jeder Turm bei Ausbaustufe 6, die
+  Turmforschung hebt die Grenze bis 10. „Max“ (bzw. `Shift+U`) rüstet so weit auf, wie das Geld reicht.
+- **Erfahrung und Fähigkeiten:** Türme sammeln mit jedem Schadenspunkt Erfahrung. Auf **Erfahrungsstufe 4
+  und 7** wählt man je eine von **drei Fähigkeiten**, auf **Stufe 10** kommt die **Meisterfähigkeit** dazu, auf
+  **Stufe 20** wählt man zwischen der **Ultimate** des Turms (per Forschung freigeschaltet) und **+10 % Stärke**.
+  Jede Stufe gibt +3 % Schaden und +1 % Reichweite. Ohne Forschung endet die Erfahrung bei Stufe 10, Forschung
+  hebt sie auf 20, die endlose Forschung bis 50.
+- **Turm-Einstellungen** (je Turm im Inspektor):
+  - **Zielwahl:** vorderster, hinterster, stärkster, schwächster, nächster, zufälliger (`T` schaltet durch)
+  - **Vorrang:** Bosse, Flieger, Schilde oder Gepanzerte zuerst – danach gilt die Zielwahl
+  - **Ziel halten:** am aktuellen Gegner bleiben, bis er fällt oder die Reichweite verlässt
+  - **Aktiv:** abgeschaltete Türme feuern nicht (damit andere die Erfahrung bekommen)
+  - **Auf alle übertragen:** Einstellungen auf alle Türme des Typs; neue Türme übernehmen die letzten Einstellungen ihres Typs
 - **Schadensarten:** kinetisch, explosiv, Feuer, Frost, Energie, Gift. Gegner haben Resistenzen und Schwächen.
 - **Panzerung** zieht von jedem direkten Treffer einen festen Betrag ab (mindestens 20 % kommen durch).
   Dauerschaden (Feuer, Gift, Laser, Frost) ignoriert sie, Säure zersetzt sie. Energie wirkt doppelt auf Schilde.
@@ -68,36 +80,40 @@ Jede 10. Welle kommt ein Boss, im Wechsel:
 
 ### Forschung
 
-Jede Partie bringt **Kristalle** – je mehr Wellen überstanden, desto mehr, dazu Boni für schwere Karten und
-Siege (der erste Sieg auf einer Karte zählt doppelt). Im Forschungsbaum gibt es vier Zweige mit je sechs
-Knoten, die nacheinander freigeschaltet werden:
+Ein großer Graph mit 136 Knoten, verschieb- und zoombar wie in Infinitode 2:
 
-| Zweig | Knoten |
-| --- | --- |
-| Wirtschaft | Startmünzen, Einkommen je Welle, Kopfgeld, Verkaufserstattung, Bonus fürs frühe Rufen, Zinsen |
-| Arsenal | Schaden je Schadensart (kinetisch, explosiv, Energie, Elemente), Reichweite, Feuerrate |
-| Festung | Leben des Kerns, Baukosten, Erfahrung, Aufrüstkosten, Veteranen (Startrang), Kernbarriere |
-| Kommando | Abklingzeit, Orbitalschlag, Kälteeinbruch, Überlast, Schaden gegen Bosse, Feldreparatur |
+- **Globale Zweige** (Kristalle), je eine Kette:
+  - Wirtschaft: Startmünzen, Einkommen, Kopfgeld, Erstattung, Frühruf-Bonus, Zinsen, Kristall-Ausbeute
+  - Arsenal: Schaden je Schadensart, Reichweite, Feuerrate, stärkere Sonderplattformen
+  - Festung: Kernleben, Baukosten, Erfahrung, Aufrüstkosten, Veteranen, Kernbarriere
+  - Kommando: Abklingzeit, Orbitalschlag (Schaden, Radius), Kälteeinbruch, Überlast, Schaden gegen Bosse, Boss-Kopfgeld, Feldreparatur
+- **Eine Kette je Turm** (11 × 9 Knoten): Schaden → Ausbaugrenze → Reichweite und Feuerrate → Spezialwert
+  (z. B. Sprünge beim Funkenturm, Verlangsamung beim Frostkristall) → Preis und Training → Erfahrungsgrenze →
+  Ultimate (braucht Schaden 10 und volle Erfahrungsgrenze).
+- **Endlose Forschung** ohne Obergrenze, bezahlt mit **Sternenstaub**. Den gibt es nur für Wellen über dem
+  Kartenziel im Endlosmodus: Schaden, Feuerrate, Reichweite, Startmünzen, Kopfgeld, Kernleben,
+  Erfahrungsgrenze aller Türme, Sternenstaub-Ausbeute. Die Kosten steigen je Stufe um 12–16 %.
 
-Alles lässt sich jederzeit kostenlos zurückerstatten und neu verteilen.
+Kristalle gibt es für jede Partie, auch für Wiederholungen – je mehr Wellen, desto mehr, dazu Boni für schwere
+Karten und Siege (der erste Sieg auf einer Karte zählt doppelt). Alles lässt sich jederzeit zurückerstatten.
 
 ### Türme
 
-Namen auf Deutsch (englisch in Klammern):
+Namen auf Deutsch (englisch in Klammern). Jeder Turm hat dazu eine Meisterfähigkeit (EP 10) und eine Ultimate (EP 20), z. B. Nullpunkt (Frostkristall friert jeden 6. Puls alles ein), Inferno (Glutwerfer in alle Richtungen), Weltuntergang (jede 5. Schwarm-Salve eine Riesenrakete).
 
-| Turm | Kosten | Art | Besonderheit | Module (Stufe 5) |
+| Turm | Kosten | Art | Besonderheit | Fähigkeiten (EP 4/7, zwei von drei) |
 | --- | --- | --- | --- | --- |
-| Bolzer (Bolter) | 30 | kinetisch | schnell, günstig, Boden + Luft | Zwillingslauf · Wolframkern |
-| Mörser (Mortar) | 60 | explosiv | Flächenschaden, nur Boden, Mindestreichweite | Streumunition · Brandsatz |
-| Frostkristall (Frost Crystal) | 50 | Frost | Kältepuls verlangsamt alles in Reichweite | Permafrost · Sprödigkeit |
-| Funkenturm (Spark Tower) | 70 | Energie | Kettenblitze | Kettenreaktion · Kondensator |
-| Falke (Falcon) | 90 | kinetisch | riesige Reichweite, kritische Treffer | Kopfschuss · Durchschlag |
-| Säurespeier (Acid Spitter) | 65 | Gift | Gift über Zeit, zersetzt Panzerung | Seuche · Zersetzung |
-| Glutwerfer (Scorcher) | 80 | Feuer | Flammenkegel, Brand, nur Boden | Napalm · Feuersturm |
-| Resonator (Resonator) | 100 | – | verstärkt Nachbartürme | Fernsicht · Beutezug |
-| Schwarm (Swarm) | 110 | explosiv | Lenkraketen, stark gegen Flieger | Raketenhagel · Gefechtskopf |
-| Münzpresse (Mint) | 80 | – | prägt Münzen zu jeder Welle | Zinseszins · Kopfgeldbüro |
-| Prisma (Prism) | 120 | Energie | Dauerstrahl, wird immer stärker | Fokuslinse · Brechung |
+| Bolzer (Bolter) | 30 | kinetisch | schnell, günstig, Boden + Luft | Zwillingslauf · Wolframkern · Schnellfeuer |
+| Mörser (Mortar) | 60 | explosiv | Flächenschaden, nur Boden, Mindestreichweite | Streumunition · Brandsatz · Langes Rohr |
+| Frostkristall (Frost Crystal) | 50 | Frost | Kältepuls verlangsamt alles in Reichweite | Permafrost · Sprödigkeit · Tiefe Kälte |
+| Funkenturm (Spark Tower) | 70 | Energie | Kettenblitze | Kettenreaktion · Kondensator · Stromstoß |
+| Falke (Falcon) | 90 | kinetisch | riesige Reichweite, kritische Treffer | Kopfschuss · Durchschlag · Schnellader |
+| Säurespeier (Acid Spitter) | 65 | Gift | Gift über Zeit, zersetzt Panzerung | Seuche · Zersetzung · Ätzwolke |
+| Glutwerfer (Scorcher) | 80 | Feuer | Flammenkegel, Brand, nur Boden | Napalm · Feuersturm · Zusatztanks |
+| Resonator (Resonator) | 100 | – | verstärkt Nachbartürme | Fernsicht · Beutezug · Übertaktung |
+| Schwarm (Swarm) | 110 | explosiv | Lenkraketen, stark gegen Flieger | Raketenhagel · Gefechtskopf · Streusprengköpfe |
+| Münzpresse (Mint) | 80 | – | prägt Münzen zu jeder Welle | Zinseszins · Kopfgeldbüro · Goldstandard |
+| Prisma (Prism) | 120 | Energie | Dauerstrahl, wird immer stärker | Fokuslinse · Brechung · Schnellladung |
 
 ### Gegner
 

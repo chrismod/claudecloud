@@ -5,7 +5,7 @@ import { mapProblems } from '../scripts/check-maps.mjs';
 import { expectedResearch, expectedCrystals } from '../src/game/research.js';
 import { Game } from '../src/game/game.js';
 import { runBot } from '../src/game/bot.js';
-import { TOWERS, ENEMIES, TOWER_ORDER, MAX_LEVEL } from '../src/game/data.js';
+import { TOWERS, ENEMIES, TOWER_ORDER, MAX_LEVEL, BASE_MAX_LEVEL, xpFor } from '../src/game/data.js';
 import { generateWave, hpMul } from '../src/game/waves.js';
 
 // Testkarte: gerader Weg, Plattformreihe darüber und darunter
@@ -55,21 +55,20 @@ test('Gleiche Saat, gleicher Spielverlauf', () => {
   assert.deepEqual(play(), play());
 });
 
-test('Bauen, Aufrüsten, Modul, Verkaufen', () => {
+test('Bauen, Aufrüsten bis zur Obergrenze, Verkaufen', () => {
   const g = new Game(STRIP);
   assert.equal(g.build('bolt', 1, 1), null, 'nicht auf dem Weg');
   const t = g.build('bolt', 2, 0);
   assert.ok(t);
   assert.equal(g.build('mortar', 2, 0), null, 'Feld belegt');
   const coins0 = g.coins;
-  for (let i = 1; i < 5; i++) assert.ok(g.upgrade(t));
-  assert.equal(t.level, 5);
-  assert.equal(g.upgrade(t), false, 'ohne Modul geht es nicht weiter');
-  assert.ok(g.chooseModule(t, 0));
-  assert.equal(t.stats.multishot, 2);
-  while (g.upgrade(t));
-  assert.equal(t.level, MAX_LEVEL);
-  assert.equal(t.stats.crit, 0.2, 'Meisterstufe aktiv');
+  assert.ok(g.upgradeMax(t) > 0);
+  assert.equal(t.level, BASE_MAX_LEVEL, 'ohne Forschung ist bei Stufe 6 Schluss');
+  assert.equal(g.upgradeCost(t), null);
+  const r = new Game(STRIP, { research: { 'bolt.dmg': 1, 'bolt.upg': 4 } });
+  const t2 = r.build('bolt', 2, 0);
+  r.upgradeMax(t2);
+  assert.equal(t2.level, MAX_LEVEL, 'Forschung hebt die Obergrenze');
   assert.equal(g.sellValue(t), t.spent, 'noch unbenutzt: volle Erstattung');
   g.callWave();
   assert.ok(g.sellValue(t) < t.spent);
@@ -77,6 +76,68 @@ test('Bauen, Aufrüsten, Modul, Verkaufen', () => {
   g.sell(t);
   assert.ok(g.coins > before && g.coins < coins0 + TOWERS.bolt.cost);
   assert.equal(g.towers.length, 0);
+});
+
+test('Erfahrungsstufen: Fähigkeiten auf 4 und 7, Meister auf 10, Ultimate auf 20', () => {
+  const g = new Game(STRIP, { research: { 'bolt.dmg': 10, 'bolt.upg': 1, 'bolt.range': 1, 'bolt.rate': 1, 'bolt.special': 1, 'bolt.cost': 1, 'bolt.xp': 1, 'bolt.xpcap': 5, 'bolt.ult': 1 } });
+  const t = g.build('bolt', 2, 0);
+  assert.equal(g.maxXp(t), 20);
+  g.gainXp(t, xpFor(4));
+  assert.equal(t.xpLevel, 4);
+  let p = g.pendingChoice(t);
+  assert.deepEqual(p, { slot: 4, options: [0, 1, 2] });
+  assert.ok(g.chooseAbility(t, 0));
+  assert.equal(t.stats.multishot, 2);
+  g.gainXp(t, xpFor(7));
+  p = g.pendingChoice(t);
+  assert.deepEqual(p.options, [1, 2], 'gewählte Fähigkeit fällt weg');
+  g.chooseAbility(t, 2);
+  g.gainXp(t, xpFor(10));
+  assert.ok(t.stats.crit >= 0.2, 'Meisterfähigkeit');
+  g.gainXp(t, xpFor(25));
+  assert.equal(t.xpLevel, 20, 'Obergrenze aus der Forschung');
+  p = g.pendingChoice(t);
+  assert.deepEqual(p.options, ['ult', 'power']);
+  g.chooseAbility(t, 'ult');
+  assert.equal(t.stats.multishot, 4);
+  // ohne Forschung endet die Erfahrung bei Stufe 10
+  const h = new Game(STRIP);
+  const u = h.build('bolt', 2, 0);
+  h.gainXp(u, 1e6);
+  assert.equal(u.xpLevel, 10);
+});
+
+test('Zielwahl, Vorrang, Ziel halten, Turm aus', () => {
+  const g = new Game(STRIP, { events: false });
+  const t = g.build('sniper', 4, 0);
+  g.state = 'running';
+  const a = g.spawnEnemy('walker', 0, 1, 5);
+  const b = g.spawnEnemy('glider', 0, 1, 3);
+  const c = g.spawnEnemy('brute', 0, 1, 1);
+  g.setTargeting(t, 'first');
+  assert.equal(g.bestTarget(t), a);
+  g.setPriority(t, 'air');
+  assert.equal(g.bestTarget(t), b, 'Vorrang Flieger');
+  g.setPriority(t, 'armor');
+  assert.equal(g.bestTarget(t), c, 'Vorrang Panzerung');
+  g.setPriority(t, 'none');
+  g.setTargeting(t, 'last');
+  g.setLockTarget(t, true);
+  assert.equal(g.bestTarget(t), c);
+  g.setTargeting(t, 'first');
+  t.lockedOn = c;
+  assert.equal(g.bestTarget(t), c, 'hält das Ziel trotz anderer Zielwahl');
+  // neue Türme übernehmen die Einstellungen, applyToType überträgt sie
+  const t2 = g.build('sniper', 5, 0);
+  assert.equal(t2.lockTarget, true);
+  const t3 = g.build('sniper', 6, 0);
+  g.setPriority(t3, 'boss');
+  g.applyToType(t3);
+  assert.equal(t.priority, 'boss');
+  g.setEnabled(t, false);
+  const shots = t.shots;
+  g.step(3);
+  assert.equal(t.shots, shots, 'abgeschalteter Turm schießt nicht');
 });
 
 test('Resonator verstärkt Nachbarn', () => {
@@ -199,25 +260,32 @@ test('Balance: irgendwann fällt jede Festung', () => {
   assert.ok(r.lost && r.wave < 120, `Welle ${r.wave}`);
 });
 
-test('Forschung wirkt auf Start, Kosten, Schaden und Kern', async () => {
-  const { researchMods, canResearch, crystalsFor, RESEARCH } = await import('../src/game/research.js');
+test('Forschung wirkt auf Start, Kosten, Schaden, Kern und einzelne Türme', async () => {
+  const { researchMods, canResearch, crystalsFor, dustFor, RESEARCH, expectedResearch } = await import('../src/game/research.js');
   const plain = new Game(MAPS[0]);
-  const g = new Game(MAPS[0], { research: { startCoins: 5, lives: 2, buildCost: 3, kinetic: 2, veteran: 1 } });
+  const g = new Game(MAPS[0], { research: { startCoins: 5, lives: 2, buildCost: 3, kinetic: 2, veteran: 1, 'bolt.dmg': 5, 'bolt.cost': 2 } });
   assert.ok(g.coins > plain.coins);
   assert.equal(g.maxLives, plain.maxLives + 4);
-  assert.ok(g.costOf('bolt') < TOWERS.bolt.cost);
+  assert.ok(g.costOf('bolt') < g.costOf('mortar') * 0.5);
   const a = plain.build('bolt', 3, 3);
   const b = g.build('bolt', 3, 3);
-  assert.ok(b.stats.dmg > a.stats.dmg * 1.15, 'Ballistik + Veteranenrang');
-  assert.equal(b.rank, 1);
-  // Kette: zweiter Knoten braucht den ersten
+  assert.ok(b.stats.dmg > a.stats.dmg * 1.35, 'Ballistik + Turmforschung + Veteranenstufe');
+  assert.equal(b.xpLevel, 2);
+  // Graph: Voraussetzungen, Währungen, endlose Knoten
   assert.equal(canResearch({}, 999, 'income').reason, 'locked');
   assert.ok(canResearch({ startCoins: 1 }, 999, 'income').ok);
-  assert.equal(canResearch({}, 1, 'startCoins').reason, 'crystals');
+  assert.equal(canResearch({}, 1, 'startCoins').reason, 'funds');
+  assert.equal(canResearch({}, { c: 999, d: 0 }, 'e.dmg').reason, 'funds', 'endlose Forschung braucht Sternenstaub');
+  assert.ok(canResearch({}, { c: 0, d: 999 }, 'e.dmg').ok);
+  assert.equal(canResearch({ 'bolt.dmg': 9, 'bolt.xpcap': 5 }, 9999, 'bolt.ult').reason, 'locked', 'Ultimate braucht Schaden 10');
+  assert.ok(RESEARCH.length > 120, `nur ${RESEARCH.length} Knoten`);
   assert.ok(crystalsFor(0, 20, true, true) > crystalsFor(0, 20, false, false));
-  assert.ok(crystalsFor(4, 20, false, false) > crystalsFor(0, 20, false, false));
-  for (const r of RESEARCH) assert.equal(r.cost.length, r.max, r.id);
+  assert.equal(dustFor(0, 20, 20), 0);
+  assert.ok(dustFor(0, 40, 20) > 20);
   assert.equal(researchMods({}).dmg.kinetic, 1);
+  assert.equal(researchMods({ 'e.dmg': 50 }).dmg.kinetic, 1.5, 'endlos stapelbar');
+  const exp = expectedResearch(500);
+  assert.ok(Object.keys(exp).length > 10 && !Object.keys(exp).some((k) => k.startsWith('e.')));
 });
 
 test('Kernbarriere hält Gegner auf, Bosse nicht', () => {

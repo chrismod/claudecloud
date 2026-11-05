@@ -12,16 +12,17 @@ import { Sound } from './audio.js';
 import { Game } from './game/game.js';
 import { MAPS } from './game/maps.js';
 import { TOWERS, TOWER_ORDER, ENEMIES, ENEMY_UNLOCK, ABILITIES, TARGETING } from './game/data.js';
-import { canResearch, crystalsFor, spentOn } from './game/research.js';
+import { canResearch, crystalsFor, dustFor, spentOn, RESEARCH } from './game/research.js';
 import { Hud } from './ui/hud.js';
-import { renderMapList, renderCodex, renderResearch, renderHelp, showEnd } from './ui/screens.js';
+import { renderMapList, renderCodex, renderResearch, centerResearch, renderHelp, showEnd } from './ui/screens.js';
 import { t, tower, enemy, setLang, applyI18n } from './i18n.js';
 
 const $ = (id) => document.getElementById(id);
+const RESEARCH_CUR = Object.fromEntries(RESEARCH.map((r) => [r.id, r.cur]));
 
 // ---------- Fortschritt ----------
 const STORE = 'bollwerk.progress';
-const DEFAULTS = { maps: {}, unlockAll: false, numbers: true, quality: 'high', lang: 'en', crystals: 0, research: {} };
+const DEFAULTS = { maps: {}, unlockAll: false, numbers: true, quality: 'high', lang: 'en', crystals: 0, dust: 0, research: {} };
 function loadProgress() {
   try {
     return { ...DEFAULTS, ...JSON.parse(localStorage.getItem(STORE) || '{}') };
@@ -90,7 +91,12 @@ const hud = new Hud(
       select(null);
     },
     setTargeting: (tw, m) => (game.setTargeting(tw, m), sound.click()),
-    chooseModule: (tw, i) => (game.chooseModule(tw, i), sound.upgrade()),
+    setPriority: (tw, p) => (game.setPriority(tw, p), sound.click()),
+    setLockTarget: (tw, on) => (game.setLockTarget(tw, on), sound.click()),
+    setEnabled: (tw, on) => (game.setEnabled(tw, on), sound.click()),
+    applyToType: (tw) => (hud.toast(t('ui.insp.applied', { n: game.applyToType(tw) })), sound.click()),
+    upgradeMax: (tw) => (game.upgradeMax(tw) ? sound.upgrade() : sound.deny()),
+    chooseAbility: (tw, c) => (game.chooseAbility(tw, c), sound.upgrade()),
   },
   thumbs,
 );
@@ -109,17 +115,26 @@ function wavesSurvived() {
 }
 function pendingCrystals() {
   if (!run || run.finished) return 0;
-  return crystalsFor(MAPS.indexOf(def), wavesSurvived(), run.won, run.firstWin);
+  return crystalsFor(MAPS.indexOf(def), wavesSurvived(), run.won, run.firstWin, game.mods.crystalGain);
 }
-// Partie abschließen: Rekord und Kristalle gutschreiben (genau einmal)
+// Sternenstaub nur für Wellen über dem Kartenziel
+function pendingDust() {
+  if (!run || run.finished) return 0;
+  return dustFor(MAPS.indexOf(def), wavesSurvived(), def.goal, game.mods.dustGain);
+}
+// Partie abschließen: Rekord, Kristalle und Sternenstaub gutschreiben (genau einmal)
 function finishRun() {
-  if (!run || run.finished || !game) return 0;
-  const n = pendingCrystals();
+  if (!run || run.finished || !game) return { c: 0, d: 0 };
+  const n = { c: pendingCrystals(), d: pendingDust() };
   run.finished = true;
   recordBest(def, wavesSurvived(), run.won);
-  progress.crystals += n;
+  progress.crystals += n.c;
+  progress.dust += n.d;
   saveProgress();
   return n;
+}
+function rewardText(n) {
+  return [n.c ? `<span class="ico crystal"></span>${t('ui.end.crystals', { n: n.c })}` : '', n.d ? `<span class="ico dust"></span>${t('ui.end.dust', { n: n.d })}` : ''].filter(Boolean).join('<br>');
 }
 
 // ---------- Karten laden ----------
@@ -177,7 +192,7 @@ function previewMap(m) {
 
 function renderMenu() {
   renderMapList(progress, (m) => (clearTimeout(previewTimer), sound.unlock(), sound.click(), loadMap(m, true)), previewMap);
-  $('menu-crystals').textContent = progress.crystals;
+  updateWallet();
 }
 
 function openMenu() {
@@ -232,22 +247,31 @@ function openResearch() {
   drawResearch();
 }
 function drawResearch() {
-  renderResearch(progress, (id) => {
-    const chk = canResearch(progress.research, progress.crystals, id);
+  renderResearch(progress, thumbs, (id) => {
+    const chk = canResearch(progress.research, { c: progress.crystals, d: progress.dust }, id);
     if (!chk.ok) return sound.deny();
-    progress.crystals -= chk.cost;
+    if (RESEARCH_CUR[id] === 'd') progress.dust -= chk.cost;
+    else progress.crystals -= chk.cost;
     progress.research[id] = (progress.research[id] || 0) + 1;
     saveProgress();
     sound.upgrade();
     drawResearch();
   });
-  $('menu-crystals').textContent = progress.crystals;
+  updateWallet();
 }
+function updateWallet() {
+  $('menu-crystals').textContent = progress.crystals;
+  $('menu-dust').textContent = progress.dust;
+  $('menu-dust-wrap').classList.toggle('hidden', !progress.dust);
+}
+$('btn-research-center').onclick = () => (centerResearch(), drawResearch());
 $('btn-research').onclick = openResearch;
 $('btn-research-top').onclick = openResearch;
 $('btn-research-close').onclick = () => closeModal();
 armedButton($('btn-research-refund'), 'ui.research.refund', 'ui.research.refundConfirm', () => {
-  progress.crystals += spentOn(progress.research);
+  const back = spentOn(progress.research);
+  progress.crystals += back.c;
+  progress.dust += back.d;
   progress.research = {};
   saveProgress();
   sound.sell();
@@ -304,6 +328,7 @@ armedButton($('btn-reset'), 'ui.settings.reset', 'ui.settings.resetConfirm', () 
   progress.maps = {};
   progress.research = {};
   progress.crystals = 0;
+  progress.dust = 0;
   saveProgress();
   closeModal();
   openMenu();
@@ -409,7 +434,7 @@ function updateHover() {
   const inside = hover && !hover.out;
   if (ui.ability === 'meteor') {
     board.showCursor(null);
-    if (hover) board.showRange(hover.x, hover.y, ABILITIES.meteor.radius, '.', '#ff8a3d');
+    if (hover) board.showRange(hover.x, hover.y, ABILITIES.meteor.radius * game.mods.meteorRadius, '.', '#ff8a3d');
     else board.showRange(null);
     return;
   }
@@ -544,7 +569,7 @@ window.addEventListener('keydown', (e) => {
   else if (lower === 'w') armAbility('blizzard');
   else if (lower === 'e') armAbility('overdrive');
   else if (lower === 'u' && ui.selected) {
-    if (game.upgrade(ui.selected)) sound.upgrade();
+    if (e.shiftKey ? game.upgradeMax(ui.selected) : game.upgrade(ui.selected)) sound.upgrade();
     else sound.deny();
   } else if (lower === 't' && ui.selected && ui.selected.def.kind !== 'support' && ui.selected.def.kind !== 'economy') {
     const i = TARGETING.findIndex((m) => m.key === ui.selected.targeting);
@@ -597,9 +622,12 @@ function processEvents() {
       case 'build':
         sound.build();
         break;
-      case 'rank':
+      case 'rank': {
         overlay.text(board.wx(e.x), 1.1, board.wz(e.y), t('ui.hud.rank', { n: e.rank }), '#c9a4ff', 13);
+        const tw = game.towers.find((x) => x.id === e.id);
+        if (e.choice && tw) hud.toast(t('ui.insp.chooseToast', { name: tower(tw.type).name, l: e.rank }));
         break;
+      }
       case 'wave': {
         sound.wave(e.boss);
         const w = game.waveDef(e.n);
@@ -645,7 +673,7 @@ function processEvents() {
         const extra = survived > before && before > 0 ? t('ui.end.newRecord') : before ? t('ui.end.record', { n: before }) : '';
         setTimeout(() => {
           openModal('end');
-          showEnd('defeat', game, def, extra, n ? `<span class="ico crystal"></span>${t('ui.end.crystals', { n })}` : '', [
+          showEnd('defeat', game, def, extra, rewardText(n), [
             [t('ui.end.toMenu'), 'ghost', () => openMenu()],
             [t('ui.end.again'), 'primary', () => (closeModal(), loadMap(def, true))],
           ]);

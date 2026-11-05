@@ -71,7 +71,7 @@
               <p data-i18n="ui.tagline"></p>
             </div>
             <button class="crystal-pill" id="btn-research-top">
-              <span class="ico crystal"></span><b id="menu-crystals">0</b><span data-i18n="ui.menu.research"></span>
+              <span class="ico crystal"></span><b id="menu-crystals">0</b><span class="dust-wrap" id="menu-dust-wrap"><span class="ico dust"></span><b id="menu-dust">0</b></span><span data-i18n="ui.menu.research"></span>
             </button>
           </header>
           <div class="chapters" id="chapter-tabs"></div>
@@ -115,11 +115,20 @@
           <div class="codex-head">
             <div>
               <h2 data-i18n="ui.research.title"></h2>
-              <p class="sub" data-i18n="ui.research.sub"></p>
+              <p class="sub" data-i18n="ui.research.hint"></p>
             </div>
-            <div class="crystal-pill static"><span class="ico crystal"></span><b id="research-crystals">0</b></div>
+            <div class="wallet">
+              <div class="crystal-pill static" data-i18n-title="ui.menu.crystals"><span class="ico crystal"></span><b id="research-crystals">0</b></div>
+              <div class="crystal-pill static dust" data-i18n-title="ui.research.dust"><span class="ico dust"></span><b id="research-dust">0</b></div>
+            </div>
           </div>
-          <div class="tree" id="tree"></div>
+          <div class="research-layout">
+            <div class="rgraph" id="rgraph">
+              <div class="rplane" id="rplane"></div>
+              <button class="icon-btn rcenter" id="btn-research-center" data-i18n-title="ui.research.center">⌖</button>
+            </div>
+            <aside class="rdetail" id="rdetail"></aside>
+          </div>
           <div class="row">
             <span class="spent" id="research-spent"></span>
             <button class="ghost" id="btn-research-refund" data-i18n="ui.research.refund"></button>
