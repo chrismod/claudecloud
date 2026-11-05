@@ -18,10 +18,9 @@ export class Overlay {
     this.dpr = dpr;
     this.w = this.stage.width || window.innerWidth;
     this.h = this.stage.height || window.innerHeight;
+    // Darstellungsgröße kommt aus dem CSS (100 %), hier nur die Auflösung
     this.cv.width = Math.round(this.w * dpr);
     this.cv.height = Math.round(this.h * dpr);
-    this.cv.style.width = this.w + 'px';
-    this.cv.style.height = this.h + 'px';
   }
 
   project(x, y, z) {

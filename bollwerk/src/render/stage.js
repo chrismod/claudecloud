@@ -5,6 +5,24 @@ import { EffectComposer } from 'three/examples/jsm/postprocessing/EffectComposer
 import { RenderPass } from 'three/examples/jsm/postprocessing/RenderPass.js';
 import { UnrealBloomPass } from 'three/examples/jsm/postprocessing/UnrealBloomPass.js';
 import { OutputPass } from 'three/examples/jsm/postprocessing/OutputPass.js';
+import { ShaderPass } from 'three/examples/jsm/postprocessing/ShaderPass.js';
+
+// Begrenzt die HDR-Werte vor dem Bloom. Glanzlichter sehr glatter Materialien können unter flachem Winkel
+// über das HalfFloat-Maximum (65504) steigen und werden unendlich; der Weichzeichner macht daraus NaN und
+// verschmiert es über die kleinen Mip-Stufen auf große Teile des Bildes – Chrome zeigt das Canvas dort
+// durchsichtig an (Bild nur noch in einem Streifen sichtbar).
+const SanitizeShader = {
+  uniforms: { tDiffuse: { value: null } },
+  vertexShader: 'void main() { gl_Position = projectionMatrix * modelViewMatrix * vec4(position, 1.0); }',
+  fragmentShader: `
+    uniform sampler2D tDiffuse;
+    void main() {
+      // texelFetch statt Filterung: ein unendlicher Nachbar mit Gewicht 0 ergäbe sonst wieder NaN
+      vec3 c = texelFetch(tDiffuse, ivec2(gl_FragCoord.xy), 0).rgb;
+      // max/min liefern bei NaN den anderen Wert: NaN -> 0, unendlich -> 64
+      gl_FragColor = vec4(min(max(c, vec3(0.0)), vec3(64.0)), 1.0);
+    }`,
+};
 
 export const THEMES = {
   meadow: {
@@ -278,6 +296,7 @@ export class Stage {
     const rt = new THREE.WebGLRenderTarget(256, 256, { type: THREE.HalfFloatType, samples: 4 });
     this.composer = new EffectComposer(renderer, rt);
     this.composer.addPass(new RenderPass(this.scene, this.camera));
+    this.composer.addPass(new ShaderPass(SanitizeShader));
     this.bloom = new UnrealBloomPass(new THREE.Vector2(256, 256), 0.6, 0.45, 1.25);
     this.composer.addPass(this.bloom);
     this.composer.addPass(new OutputPass());
@@ -378,7 +397,8 @@ export class Stage {
     const pr = Math.min(dpr, this.settings.quality === 'low' ? 1 : 2);
     this.renderer.setPixelRatio(pr);
     this.composer.setPixelRatio(pr);
-    this.renderer.setSize(w, h);
+    // false: keine Pixelgröße ins style schreiben – das Canvas bleibt per CSS bildschirmfüllend
+    this.renderer.setSize(w, h, false);
     this.composer.setSize(w, h);
     this.camera.aspect = w / h;
     this.camera.updateProjectionMatrix();

@@ -39,12 +39,18 @@ body {
   position: fixed;
   inset: 0;
 }
+/* Beide Canvas füllen den Bildschirm immer per CSS – JS setzt nur die Auflösung. Verpasst die
+   Größenmessung eine Änderung (eingebettete Ansichten), wird das Bild kurz gestreckt statt halb leer. */
 #stage canvas {
   display: block;
+  width: 100% !important;
+  height: 100% !important;
 }
 #overlay {
   position: fixed;
   inset: 0;
+  width: 100% !important;
+  height: 100% !important;
   pointer-events: none;
 }
 
